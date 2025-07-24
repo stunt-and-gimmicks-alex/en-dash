@@ -1,0 +1,978 @@
+// dockge/frontend/src/components/sidebar/logo.tsx
+import React from "react";
+
+export const Logo = (props: React.SVGProps<SVGSVGElement>) => (
+    <svg
+        height="28"
+        viewBox="0 0 143 50"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        {...props}
+    >
+        <title>Chief Penguin Officer</title>
+        <path
+            fillRule="evenodd"
+            clipRule="evenodd"
+            d="M20.127 0C15.466 0 11.2287 1.69492 7.83887 4.23729L30.9321 31.9915L49.788 17.7966C48.9406 7.83898 40.466 0 30.0846 0"
+            fill="var(--chakra-colors-color-palette-solid)"
+        />
+        <path
+            fillRule="evenodd"
+            clipRule="evenodd"
+            d="M30.0847 50C41.1017 50 50 41.1017 50 30.0847V29.0254L32.839 41.7373C30.9322 43.2203 28.178 42.7966 26.6949 41.1017L2.11864 11.4407C0.847458 13.983 0 16.9491 0 19.9152V29.8729C0 40.8898 8.89831 49.7881 19.9153 49.7881"
+            fill="var(--chakra-colors-color-palette-emphasized)"
+        />
+        <path
+            d="M67.736 37V11.8H71.876V37H67.736ZM70.58 37V33.22H83.756V37H70.58Z"
+            fill="var(--chakra-colors-fg)"
+        />
+    </svg>
+);
+
+// ../src/components/sidebar/ModuleDropdown.tsx - New component for module dropdowns
+import React, { useState } from "react";
+import { Button, Stack, Box } from "@chakra-ui/react";
+import { ChevronDown, type LucideIcon } from "lucide-react";
+import { SidebarLink } from "./SidebarLink";
+
+interface ModuleDropdownProps {
+    icon: LucideIcon;
+    label: string;
+    items: string[];
+    defaultOpen?: boolean;
+}
+
+export const ModuleDropdown: React.FC<ModuleDropdownProps> = ({
+    icon: Icon,
+    label,
+    items,
+    defaultOpen = false,
+}) => {
+    const [isOpen, setIsOpen] = useState(defaultOpen);
+
+    return (
+        <Box>
+            <Button
+                variant="ghost"
+                width="full"
+                justifyContent="space-between"
+                px="3"
+                py="2"
+                h="auto"
+                fontWeight="normal"
+                color={{ base: "gray.700", _dark: "gray.300" }}
+                _hover={{
+                    bg: { base: "brand.50", _dark: "brand.900" },
+                    color: "brand.600",
+                }}
+                borderRadius="md"
+                onClick={() => setIsOpen(!isOpen)}
+            >
+                <Box display="flex" alignItems="center" gap="3">
+                    <Icon size="16" />
+                    {label}
+                </Box>
+                <ChevronDown
+                    size="16"
+                    style={{
+                        transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
+                        transition: "transform 0.2s",
+                    }}
+                />
+            </Button>
+            {isOpen && (
+                <Stack gap="1" py="1" mt="1">
+                    {items.map((item) => (
+                        <SidebarLink key={item} pl="12" fontSize="sm">
+                            {item}
+                        </SidebarLink>
+                    ))}
+                </Stack>
+            )}
+        </Box>
+    );
+};
+
+// ../src/components/sidebar/Navbar.tsx - Mobile responsive navbar
+import React, { useState } from "react";
+import { Container, HStack, IconButton, Box } from "@chakra-ui/react";
+import { Menu } from "lucide-react";
+import { Logo } from "./Logo";
+import { Sidebar } from "./Sidebar";
+
+export const Navbar = () => {
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+    return (
+        <>
+            <Container
+                py="2.5"
+                bg={{ base: "white", _dark: "gray.800" }}
+                borderBottomWidth="1px"
+                borderColor={{ base: "gray.200", _dark: "gray.700" }}
+            >
+                <HStack justify="space-between">
+                    <Logo />
+                    <IconButton
+                        aria-label="Open Menu"
+                        variant="ghost"
+                        onClick={() => setIsDrawerOpen(true)}
+                        color={{ base: "gray.600", _dark: "gray.400" }}
+                    >
+                        <Menu />
+                    </IconButton>
+                </HStack>
+            </Container>
+
+            {/* Simple drawer overlay for mobile */}
+            {isDrawerOpen && (
+                <>
+                    <Box
+                        position="fixed"
+                        top="0"
+                        left="0"
+                        right="0"
+                        bottom="0"
+                        bg="blackAlpha.600"
+                        zIndex="1000"
+                        onClick={() => setIsDrawerOpen(false)}
+                    />
+                    <Box
+                        position="fixed"
+                        top="0"
+                        left="0"
+                        width="320px"
+                        height="100vh"
+                        bg={{ base: "white", _dark: "gray.800" }}
+                        zIndex="1001"
+                        transform={
+                            isDrawerOpen ? "translateX(0)" : "translateX(-100%)"
+                        }
+                        transition="transform 0.3s ease"
+                        borderRightWidth="1px"
+                        borderColor={{ base: "gray.200", _dark: "gray.700" }}
+                    >
+                        <Box p="4">
+                            <HStack justify="space-between" mb="4">
+                                <Logo />
+                                <IconButton
+                                    aria-label="Close Menu"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setIsDrawerOpen(false)}
+                                    color={{
+                                        base: "gray.600",
+                                        _dark: "gray.400",
+                                    }}
+                                >
+                                    ×
+                                </IconButton>
+                            </HStack>
+                            <Sidebar />
+                        </Box>
+                    </Box>
+                </>
+            )}
+        </>
+    );
+};
+
+// src/components/sidebar/SearchField.tsx
+import React from "react";
+import { Input, InputGroup, Box, Icon } from "@chakra-ui/react";
+import { Search } from "lucide-react";
+
+export const SearchField = () => {
+    return (
+        <InputGroup
+            flex="1"
+            startElement={
+                <Icon size="sm">
+                    <Search size="16" color="gray" />
+                </Icon>
+            }
+        >
+            <Input
+                placeholder="Search"
+                pl="10"
+                bg={{ base: "gray.100", _dark: "gray.700" }}
+                borderColor={{ base: "gray.200", _dark: "gray.600" }}
+                color={{ base: "gray.900", _dark: "gray.100" }}
+                _placeholder={{
+                    color: { base: "gray.500", _dark: "gray.400" },
+                }}
+                _focus={{
+                    borderColor: "brand.500",
+                    boxShadow: "0 0 0 1px var(--chakra-colors-brand-500)",
+                }}
+            />
+        </InputGroup>
+    );
+};
+
+// src/components/sidebar/Sidebar.tsx - Updated with grouped navigation and dropdowns
+import React from "react";
+import { Stack, Box, Text, type StackProps } from "@chakra-ui/react";
+import {
+    LayoutDashboard,
+    BarChart3,
+    Clock,
+    Bookmark,
+    HelpCircle,
+    Settings,
+    Server,
+    Activity,
+    HardDrive,
+    Cpu,
+    Network,
+    Shield,
+    Database,
+    Container,
+    Globe,
+} from "lucide-react";
+import { Logo } from "./Logo";
+import { SearchField } from "./SearchField";
+import { SidebarLink } from "./SidebarLink";
+import { UserProfile } from "./UserProfile";
+import { StacksLinks } from "./StacksLinks";
+import { ModuleDropdown } from "./ModuleDropdown";
+
+const serverLinks = [
+    { icon: LayoutDashboard, label: "Dashboard", isActive: true },
+    { icon: BarChart3, label: "System Monitor" },
+    { icon: HardDrive, label: "Storage" },
+    { icon: Cpu, label: "Processes" },
+    { icon: Network, label: "Network" },
+    { icon: Shield, label: "Security" },
+];
+
+const moduleGroups = [
+    {
+        icon: Container,
+        label: "Docker (Dockge)",
+        items: [
+            "Overview",
+            "Stacks",
+            "Containers",
+            "Images",
+            "Networks",
+            "Volumes",
+        ],
+    },
+    {
+        icon: Database,
+        label: "Databases",
+        items: ["MySQL", "PostgreSQL", "Redis", "MongoDB"],
+    },
+    {
+        icon: Globe,
+        label: "Web Services",
+        items: ["Nginx", "Apache", "SSL Certificates", "Virtual Hosts"],
+    },
+    {
+        icon: Activity,
+        label: "Monitoring",
+        items: ["Metrics", "Alerts", "Logs", "Uptime"],
+    },
+];
+
+export const Sidebar: React.FC<StackProps> = (props) => {
+    return (
+        <Stack
+            flex="1"
+            p={{ base: "4", md: "6" }}
+            bg={{ base: "gray.50", _dark: "gray.800" }}
+            borderRightWidth="1px"
+            borderColor={{ base: "gray.200", _dark: "gray.700" }}
+            justifyContent="space-between"
+            w="full"
+            h="full"
+            {...props}
+        >
+            <Stack gap="6">
+                <Logo style={{ alignSelf: "start" }} />
+                <SearchField />
+                <Stack gap="6">
+                    {/* Server Group */}
+                    <Stack gap="2">
+                        <Text
+                            fontWeight="semibold"
+                            fontSize="xs"
+                            color={{ base: "gray.500", _dark: "gray.400" }}
+                            textTransform="uppercase"
+                            letterSpacing="wider"
+                            px="3"
+                        >
+                            Server
+                        </Text>
+                        <Stack gap="1">
+                            {serverLinks.map((link, index) => (
+                                <SidebarLink
+                                    key={index}
+                                    isActive={link.isActive}
+                                    aria-current={
+                                        link.isActive ? "page" : undefined
+                                    }
+                                >
+                                    <link.icon size="16" /> {link.label}
+                                </SidebarLink>
+                            ))}
+                        </Stack>
+                    </Stack>
+
+                    {/* Modules Group */}
+                    <Stack gap="2">
+                        <Text
+                            fontWeight="semibold"
+                            fontSize="xs"
+                            color={{ base: "gray.500", _dark: "gray.400" }}
+                            textTransform="uppercase"
+                            letterSpacing="wider"
+                            px="3"
+                        >
+                            Modules
+                        </Text>
+                        <Stack gap="1">
+                            {moduleGroups.map((module, index) => (
+                                <ModuleDropdown
+                                    key={index}
+                                    icon={module.icon}
+                                    label={module.label}
+                                    items={module.items}
+                                    defaultOpen={
+                                        module.label === "Docker (Dockge)"
+                                    } // Open Dockge by default
+                                />
+                            ))}
+                        </Stack>
+                    </Stack>
+                </Stack>
+            </Stack>
+
+            <Stack gap="4">
+                <Box
+                    borderTop="1px"
+                    borderColor={{ base: "gray.200", _dark: "gray.700" }}
+                    pt="4"
+                >
+                    <Stack gap="1">
+                        <SidebarLink>
+                            <HelpCircle size="16" /> Help Center
+                        </SidebarLink>
+                        <SidebarLink>
+                            <Settings size="16" /> Settings
+                        </SidebarLink>
+                    </Stack>
+                </Box>
+                <UserProfile />
+            </Stack>
+        </Stack>
+    );
+};
+
+// src/components/sidebar/SidebarLink.tsx
+import React from "react";
+import { Button, type ButtonProps } from "@chakra-ui/react";
+
+interface Props extends ButtonProps {
+    href?: string;
+    isActive?: boolean;
+}
+
+export const SidebarLink: React.FC<Props> = ({
+    children,
+    href,
+    isActive,
+    ...buttonProps
+}) => {
+    return (
+        <Button
+            variant="ghost"
+            width="full"
+            justifyContent="flex-start"
+            gap="3"
+            color={
+                isActive ? "brand.600" : { base: "gray.600", _dark: "gray.400" }
+            }
+            bg={
+                isActive
+                    ? { base: "brand.50", _dark: "brand.900" }
+                    : "transparent"
+            }
+            _hover={{
+                bg: { base: "brand.50", _dark: "brand.900" },
+                color: "brand.600",
+            }}
+            {...buttonProps}
+        >
+            {children}
+        </Button>
+    );
+};
+
+// src/components/sidebar/StacksLinks.tsx --> Docker/Dockge section
+import React, { useState } from "react";
+import {
+    Button,
+    Collapsible,
+    Icon,
+    HStack,
+    Stack,
+    Box,
+} from "@chakra-ui/react";
+import { FileText, ChevronDown, Server } from "lucide-react";
+import { SidebarLink } from "./SidebarLink";
+
+export const StacksLinks = () => {
+    const [isOpen, setIsOpen] = useState(false);
+
+    return (
+        <Box>
+            <Button
+                variant="ghost"
+                width="full"
+                justifyContent="space-between"
+                color={{ base: "gray.600", _dark: "gray.400" }}
+                bg="transparent"
+                _hover={{
+                    bg: { base: "brand.50", _dark: "brand.900" },
+                    color: "brand.600",
+                }}
+                onClick={() => setIsOpen(!isOpen)}
+            >
+                <Box display="flex" alignItems="center" gap="3">
+                    <Server size="16" />
+                    Docker (by Dockge)
+                </Box>
+                <ChevronDown
+                    size="16"
+                    style={{
+                        transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
+                        transition: "transform 0.2s",
+                    }}
+                />
+            </Button>
+            {isOpen && (
+                <Stack gap="1" py="1" mt="1">
+                    {[
+                        "Web Services",
+                        "Databases",
+                        "Monitoring",
+                        "Networking",
+                    ].map((item) => (
+                        <SidebarLink key={item} pl="12" fontSize="sm">
+                            {item}
+                        </SidebarLink>
+                    ))}
+                </Stack>
+            )}
+        </Box>
+    );
+};
+
+// src/components/sidebar/UserProfile.tsx
+import React from "react";
+import {
+    HStack,
+    Stack,
+    Box,
+    Text,
+    IconButton,
+    Avatar,
+    AvatarGroup,
+} from "@chakra-ui/react";
+import { MoreVertical } from "lucide-react";
+
+export const UserProfile = () => {
+    return (
+        <HStack gap="3" justify="space-between">
+            <HStack gap="4">
+                <Avatar.Root>
+                    <Avatar.Fallback name="John Avatar" />
+                    <Avatar.Image src="dockge/frontend/public/vite.svg" />
+                </Avatar.Root>
+                <Stack gap="0">
+                    <Text
+                        fontSize="sm"
+                        fontWeight="medium"
+                        color={{ base: "gray.900", _dark: "gray.100" }}
+                    >
+                        John Avatar
+                    </Text>
+                    <Text
+                        fontSize="sm"
+                        color={{ base: "gray.600", _dark: "gray.400" }}
+                    >
+                        john.avatar@fakemail.notreal
+                    </Text>
+                </Stack>
+            </HStack>
+            <IconButton
+                variant="ghost"
+                aria-label="Open Menu"
+                size="sm"
+                color={{ base: "gray.600", _dark: "gray.400" }}
+                _hover={{ color: { base: "gray.900", _dark: "gray.100" } }}
+            >
+                <MoreVertical size="16" />
+            </IconButton>
+        </HStack>
+    );
+};
+
+// src/components/ui/color-mode.tsx --> light/dark mode, built-in from ChakraUI V3.22
+("use client");
+
+import type { IconButtonProps, SpanProps } from "@chakra-ui/react";
+import { ClientOnly, IconButton, Skeleton, Span } from "@chakra-ui/react";
+import { ThemeProvider, useTheme } from "next-themes";
+import type { ThemeProviderProps } from "next-themes";
+import * as React from "react";
+import { LuMoon, LuSun } from "react-icons/lu";
+
+export interface ColorModeProviderProps extends ThemeProviderProps {}
+
+export function ColorModeProvider(props: ColorModeProviderProps) {
+    return (
+        <ThemeProvider attribute="class" disableTransitionOnChange {...props} />
+    );
+}
+
+export type ColorMode = "light" | "dark";
+
+export interface UseColorModeReturn {
+    colorMode: ColorMode;
+    setColorMode: (colorMode: ColorMode) => void;
+    toggleColorMode: () => void;
+}
+
+export function useColorMode(): UseColorModeReturn {
+    const { resolvedTheme, setTheme, forcedTheme } = useTheme();
+    const colorMode = forcedTheme || resolvedTheme;
+    const toggleColorMode = () => {
+        setTheme(resolvedTheme === "dark" ? "light" : "dark");
+    };
+    return {
+        colorMode: colorMode as ColorMode,
+        setColorMode: setTheme,
+        toggleColorMode,
+    };
+}
+
+export function useColorModeValue<T>(light: T, dark: T) {
+    const { colorMode } = useColorMode();
+    return colorMode === "dark" ? dark : light;
+}
+
+export function ColorModeIcon() {
+    const { colorMode } = useColorMode();
+    return colorMode === "dark" ? <LuMoon /> : <LuSun />;
+}
+
+interface ColorModeButtonProps extends Omit<IconButtonProps, "aria-label"> {}
+
+export const ColorModeButton = React.forwardRef<
+    HTMLButtonElement,
+    ColorModeButtonProps
+>(function ColorModeButton(props, ref) {
+    const { toggleColorMode } = useColorMode();
+    return (
+        <ClientOnly fallback={<Skeleton boxSize="8" />}>
+            <IconButton
+                onClick={toggleColorMode}
+                variant="ghost"
+                aria-label="Toggle color mode"
+                size="sm"
+                ref={ref}
+                {...props}
+                css={{
+                    _icon: {
+                        width: "5",
+                        height: "5",
+                    },
+                }}
+            >
+                <ColorModeIcon />
+            </IconButton>
+        </ClientOnly>
+    );
+});
+
+export const LightMode = React.forwardRef<HTMLSpanElement, SpanProps>(
+    function LightMode(props, ref) {
+        return (
+            <Span
+                color="fg"
+                display="contents"
+                className="chakra-theme light"
+                colorPalette="gray"
+                colorScheme="light"
+                ref={ref}
+                {...props}
+            />
+        );
+    }
+);
+
+export const DarkMode = React.forwardRef<HTMLSpanElement, SpanProps>(
+    function DarkMode(props, ref) {
+        return (
+            <Span
+                color="fg"
+                display="contents"
+                className="chakra-theme dark"
+                colorPalette="gray"
+                colorScheme="dark"
+                ref={ref}
+                {...props}
+            />
+        );
+    }
+);
+
+// src/components/ui/provider.tsx
+import { ChakraProvider } from "@chakra-ui/react";
+import { ColorModeProvider, type ColorModeProviderProps } from "./color-mode";
+import { system } from "@/theme";
+
+export interface ProviderProps extends ColorModeProviderProps {
+    children: React.ReactNode;
+}
+
+export function Provider(props: ProviderProps) {
+    return (
+        <ChakraProvider value={system}>
+            <ColorModeProvider {...props} />
+        </ChakraProvider>
+    );
+}
+
+// src/components/HeaderStatsBlock.tsx
+import React from "react";
+import { Container, Heading, SimpleGrid, Stack, Text } from "@chakra-ui/react";
+
+interface StatData {
+    value: string;
+    label: string;
+    color?: string;
+}
+
+interface HeaderStatsBlockProps {
+    title?: string;
+    description?: string;
+    stats?: StatData[];
+}
+
+export const HeaderStatsBlock: React.FC<HeaderStatsBlockProps> = ({
+    title = "Dockge Container Management",
+    description = "Professional Docker Compose management with real-time monitoring, seamless deployments, and enterprise-grade reliability.",
+    stats = defaultStats,
+}) => {
+    return (
+        <Container py="8" maxW="dvw" float="left">
+            <Stack gap="8">
+                <Stack gap="3" maxW="none" align="flex-start">
+                    <Heading
+                        as="h2"
+                        fontSize={{ base: "2xl", md: "3xl" }}
+                        lineHeight="shorter"
+                        fontWeight="bold"
+                        color={{ base: "gray.900", _dark: "gray.100" }}
+                        textAlign="left"
+                    >
+                        {title}
+                    </Heading>
+
+                    <Text
+                        color={{ base: "gray.600", _dark: "gray.400" }}
+                        fontSize={{ base: "sm", md: "md" }}
+                        lineHeight="relaxed"
+                        textAlign="left"
+                    >
+                        {description}
+                    </Text>
+                </Stack>
+
+                <SimpleGrid columns={{ base: 2, md: 4 }} gap="6">
+                    {stats.map((item) => (
+                        <Stack
+                            gap="1"
+                            py="3"
+                            borderTopWidth="2px"
+                            borderTopColor={item.color || "blue.500"}
+                            key={item.label}
+                            align="flex-start"
+                        >
+                            <Text
+                                fontSize={{ base: "3xl", md: "4xl" }}
+                                fontWeight="medium"
+                                color={item.color || "blue.500"}
+                                lineHeight="none"
+                            >
+                                {item.value}
+                            </Text>
+                            <Text
+                                fontSize="xs"
+                                color={{ base: "gray.600", _dark: "gray.400" }}
+                            >
+                                {item.label}
+                            </Text>
+                        </Stack>
+                    ))}
+                </SimpleGrid>
+            </Stack>
+        </Container>
+    );
+};
+
+// Default stats for Dockge - these will eventually come from the server
+const defaultStats: StatData[] = [
+    {
+        value: "99.9%",
+        label: "system uptime",
+        color: "green.500",
+    },
+    {
+        value: "12",
+        label: "active stacks",
+        color: "blue.500",
+    },
+    {
+        value: "48",
+        label: "running containers",
+        color: "purple.500",
+    },
+    {
+        value: "2.4GB",
+        label: "memory usage",
+        color: "orange.500",
+    },
+];
+
+// Hook for fetching live stats (placeholder for now)
+export const useDockerStats = () => {
+    const [stats, setStats] = React.useState<StatData[]>(defaultStats);
+    const [loading, setLoading] = React.useState(false);
+    const [error, setError] = React.useState<string | null>(null);
+
+    // TODO: Replace with actual API call to your Dockge backend
+    const fetchStats = React.useCallback(async () => {
+        setLoading(true);
+        try {
+            // Simulate API call
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+
+            // Mock dynamic data - replace with actual API call
+            const mockStats: StatData[] = [
+                {
+                    value: `${(Math.random() * 2 + 98).toFixed(1)}%`,
+                    label: "system uptime",
+                    color: "green.500",
+                },
+                {
+                    value: `${Math.floor(Math.random() * 20 + 5)}`,
+                    label: "active stacks",
+                    color: "blue.500",
+                },
+                {
+                    value: `${Math.floor(Math.random() * 100 + 20)}`,
+                    label: "running containers",
+                    color: "purple.500",
+                },
+                {
+                    value: `${(Math.random() * 3 + 1).toFixed(1)}GB`,
+                    label: "memory usage",
+                    color: "orange.500",
+                },
+            ];
+
+            setStats(mockStats);
+            setError(null);
+        } catch (err) {
+            setError("Failed to fetch stats");
+            console.error("Stats fetch error:", err);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    React.useEffect(() => {
+        fetchStats();
+
+        // Refresh stats every 30 seconds
+        const interval = setInterval(fetchStats, 30000);
+        return () => clearInterval(interval);
+    }, [fetchStats]);
+
+    return { stats, loading, error, refetch: fetchStats };
+};
+
+// Live Stats Component that fetches real data
+export const LiveHeaderStatsBlock: React.FC<
+    Omit<HeaderStatsBlockProps, "stats">
+> = (props) => {
+    const { stats, loading, error } = useDockerStats();
+
+    if (error) {
+        console.warn("Stats error:", error);
+    }
+
+    return (
+        <HeaderStatsBlock {...props} stats={loading ? defaultStats : stats} />
+    );
+};
+
+export default HeaderStatsBlock;
+
+// src/components/Layout.tsx - Using official Chakra UI v3 color mode
+import React from "react";
+import { Container, Flex, Stack, Box, Text } from "@chakra-ui/react";
+import { ColorModeButton } from "@/components/ui/color-mode";
+import { Navbar } from "./sidebar/Navbar";
+import { Sidebar } from "./sidebar/Sidebar";
+import { HeaderStatsBlock } from "./HeaderStatsBlock";
+
+// Keep the placeholder components for Column and Content
+export interface ContentPlaceholderProps {
+    minH?: string | number;
+    maxW?: string | { base?: string; lg?: string; md?: string };
+    borderWidth?: string;
+    borderBottomWidth?: string;
+    borderRightWidth?: string;
+    position?: string;
+    top?: string;
+    height?: string;
+    flex?: string;
+    children?: React.ReactNode;
+    [key: string]: any;
+}
+
+export const ContentPlaceholder: React.FC<ContentPlaceholderProps> = (
+    props
+) => (
+    <Box
+        {...props}
+        bg={{ base: "gray.50", _dark: "gray.800" }}
+        border="1px solid"
+        borderColor={{ base: "gray.200", _dark: "gray.700" }}
+        display="flex"
+        w="100%"
+        backgroundImage={`url("data:image/svg+xml,%3Csvg width='6' height='6' viewBox='0 0 6 6' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%239C92AC' fill-opacity='0.2' fillRule='evenodd'%3E%3Cpath d='M5 0h1L0 6V5zM6 5v1H5z'/%3E%3C/g%3E%3C/svg%3E")`}
+        backgroundClip="padding-box"
+    />
+);
+
+export const Label: React.FC<{ children: React.ReactNode }> = ({
+    children,
+}) => (
+    <Box p="2">
+        <Text
+            color={{ base: "gray.500", _dark: "gray.400" }}
+            fontWeight="medium"
+            fontSize="sm"
+            whiteSpace="nowrap"
+        >
+            {children}
+        </Text>
+    </Box>
+);
+
+export const Column: React.FC<ContentPlaceholderProps> = (props) => {
+    return (
+        <ContentPlaceholder
+            borderWidth="1px"
+            maxW={{ base: "full", lg: "sm" }}
+            minH="40"
+            {...props}
+        >
+            <Label>Column</Label>
+        </ContentPlaceholder>
+    );
+};
+
+export const Content: React.FC<ContentPlaceholderProps> = (props) => {
+    return (
+        <ContentPlaceholder minH="2xl" borderWidth="1px" {...props}>
+            <Label>Content</Label>
+        </ContentPlaceholder>
+    );
+};
+
+// Main Layout Component
+export const Layout: React.FC = () => {
+    return (
+        <Box minH="100vh" bg={{ base: "white", _dark: "gray.900" }}>
+            {/* Color Mode Toggle - using official Chakra UI component */}
+            <Box position="fixed" top="4" right="4" zIndex="1000">
+                <ColorModeButton />
+            </Box>
+
+            {/* Navbar - show only on mobile */}
+            <Box display={{ base: "block", md: "none" }}>
+                <Navbar />
+            </Box>
+
+            <Flex flex="1" minH="100vh">
+                {/* Sidebar - show only on desktop */}
+                <Box display={{ base: "none", md: "block" }}>
+                    <Box
+                        w="280px"
+                        minW="280px"
+                        position="sticky"
+                        top="0"
+                        height="100vh"
+                    >
+                        <Sidebar />
+                    </Box>
+                </Box>
+
+                <Stack gap="0" flex="1" alignItems="stretch">
+                    {/* Header Stats Block - replaces the placeholder header */}
+                    <HeaderStatsBlock />
+
+                    <Container display="flex" flex="1" maxW="full" py="8">
+                        <Stack
+                            gap="8"
+                            direction={{ base: "column", lg: "row" }}
+                            flex="1"
+                        >
+                            <Column />
+                            <Content />
+                        </Stack>
+                    </Container>
+                </Stack>
+            </Flex>
+        </Box>
+    );
+};
+
+export default Layout;
+
+// src/App.tsx
+import React from "react";
+import { Box } from "@chakra-ui/react";
+import Layout from "./components/Layout";
+
+const App = () => {
+    return (
+        <Box minH="100vh" bg="white">
+            <Layout />
+        </Box>
+    );
+};
+
+export default App;
+
+// src/main.tsx
+import { Provider } from "@/components/ui/provider";
+import React from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App";
+
+ReactDOM.createRoot(document.getElementById("root")!).render(
+    <React.StrictMode>
+        <Provider>
+            <App />
+        </Provider>
+    </React.StrictMode>
+);
