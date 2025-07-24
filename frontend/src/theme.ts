@@ -17,7 +17,7 @@ const config = defineConfig({
           900: { value: "#002109" },
           950: { value: "#001505" },
         },
-        brandGrey: {
+        brandGray: {
           50: { value: "#F1F1F1" },
           100: { value: "#D9D9D9" },
           200: { value: "#C4C4C4" },

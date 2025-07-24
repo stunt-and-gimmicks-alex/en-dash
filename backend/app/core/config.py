@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     
     # CORS Settings
     ALLOWED_ORIGINS: List[str] = [
-        "http://localhost:3000",  # React dev server
+        "http://localhost:5173",  # React dev server
         "http://localhost:5173",  # Vite dev server
         "http://localhost:8080",  # Alternative dev port
         "http://localhost:8001",  # Our backend for self-requests

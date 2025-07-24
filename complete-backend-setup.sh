@@ -35,7 +35,7 @@ make install
 # Start development servers
 make dev
 
-# Visit http://localhost:3000
+# Visit http://localhost:5173
 ```
 
 ## Development
@@ -48,7 +48,7 @@ npm run dev
 # Backend development  
 cd backend
 source venv/bin/activate
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+uvicorn main:app --reload --host 0.0.0.0 --port 8001
 ```
 
 ## Production Deployment
@@ -131,16 +131,16 @@ install:
 # Start development servers
 dev:
 	@echo "🚀 Starting development servers..."
-	@echo "Frontend: http://localhost:3000"
-	@echo "Backend API: http://localhost:8000"
-	@echo "API Docs: http://localhost:8000/docs"
+	@echo "Frontend: http://localhost:5173"
+	@echo "Backend API: http://localhost:8001"
+	@echo "API Docs: http://localhost:8001/docs"
 	@make -j2 dev-frontend dev-backend
 
 dev-frontend:
 	cd frontend && npm run dev
 
 dev-backend:
-	cd backend && source venv/bin/activate && uvicorn main:app --reload --host 0.0.0.0 --port 8000
+	cd backend && source venv/bin/activate && uvicorn main:app --reload --host 0.0.0.0 --port 8001
 
 # Build for production
 build:
@@ -171,8 +171,8 @@ test:
 # Quick health check
 health:
 	@echo "🩺 Checking system health..."
-	@curl -s http://localhost:8000/api/health | python3 -m json.tool || echo "Backend not running"
-	@curl -s http://localhost:3000 > /dev/null && echo "✅ Frontend: OK" || echo "❌ Frontend: Not running"
+	@curl -s http://localhost:8001/api/health | python3 -m json.tool || echo "Backend not running"
+	@curl -s http://localhost:5173 > /dev/null && echo "✅ Frontend: OK" || echo "❌ Frontend: Not running"
 EOF
 
 # Create backend directory structure
@@ -293,7 +293,7 @@ class Settings(BaseSettings):
     
     # CORS Settings
     ALLOWED_ORIGINS: List[str] = [
-        "http://localhost:3000",  # React dev server
+        "http://localhost:5173",  # React dev server
         "http://localhost:5173",  # Vite dev server
         "http://localhost:8080",  # Alternative dev port
         "http://localhost:8001",  # Our backend for self-requests

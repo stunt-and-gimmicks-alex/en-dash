@@ -5,7 +5,7 @@ A modern, comprehensive home server management platform built with React + FastA
 ## Features
 
 - **Docker Management**: Complete Docker container and compose stack management
-- **System Monitoring**: Real-time CPU, memory, disk, and network monitoring  
+- **System Monitoring**: Real-time CPU, memory, disk, and network monitoring
 - **Process Management**: View and manage system processes and services
 - **File System**: Browse and manage server files and configurations
 - **Network Management**: Monitor and configure network settings
@@ -27,7 +27,7 @@ make install
 # Start development servers
 make dev
 
-# Visit http://localhost:3000
+# Visit http://localhost:5173
 ```
 
 ## Development
@@ -37,10 +37,10 @@ make dev
 cd frontend
 npm run dev
 
-# Backend development  
+# Backend development
 cd backend
 source venv/bin/activate
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+uvicorn main:app --reload --host 0.0.0.0 --port 8001
 ```
 
 ## Production Deployment
