@@ -43,20 +43,51 @@ export interface ApiSystemStats {
     used: number;
     free: number;
     percent: number;
+    available?: number;
+    cached?: number;
+    buffers?: number;
+    raw_used?: number;
+    raw_percent?: number;
+  };
+  swap: {
+    total: number;
+    used: number;
+    free: number;
+    percent: number;
   };
   disk: Array<{
     device: string;
     mountpoint: string;
+    fstype: string;
     total: number;
     used: number;
     free: number;
     percent: number;
   }>;
+  network: {
+    bytes_sent: number;
+    bytes_recv: number;
+    packets_sent: number;
+    packets_recv: number;
+    interfaces: Array<{
+      name: string;
+      ip_addresses: string[];
+      is_up: boolean;
+      speed: number;
+      mtu: number;
+    }>;
+  };
   uptime: number;
   timestamp: string;
 }
 
 export interface ApiDockerStats {
+  stacks: {
+    total: number;
+    running: number;
+    stopped: number;
+    partial: number;
+  };
   containers: {
     total: number;
     running: number;
@@ -122,6 +153,33 @@ class ApiService {
     containers_running: number;
   }> {
     return this.fetchApi("/docker/health");
+  }
+
+  // =============================================================================
+  // METRICS DATA
+  // =============================================================================
+
+  async getCPUMetrics(hours: number = 1): Promise<{
+    metric_type: string;
+    data: Array<{ timestamp: string; value: number }>;
+    summary: { average: number; minimum: number; maximum: number };
+  }> {
+    return this.fetchApi(`/metrics/cpu?hours=${hours}`);
+  }
+
+  async getMemoryMetrics(hours: number = 1): Promise<{
+    metric_type: string;
+    data: Array<{ timestamp: string; value: number }>;
+    summary: { average: number; minimum: number; maximum: number };
+  }> {
+    return this.fetchApi(`/metrics/memory?hours=${hours}`);
+  }
+
+  async getLatestMetrics(): Promise<{
+    timestamp: string;
+    metrics: Record<string, { value: number; timestamp: string }>;
+  }> {
+    return this.fetchApi("/metrics/latest");
   }
 
   // =============================================================================

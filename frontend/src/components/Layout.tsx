@@ -42,26 +42,19 @@ export const ContentPlaceholder: React.FC<ContentPlaceholderProps> = ({
 }) => (
   <Box
     {...props}
-    bg={{ base: "gray.50", _dark: "gray.800" }}
-    border="1px solid"
-    borderColor={{ base: "gray.200", _dark: "gray.700" }}
+    bg="brand.surfaceContainerLowest"
     display="flex"
     w="100%"
-    backgroundImage={`url("data:image/svg+xml,%3Csvg width='6' height='6' viewBox='0 0 6 6' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%239C92AC' fill-opacity='0.2' fillRule='evenodd'%3E%3Cpath d='M5 0h1L0 6V5zM6 5v1H5z'/%3E%3C/g%3E%3C/svg%3E")`}
     backgroundClip="padding-box"
     alignItems="center"
     justifyContent="center"
     flexDirection="column"
     gap="4"
   >
-    <Text
-      fontSize="xl"
-      fontWeight="bold"
-      color={{ base: "gray.600", _dark: "gray.400" }}
-    >
+    <Text fontSize="xl" fontWeight="bold" color="brand.onBackground">
       {pageName}
     </Text>
-    <Text fontSize="sm" color={{ base: "gray.500", _dark: "gray.500" }}>
+    <Text fontSize="sm" color="brand.onSurface">
       This page is coming soon...
     </Text>
   </Box>
@@ -72,7 +65,7 @@ export const Label: React.FC<{ children: React.ReactNode }> = ({
 }) => (
   <Box p="2">
     <Text
-      color={{ base: "gray.500", _dark: "gray.400" }}
+      color="brand.onSurface"
       fontWeight="medium"
       fontSize="sm"
       whiteSpace="nowrap"
@@ -84,12 +77,7 @@ export const Label: React.FC<{ children: React.ReactNode }> = ({
 
 export const Column: React.FC<ContentPlaceholderProps> = (props) => {
   return (
-    <ContentPlaceholder
-      borderWidth="1px"
-      maxW={{ base: "full", lg: "sm" }}
-      minH="40"
-      {...props}
-    >
+    <ContentPlaceholder maxW={{ base: "full", lg: "sm" }} minH="40" {...props}>
       <Label>Column</Label>
     </ContentPlaceholder>
   );
@@ -97,7 +85,7 @@ export const Column: React.FC<ContentPlaceholderProps> = (props) => {
 
 export const Content: React.FC<ContentPlaceholderProps> = (props) => {
   return (
-    <ContentPlaceholder minH="2xl" borderWidth="1px" {...props}>
+    <ContentPlaceholder minH="2xl" {...props}>
       <Label>Content</Label>
     </ContentPlaceholder>
   );
@@ -211,27 +199,27 @@ export const Layout: React.FC = () => {
   const getPageTitle = (page: CurrentPage): string => {
     switch (page) {
       case "dashboard":
-        return "Server Dashboard";
+        return " Server Dashboard";
       case "system-monitor":
-        return "System Monitor";
+        return " System Monitor";
       case "storage":
-        return "Storage Management";
+        return " Storage Management";
       case "processes":
-        return "Process Manager";
+        return " Process Manager";
       case "network":
-        return "Network Configuration";
+        return " Network Configuration";
       case "security":
-        return "Security Center";
+        return " Security Center";
       case "docker-overview":
-        return "Docker Management";
+        return " Docker Management";
       case "databases-overview":
-        return "Database Management";
+        return " Database Management";
       case "web-services-overview":
-        return "Web Services";
+        return " Web Services";
       case "monitoring-overview":
-        return "System Monitoring";
+        return " System Monitoring";
       default:
-        return "Home Server Management";
+        return "";
     }
   };
 
@@ -263,7 +251,7 @@ export const Layout: React.FC = () => {
   };
 
   return (
-    <Box minH="100vh" bg={{ base: "brandGrey.100", _dark: "brandGray.950" }}>
+    <Box minH="100vh" bg="brand.surfaceContainerLowest">
       {/* Color Mode Toggle */}
       <Box position="fixed" top="4" right="4" zIndex="1000">
         <ColorModeButton />
@@ -277,7 +265,7 @@ export const Layout: React.FC = () => {
       <Flex flex="1" minH="100vh">
         {/* Sidebar - show only on desktop, pass navigation props */}
         <Box display={{ base: "none", md: "block" }}>
-          <Box w="280px" minW="280px" position="sticky" top="0" height="100vh">
+          <Box w="325px" minW="325px" position="sticky" top="0" height="100vh">
             <SidebarWithNavigation
               currentPage={currentPage}
               onNavigate={handleNavigation}

@@ -31,8 +31,21 @@ async def get_system_stats():
         cpu_count = psutil.cpu_count()
         load_avg = os.getloadavg() if hasattr(os, 'getloadavg') else [0, 0, 0]
         
-        # Memory information
+        # Memory information - more accurate calculation
         memory = psutil.virtual_memory()
+        
+        # Calculate "actual" memory usage (excluding buffers/cache on Linux)
+        # This should match what tools like htop and OCCT show more closely
+        if hasattr(memory, 'available'):
+            # On Linux, use available memory for more accurate calculation
+            actual_used = memory.total - memory.available
+            actual_percent = (actual_used / memory.total) * 100
+        else:
+            # Fallback for other systems
+            actual_used = memory.used
+            actual_percent = memory.percent
+
+        # Swap information - THIS WAS MISSING!
         swap = psutil.swap_memory()
         
         # Disk information
@@ -81,12 +94,15 @@ async def get_system_stats():
             },
             memory={
                 "total": memory.total,
-                "available": memory.available,
-                "used": memory.used,
+                "available": memory.available if hasattr(memory, 'available') else memory.free,
+                "used": actual_used,  # Use calculated actual usage
                 "free": memory.free,
-                "percent": memory.percent,
+                "percent": round(actual_percent, 2),  # Use calculated percentage
                 "cached": getattr(memory, 'cached', 0),
-                "buffers": getattr(memory, 'buffers', 0)
+                "buffers": getattr(memory, 'buffers', 0),
+                # Add raw values for debugging
+                "raw_used": memory.used,
+                "raw_percent": memory.percent
             },
             swap={
                 "total": swap.total,

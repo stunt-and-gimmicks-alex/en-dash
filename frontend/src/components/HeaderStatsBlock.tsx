@@ -1,5 +1,17 @@
+// src/components/HeaderStatsBlock.tsx - Updated with Network I/O component
 import React from "react";
-import { Container, Heading, SimpleGrid, Stack, Text } from "@chakra-ui/react";
+import {
+  Container,
+  Heading,
+  Highlight,
+  SimpleGrid,
+  Stack,
+  Text,
+} from "@chakra-ui/react";
+import { CPUSparkline } from "./charts/CPUSparkline";
+import { MemorySparkline } from "./charts/MemorySparkline";
+import { DiskUsageDonut } from "./charts/DiskUsageDonut";
+import { NetworkIOBars } from "./charts/NetworkIOBars";
 
 interface StatData {
   value: string;
@@ -14,12 +26,12 @@ interface HeaderStatsBlockProps {
 }
 
 export const HeaderStatsBlock: React.FC<HeaderStatsBlockProps> = ({
-  title = "en–dash: Better Homelab Management.",
-  description = "Comprehensive homelab dashboard and management suite with a clean, modern, customizeable interface in React+Chakra, and a Python RESTful API for accessing system components.",
+  title = "En-Dash Server Management",
+  description = "Professional home server management with real-time monitoring, seamless deployments, and enterprise-grade reliability.",
   stats = defaultStats,
 }) => {
   return (
-    <Container py="8" maxW="dvw" float="left">
+    <Container py="8" maxW="dvw" float="left" bg="brand.background">
       <Stack gap="8">
         <Stack gap="3" maxW="none" align="flex-start">
           <Heading
@@ -27,14 +39,16 @@ export const HeaderStatsBlock: React.FC<HeaderStatsBlockProps> = ({
             fontSize={{ base: "2xl", md: "3xl" }}
             lineHeight="shorter"
             fontWeight="bold"
-            color={{ base: "brand.500", _dark: "brand.500" }}
+            color={{ base: "gray.900", _dark: "gray.100" }}
             textAlign="left"
           >
-            {title}
+            <Highlight query=" / " styles={{ color: "primary.500" }}>
+              en-dash / An Elegant Homelab Control Center
+            </Highlight>
           </Heading>
 
           <Text
-            color={{ base: "gray.600", _dark: "gray.400" }}
+            color="brand.onSurfaceVariant"
             fontSize={{ base: "sm", md: "md" }}
             lineHeight="relaxed"
             textAlign="left"
@@ -44,68 +58,54 @@ export const HeaderStatsBlock: React.FC<HeaderStatsBlockProps> = ({
         </Stack>
 
         <SimpleGrid columns={{ base: 2, md: 4 }} gap="6">
-          {stats.map((item) => (
-            <Stack
-              gap="1"
-              py="3"
-              borderTopWidth="2px"
-              borderTopColor={item.color || "blue.500"}
-              key={item.label}
-              align="flex-start"
-            >
-              <Text
-                fontSize={{ base: "3xl", md: "4xl" }}
-                fontWeight="medium"
-                color={item.color || "blue.500"}
-                lineHeight="none"
-              >
-                {item.value}
-              </Text>
-              <Text
-                fontSize="xs"
-                color={{ base: "gray.600", _dark: "gray.400" }}
-              >
-                {item.label}
-              </Text>
-            </Stack>
-          ))}
+          {/* CPU Usage Sparkline - First position */}
+          <CPUSparkline />
+
+          {/* Memory Usage Sparkline - Second position */}
+          <MemorySparkline />
+
+          {/* Disk Usage Bar Chart - Third position */}
+          <DiskUsageDonut />
+
+          {/* Network I/O Bars - Fourth position */}
+          <NetworkIOBars />
         </SimpleGrid>
       </Stack>
     </Container>
   );
 };
 
-// Default stats for Dockge - these will eventually come from the server
+// Default stats for the remaining positions (if any)
 const defaultStats: StatData[] = [
   {
-    value: "99.9%",
-    label: "system uptime",
+    value: "0%", // This will be replaced by CPUSparkline
+    label: "cpu usage",
     color: "green.500",
   },
   {
-    value: "12",
-    label: "active stacks",
+    value: "0%", // This will be replaced by MemorySparkline
+    label: "memory usage",
     color: "blue.500",
   },
   {
-    value: "48",
-    label: "running containers",
+    value: "0%", // This will be replaced by DiskUsageDonut
+    label: "disk usage",
     color: "purple.500",
   },
   {
-    value: "2.4GB",
-    label: "memory usage",
-    color: "orange.500",
+    value: "0", // This will be replaced by NetworkIOBars
+    label: "network i/o",
+    color: "cyan.500",
   },
 ];
 
-// Hook for fetching live stats (placeholder for now)
+// Hook for fetching live stats (placeholder for remaining stats)
 export const useDockerStats = () => {
   const [stats, setStats] = React.useState<StatData[]>(defaultStats);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
-  // TODO: Replace with actual API call to your Dockge backend
+  // TODO: Replace with actual API call to your backend
   const fetchStats = React.useCallback(async () => {
     setLoading(true);
     try {
@@ -115,24 +115,24 @@ export const useDockerStats = () => {
       // Mock dynamic data - replace with actual API call
       const mockStats: StatData[] = [
         {
-          value: `${(Math.random() * 2 + 98).toFixed(1)}%`,
-          label: "system uptime",
+          value: "CPU", // Will be replaced by sparkline
+          label: "cpu usage",
           color: "green.500",
         },
         {
-          value: `${Math.floor(Math.random() * 20 + 5)}`,
-          label: "active stacks",
+          value: "MEM", // Will be replaced by sparkline
+          label: "memory usage",
           color: "blue.500",
         },
         {
-          value: `${Math.floor(Math.random() * 100 + 20)}`,
-          label: "running containers",
+          value: "DISK", // Will be replaced by bar chart
+          label: "disk usage",
           color: "purple.500",
         },
         {
-          value: `${(Math.random() * 3 + 1).toFixed(1)}GB`,
-          label: "memory usage",
-          color: "orange.500",
+          value: "NET", // Will be replaced by network bars
+          label: "network i/o",
+          color: "cyan.500",
         },
       ];
 
