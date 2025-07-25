@@ -1,3 +1,4 @@
+# backend/app/core/config.py - Fixed CORS configuration
 """Application configuration settings"""
 
 from typing import List
@@ -10,13 +11,17 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api"
     PROJECT_NAME: str = "En-Dash"
     
-    # CORS Settings
+    # CORS Settings - FIXED for development
     ALLOWED_ORIGINS: List[str] = [
-        "http://localhost:5173",  # React dev server
-        "http://localhost:5173",  # Vite dev server
-        "http://localhost:8080",  # Alternative dev port
-        "http://localhost:8001",  # Our backend for self-requests
+        "http://localhost:5173",        # Local development
+        "http://192.168.1.69:5173",     # Server frontend
+        "http://YOUR_DESKTOP_IP:5173",  # Your work desktop
+        "http://127.0.0.1:5173",        # IPv4 localhost
+        # ... other origins
     ]
+    
+    # For development, allow all origins (remove in production!)
+    ALLOW_ALL_ORIGINS: bool = True
     
     # Docker Settings
     DOCKER_SOCKET: str = "unix://var/run/docker.sock"

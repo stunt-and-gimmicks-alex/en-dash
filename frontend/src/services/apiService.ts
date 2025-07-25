@@ -1,9 +1,31 @@
-// frontend/src/services/apiService.ts - New REST API service to replace dockgeApi
+// frontend/src/services/apiService.ts - Smart API service with dynamic URL detection
 
-const API_BASE_URL =
-  process.env.NODE_ENV === "production"
-    ? "http://localhost:8001/api" // Changed to port 8001
-    : "http://localhost:8001/api";
+// Smart API URL detection function
+const getApiBaseUrl = (): string => {
+  // Check for environment variable first
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  if (envUrl) {
+    return envUrl;
+  }
+
+  // Auto-detect based on current window location
+  if (typeof window !== "undefined") {
+    const { hostname, protocol } = window.location;
+
+    // If accessing via server IP, use same IP for API
+    if (hostname !== "localhost" && hostname !== "127.0.0.1") {
+      return `${protocol}//${hostname}:8001/api`;
+    }
+  }
+
+  // Default fallback for localhost development
+  return "http://localhost:8001/api";
+};
+
+const API_BASE_URL = getApiBaseUrl();
+
+// Log the detected URL for debugging
+console.log("🔗 API Base URL detected:", API_BASE_URL);
 
 // Types (keep your existing interfaces, add these new ones)
 export interface ApiContainer {
@@ -111,6 +133,7 @@ class ApiService {
 
   constructor(baseUrl: string = API_BASE_URL) {
     this.baseUrl = baseUrl;
+    console.log("🚀 ApiService initialized with URL:", this.baseUrl);
   }
 
   // Generic fetch wrapper with error handling
@@ -118,8 +141,11 @@ class ApiService {
     endpoint: string,
     options?: RequestInit
   ): Promise<T> {
+    const url = `${this.baseUrl}${endpoint}`;
+    console.log("📡 API Request:", url);
+
     try {
-      const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      const response = await fetch(url, {
         headers: {
           "Content-Type": "application/json",
           ...options?.headers,
@@ -131,64 +157,35 @@ class ApiService {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
-      return await response.json();
+      const data = await response.json();
+      console.log("✅ API Response received for:", endpoint);
+      return data;
     } catch (error) {
-      console.error(`API error (${endpoint}):`, error);
+      console.error("❌ API Error for:", url, error);
       throw error;
     }
   }
 
-  // Health checks
-  async healthCheck(): Promise<{
-    status: string;
-    service: string;
-    version: string;
-  }> {
+  // =============================================================================
+  // HEALTH & CONNECTION
+  // =============================================================================
+
+  async healthCheck(): Promise<{ status: string; service: string }> {
     return this.fetchApi("/health");
-  }
-
-  async dockerHealthCheck(): Promise<{
-    status: string;
-    version: any;
-    containers_running: number;
-  }> {
-    return this.fetchApi("/docker/health");
-  }
-
-  // =============================================================================
-  // METRICS DATA
-  // =============================================================================
-
-  async getCPUMetrics(hours: number = 1): Promise<{
-    metric_type: string;
-    data: Array<{ timestamp: string; value: number }>;
-    summary: { average: number; minimum: number; maximum: number };
-  }> {
-    return this.fetchApi(`/metrics/cpu?hours=${hours}`);
-  }
-
-  async getMemoryMetrics(hours: number = 1): Promise<{
-    metric_type: string;
-    data: Array<{ timestamp: string; value: number }>;
-    summary: { average: number; minimum: number; maximum: number };
-  }> {
-    return this.fetchApi(`/metrics/memory?hours=${hours}`);
-  }
-
-  async getLatestMetrics(): Promise<{
-    timestamp: string;
-    metrics: Record<string, { value: number; timestamp: string }>;
-  }> {
-    return this.fetchApi("/metrics/latest");
   }
 
   // =============================================================================
   // DOCKER MANAGEMENT
   // =============================================================================
 
-  // Containers
+  // Docker health check
+  async getDockerHealth(): Promise<{ status: string; docker_version: string }> {
+    return this.fetchApi("/docker/health");
+  }
+
+  // Container management
   async getContainers(): Promise<ApiContainer[]> {
-    return this.fetchApi("/docker/containers?all=true");
+    return this.fetchApi("/docker/containers");
   }
 
   async startContainer(containerId: string): Promise<{ message: string }> {
@@ -209,51 +206,42 @@ class ApiService {
     });
   }
 
-  async getContainerLogs(
-    containerId: string,
-    tail: number = 100
-  ): Promise<{ logs: string[] }> {
-    return this.fetchApi(`/docker/containers/${containerId}/logs?tail=${tail}`);
+  async removeContainer(containerId: string): Promise<{ message: string }> {
+    return this.fetchApi(`/docker/containers/${containerId}`, {
+      method: "DELETE",
+    });
   }
 
-  // Stacks
+  // Stack management
   async getStacks(): Promise<ApiStack[]> {
     return this.fetchApi("/docker/stacks");
   }
 
-  async startStack(
-    stackName: string
-  ): Promise<{ message: string; output: string }> {
+  async startStack(stackName: string): Promise<{ message: string }> {
     return this.fetchApi(`/docker/stacks/${stackName}/start`, {
       method: "POST",
     });
   }
 
-  async stopStack(
-    stackName: string
-  ): Promise<{ message: string; output: string }> {
+  async stopStack(stackName: string): Promise<{ message: string }> {
     return this.fetchApi(`/docker/stacks/${stackName}/stop`, {
       method: "POST",
     });
   }
 
-  async restartStack(
-    stackName: string
-  ): Promise<{ message: string; output: string }> {
+  async restartStack(stackName: string): Promise<{ message: string }> {
     return this.fetchApi(`/docker/stacks/${stackName}/restart`, {
       method: "POST",
     });
   }
 
-  async pullStack(
-    stackName: string
-  ): Promise<{ message: string; output: string }> {
-    return this.fetchApi(`/docker/stacks/${stackName}/pull`, {
-      method: "POST",
+  async removeStack(stackName: string): Promise<{ message: string }> {
+    return this.fetchApi(`/docker/stacks/${stackName}`, {
+      method: "DELETE",
     });
   }
 
-  // Docker resources
+  // Docker images
   async getImages(): Promise<
     Array<{
       id: string;
@@ -265,27 +253,13 @@ class ApiService {
     return this.fetchApi("/docker/images");
   }
 
-  async getNetworks(): Promise<
-    Array<{
-      id: string;
-      name: string;
-      driver: string;
-      scope: string;
-    }>
-  > {
-    return this.fetchApi("/docker/networks");
+  async removeImage(imageId: string): Promise<{ message: string }> {
+    return this.fetchApi(`/docker/images/${imageId}`, {
+      method: "DELETE",
+    });
   }
 
-  async getVolumes(): Promise<
-    Array<{
-      name: string;
-      driver: string;
-      mountpoint: string;
-    }>
-  > {
-    return this.fetchApi("/docker/volumes");
-  }
-
+  // Docker stats
   async getDockerStats(): Promise<ApiDockerStats> {
     return this.fetchApi("/docker/stats");
   }
@@ -302,28 +276,52 @@ class ApiService {
     hostname: string;
     system: string;
     release: string;
+    version: string;
+    machine: string;
+    processor: string;
+    python_version: string;
     cpu_count: number;
     memory_total: number;
+    disk_total: number;
   }> {
     return this.fetchApi("/system/info");
   }
 
-  async getProcesses(limit: number = 50): Promise<
+  // Process management
+  async getProcesses(
+    limit: number = 50,
+    sortBy: string = "cpu_percent"
+  ): Promise<
     Array<{
       pid: number;
       name: string;
       cpu_percent: number;
       memory_percent: number;
+      memory_mb: number;
       status: string;
       username: string;
+      command: string;
+      created: string;
     }>
   > {
-    return this.fetchApi(`/system/processes?limit=${limit}`);
+    return this.fetchApi(`/system/processes?limit=${limit}&sort_by=${sortBy}`);
   }
 
+  async killProcess(
+    pid: number,
+    signal: number = 15
+  ): Promise<{ message: string }> {
+    return this.fetchApi(`/system/processes/${pid}/kill`, {
+      method: "POST",
+      body: JSON.stringify({ signal }),
+    });
+  }
+
+  // Service management
   async getServices(limit: number = 100): Promise<
     Array<{
       name: string;
+      load_state: string;
       active_state: string;
       sub_state: string;
       description: string;
@@ -386,6 +384,11 @@ class ApiService {
     // Since REST is stateless, we're always "connected" if the API is reachable
     // You could enhance this with actual connectivity checks
     return "connected";
+  }
+
+  // Get the current API base URL (useful for debugging)
+  getBaseUrl(): string {
+    return this.baseUrl;
   }
 }
 

@@ -1,3 +1,4 @@
+# backend/main.py - Fixed CORS configuration
 """
 En-Dash Home Server Management API
 
@@ -22,14 +23,25 @@ app = FastAPI(
     redoc_url="/api/redoc",
 )
 
-# CORS middleware for frontend communication
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# CORS middleware for frontend communication - FIXED
+if settings.ALLOW_ALL_ORIGINS:
+    # Development mode - allow all origins
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],  # Allow all origins in development
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    # Production mode - use specific origins
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.ALLOWED_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 # Include API routers
 app.include_router(docker.router, prefix="/api/docker", tags=["docker"])
@@ -37,7 +49,11 @@ app.include_router(system.router, prefix="/api/system", tags=["system"])
 app.include_router(auth.router, prefix="/api/auth", tags=["authentication"])
 
 # Serve static files
-app.mount("/static", StaticFiles(directory="static"), name="static")
+try:
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+except Exception:
+    # Directory doesn't exist yet, that's okay
+    pass
 
 @app.get("/api/health")
 async def health_check():
@@ -45,7 +61,9 @@ async def health_check():
     return {
         "status": "healthy",
         "service": "en-dash-api", 
-        "version": "1.0.0"
+        "version": "1.0.0",
+        "cors_enabled": True,
+        "allowed_origins": settings.ALLOWED_ORIGINS if not settings.ALLOW_ALL_ORIGINS else ["*"]
     }
 
 @app.get("/")
@@ -54,13 +72,15 @@ async def root():
     return {
         "message": "En-Dash Home Server Management API",
         "docs": "/api/docs",
-        "health": "/api/health"
+        "health": "/api/health",
+        "cors_status": "enabled"
     }
 
 if __name__ == "__main__":
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
-        port=8001,  # Changed from 8000 to 8001
-        reload=True
+        port=8001,
+        reload=True,
+        log_level="info"
     )
