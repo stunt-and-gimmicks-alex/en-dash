@@ -24,9 +24,11 @@ import {
   LuLayers,
   LuSquare,
   LuSettings,
+  LuCalendarDays,
 } from "react-icons/lu";
 import type { ApiStack } from "@/services/apiService";
 import { useState } from "react";
+import { GiBrandyBottle } from "react-icons/gi";
 
 interface StackBlocksProps {
   stack: ApiStack;
@@ -62,19 +64,26 @@ export const StackBlocks: React.FC<StackBlocksProps> = ({
 
   return (
     <Container
-      maxW="6xl"
+      fluid
       p="8"
       bg={
         isSelected
-          ? "brand.surfaceContainerHigh"
-          : "brand.surfaceContainerHighest"
+          ? {
+              base: "brand.surfaceContainerHighest",
+              _hover: "brand.surfaceBright",
+            }
+          : {
+              base: "brand.surfaceContainer",
+              _hover: "brand.surfaceContainerHigh",
+            }
       }
       borderWidth="2px"
-      borderColor="transparent"
-      _hover={{
-        borderColor: "brand.focusRing",
-        bg: "brand.surfaceContainerHigh",
-      }}
+      borderColor={
+        isSelected
+          ? { base: "brand.outline", _hover: "brand.focusRing" }
+          : { base: "brand.outlineVariant", _hover: "brand.focusRing" }
+      }
+      onClick={handleContainerClick}
       transition="background-color 0.2s"
     >
       <Flex
@@ -129,14 +138,22 @@ export const StackBlocks: React.FC<StackBlocksProps> = ({
             fontFamily="mono"
             color="fg.muted"
             textStyle="sm"
-            gap="5"
+            gap="3"
             mb="2"
           >
             <HStack>
               <LuSettings /> {stack.containers?.length || 0} containers
             </HStack>
             <HStack>
-              <LuSettings /> {stack.path || "orphan" + stack.name}
+              <LuSettings /> {stack.path || "??_" + stack.name}
+            </HStack>
+            <HStack>
+              <LuCalendarDays />{" "}
+              {stack.last_modified
+                ? `Updated ${new Date(
+                    stack.last_modified
+                  ).toLocaleDateString()}`
+                : "Recently updated"}
             </HStack>
           </HStack>
         </Stack>
@@ -157,7 +174,7 @@ export const StackBlocks: React.FC<StackBlocksProps> = ({
               <Button
                 size="lg"
                 colorPalette="yellow"
-                variant="outline"
+                variant="subtle"
                 onClick={(e) => handleButtonClick(e, () => onStop(stack.name))}
                 disabled={disabled}
               >
@@ -172,7 +189,7 @@ export const StackBlocks: React.FC<StackBlocksProps> = ({
               </Button>
               <Button
                 size="lg"
-                colorPalette="yellow"
+                colorPalette="brand.Primary"
                 variant="outline"
                 onClick={(e) => handleButtonClick(e, () => onStart(stack.name))}
                 disabled={disabled}

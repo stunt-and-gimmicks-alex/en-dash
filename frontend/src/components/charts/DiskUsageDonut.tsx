@@ -66,7 +66,7 @@ export const DiskUsageDonut: React.FC = () => {
           {
             name: "Available",
             value: diskData.available / divisor,
-            color: "brand.onSurface",
+            color: "brand.outline",
           },
         ];
       })()
@@ -79,7 +79,7 @@ export const DiskUsageDonut: React.FC = () => {
         {
           name: "Available",
           value: 9,
-          color: "brand.onSurface",
+          color: "brand.onTertiary",
         },
       ];
 
@@ -235,7 +235,7 @@ export const DiskUsageDonut: React.FC = () => {
       background="brand.surfaceContainerHighest"
       borderRadius="0"
     >
-      <Card.Body pb="2">
+      <Card.Body pb="0">
         <Stat.Root>
           <Stat.Label color="brand.onPrimaryContainer">
             <HStack gap="2">

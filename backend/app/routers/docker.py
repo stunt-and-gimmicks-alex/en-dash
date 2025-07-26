@@ -172,9 +172,8 @@ async def get_container_logs(container_id: str, tail: int = 100, follow: bool = 
 # =============================================================================
 
 @router.get("/stacks", response_model=List[Stack])
-
 async def get_stacks():
-    """Get all Docker Compose stacks PLUS orphan containers as individual stacks"""
+    """Get all Docker Compose stacks from /opt/stacks AND external compose projects"""
     stacks_dir = Path(settings.STACKS_DIRECTORY)
     stacks = []
     
@@ -182,7 +181,21 @@ async def get_stacks():
         stacks_dir.mkdir(parents=True, exist_ok=True) 
     
     try:
-        # Process real compose stacks
+        # Track all compose-managed containers by project name
+        external_compose_projects = set()
+        
+        if docker_client:
+            all_containers = docker_client.containers.list(all=True)
+            
+            # First pass: identify all compose projects
+            for container in all_containers:
+                compose_project = container.labels.get('com.docker.compose.project')
+                if compose_project:
+                    external_compose_projects.add(compose_project)
+        
+        # Process stacks from /opt/stacks directory (En-Dash managed)
+        processed_projects = set()
+        
         for stack_path in stacks_dir.iterdir():
             if not stack_path.is_dir():
                 continue
@@ -199,10 +212,13 @@ async def get_stacks():
             if not compose_file:
                 continue
             
+            project_name = stack_path.name
+            processed_projects.add(project_name)
+            
             # Get containers for this stack
             if docker_client:
-                stack_containers = [c for c in docker_client.containers.list(all=True) 
-                                 if c.labels.get('com.docker.compose.project') == stack_path.name]
+                stack_containers = [c for c in all_containers 
+                                 if c.labels.get('com.docker.compose.project') == project_name]
             else:
                 stack_containers = []
             
@@ -229,7 +245,7 @@ async def get_stacks():
                 pass
             
             stacks.append(Stack(
-                name=stack_path.name,
+                name=project_name,
                 path=str(stack_path),
                 compose_file=compose_file,
                 status=status,
@@ -252,12 +268,70 @@ async def get_stacks():
                 last_modified=datetime.fromtimestamp(stack_path.stat().st_mtime).isoformat()
             ))
         
-        # Process orphan containers - FIXED INDENTATION
+        # Process external compose projects (not in /opt/stacks)
         if docker_client:
-            all_containers = docker_client.containers.list(all=True)
+            for project_name in external_compose_projects:
+                if project_name in processed_projects:
+                    continue  # Already processed from /opt/stacks
+                
+                # Get containers for this external project
+                project_containers = [c for c in all_containers 
+                                   if c.labels.get('com.docker.compose.project') == project_name]
+                
+                if not project_containers:
+                    continue
+                
+                running_containers = [c for c in project_containers if c.status == 'running']
+                
+                # Determine status
+                if len(running_containers) == len(project_containers):
+                    status = "running"
+                elif len(running_containers) > 0:
+                    status = "partial"
+                else:
+                    status = "stopped"
+                
+                # Get the compose file path from the first container's labels
+                compose_file_path = ""
+                working_dir = ""
+                if project_containers:
+                    labels = project_containers[0].labels
+                    compose_file_path = labels.get('com.docker.compose.project.config_files', '')
+                    working_dir = labels.get('com.docker.compose.project.working_dir', '')
+                
+                # Extract service names from containers
+                services = list(set(c.labels.get('com.docker.compose.service', c.name) 
+                              for c in project_containers))
+                
+                stacks.append(Stack(
+                    name=f"[External] {project_name}",  # Mark as external
+                    path=working_dir or "external",
+                    compose_file=compose_file_path.split('/')[-1] if compose_file_path else "external",
+                    status=status,
+                    services=services,
+                    containers=[
+                        Container(
+                            id=c.id,
+                            short_id=c.short_id,
+                            name=c.name,
+                            status=c.status,
+                            state=c.attrs['State']['Status'],
+                            image=c.image.tags[0] if c.image.tags else c.image.id,
+                            image_id=c.image.id,
+                            created=c.attrs['Created'],
+                            labels=c.labels or {},
+                            compose_project=c.labels.get('com.docker.compose.project'),
+                            compose_service=c.labels.get('com.docker.compose.service')
+                        ) for c in project_containers
+                    ],
+                    last_modified=project_containers[0].attrs['Created']
+                ))
+        
+        # Process truly orphaned containers (no compose labels)
+        if docker_client:
             stack_managed_containers = set()
             
-            # Collect IDs of all stack-managed containers
+            # Collect IDs of all compose-managed containers
             for container in all_containers:
                 if container.labels.get('com.docker.compose.project'):
                     stack_managed_containers.add(container.id)
@@ -281,7 +355,7 @@ async def get_stacks():
                             image=container.image.tags[0] if container.image.tags else container.image.id,
                             image_id=container.image.id,
                             created=container.attrs['Created'],
-                            ports=[],  # Keep empty, get details from /containers if needed
+                            ports=[],
                             labels=container.labels or {},
                             compose_project=None,
                             compose_service=None
@@ -431,8 +505,6 @@ async def get_volumes():
 # SYSTEM STATS
 # =============================================================================
 
-# Add this to your existing backend/app/routers/docker.py
-
 # Replace the existing /stats endpoint with this enhanced version:
 
 @router.get("/stats")
@@ -489,16 +561,8 @@ async def get_docker_stats():
         raise HTTPException(status_code=500, detail=f"Error retrieving Docker stats: {str(e)}")
 
 async def _get_stack_statistics():
-    """Get stack counts by status"""
+    """Get stack counts by status INCLUDING external compose projects and orphans"""
     stacks_dir = Path(settings.STACKS_DIRECTORY)
-    
-    if not stacks_dir.exists():
-        return {
-            "total": 0,
-            "running": 0,
-            "stopped": 0,
-            "partial": 0
-        }
     
     try:
         running_count = 0
@@ -506,41 +570,45 @@ async def _get_stack_statistics():
         partial_count = 0
         total_count = 0
         
-        for stack_path in stacks_dir.iterdir():
-            if not stack_path.is_dir():
-                continue
-                
-            # Find compose file
-            compose_files = ['docker-compose.yml', 'compose.yaml', 'docker-compose.yaml', 'compose.yml']
-            compose_file = None
-            for filename in compose_files:
-                if (stack_path / filename).exists():
-                    compose_file = filename
-                    break
-            
-            if not compose_file:
-                continue
-                
+        if not docker_client:
+            return {"total": 0, "running": 0, "stopped": 0, "partial": 0}
+        
+        all_containers = docker_client.containers.list(all=True)
+        
+        # Get all unique compose projects
+        compose_projects = set()
+        for container in all_containers:
+            project = container.labels.get('com.docker.compose.project')
+            if project:
+                compose_projects.add(project)
+        
+        # Count compose projects (both /opt/stacks and external)
+        for project_name in compose_projects:
             total_count += 1
+            project_containers = [c for c in all_containers 
+                               if c.labels.get('com.docker.compose.project') == project_name]
+            running_containers = [c for c in project_containers if c.status == 'running']
             
-            # Get containers for this stack
-            if docker_client:
-                stack_containers = [c for c in docker_client.containers.list(all=True) 
-                                 if c.labels.get('com.docker.compose.project') == stack_path.name]
-            else:
-                stack_containers = []
-            
-            running_containers = [c for c in stack_containers if c.status == 'running']
-            
-            # Determine stack status
-            if len(stack_containers) == 0:
-                stopped_count += 1
-            elif len(running_containers) == len(stack_containers):
+            if len(running_containers) == len(project_containers):
                 running_count += 1
             elif len(running_containers) > 0:
                 partial_count += 1
             else:
                 stopped_count += 1
+        
+        # Count orphan containers
+        stack_managed_containers = set()
+        for container in all_containers:
+            if container.labels.get('com.docker.compose.project'):
+                stack_managed_containers.add(container.id)
+        
+        for container in all_containers:
+            if container.id not in stack_managed_containers:
+                total_count += 1
+                if container.status == 'running':
+                    running_count += 1
+                else:
+                    stopped_count += 1
         
         return {
             "total": total_count,
@@ -550,10 +618,36 @@ async def _get_stack_statistics():
         }
         
     except Exception as e:
-        # Return zeros if there's an error
+        return {"total": 0, "running": 0, "stopped": 0, "partial": 0}
+
+@router.get("/debug/containers")
+async def debug_containers():
+    """Debug endpoint to see all containers and their labels"""
+    if not docker_client:
+        raise HTTPException(status_code=503, detail="Docker not available")
+    
+    try:
+        all_containers = docker_client.containers.list(all=True)
+        container_info = []
+        
+        for container in all_containers:
+            container_info.append({
+                "name": container.name,
+                "id": container.short_id,
+                "status": container.status,
+                "image": container.image.tags[0] if container.image.tags else container.image.id,
+                "labels": container.labels or {},
+                "compose_project": container.labels.get('com.docker.compose.project'),
+                "compose_service": container.labels.get('com.docker.compose.service'),
+                "is_orphan": not bool(container.labels.get('com.docker.compose.project'))
+            })
+        
         return {
-            "total": 0,
-            "running": 0,
-            "stopped": 0,
-            "partial": 0
+            "total_containers": len(container_info),
+            "containers": container_info,
+            "orphans": [c for c in container_info if c["is_orphan"]],
+            "compose_managed": [c for c in container_info if not c["is_orphan"]]
         }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error debugging containers: {str(e)}")
