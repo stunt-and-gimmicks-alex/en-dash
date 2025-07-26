@@ -35,7 +35,7 @@ export const DockerOverviewContent: React.FC = () => {
   } = useStacks();
   const { stats, stackCounts } = useDockerStats();
   const runningStacks = stacks.filter((stack) => stack.status === "running");
-  const partialgStacks = stacks.filter((stack) => stack.status === "partial");
+  const partialStacks = stacks.filter((stack) => stack.status === "partial");
   const stoppedStacks = stacks.filter((stack) => stack.status === "stopped");
 
   return (
@@ -396,15 +396,15 @@ export const DockerOverviewContent: React.FC = () => {
           </Tabs.Content>
           <Tabs.Content value="partial">
             <Stack gap="4">
-              {runningStacks.length === 0 ? (
+              {partialStacks.length === 0 ? (
                 <Box textAlign="center" py="8">
-                  <Text color="gray.500">No running stacks found</Text>
+                  <Text color="gray.500">No partial stacks found</Text>
                   <Button mt="2" onClick={refreshStacks}>
                     Refresh
                   </Button>
                 </Box>
               ) : (
-                runningStacks.map((stack) => (
+                partialStacks.map((stack) => (
                   <StackBlocks
                     key={stack.name}
                     stack={stack}
@@ -420,15 +420,15 @@ export const DockerOverviewContent: React.FC = () => {
           </Tabs.Content>
           <Tabs.Content value="stopped">
             <Stack gap="4">
-              {runningStacks.length === 0 ? (
+              {stoppedStacks.length === 0 ? (
                 <Box textAlign="center" py="8">
-                  <Text color="gray.500">No running stacks found</Text>
+                  <Text color="gray.500">No stopped stacks found</Text>
                   <Button mt="2" onClick={refreshStacks}>
                     Refresh
                   </Button>
                 </Box>
               ) : (
-                runningStacks.map((stack) => (
+                stoppedStacks.map((stack) => (
                   <StackBlocks
                     key={stack.name}
                     stack={stack}
