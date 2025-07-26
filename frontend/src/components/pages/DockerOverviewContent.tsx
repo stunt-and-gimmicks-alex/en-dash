@@ -22,6 +22,8 @@ import {
 import { Layers, Play, Plus, RotateCcw, Settings, Square } from "lucide-react";
 import { useStacks, useDockerStats } from "@/hooks/useApi";
 import { StackBlocks } from "@/components/pageblocks/DockerBlocks/DockerStacksOverviewBlock";
+import type { ApiStack } from "@/services/apiService";
+import { useState } from "react";
 
 export const DockerOverviewContent: React.FC = () => {
   const {
@@ -33,10 +35,18 @@ export const DockerOverviewContent: React.FC = () => {
     restartStack,
     refreshStacks,
   } = useStacks();
+
   const { stats, stackCounts } = useDockerStats();
+
   const runningStacks = stacks.filter((stack) => stack.status === "running");
   const partialStacks = stacks.filter((stack) => stack.status === "partial");
   const stoppedStacks = stacks.filter((stack) => stack.status === "stopped");
+
+  const [selectedStack, setSelectedStack] = useState<ApiStack | null>(null);
+
+  const handleStackToggle = (stack: ApiStack | null) => {
+    setSelectedStack(stack);
+  };
 
   return (
     <Box
@@ -387,6 +397,8 @@ export const DockerOverviewContent: React.FC = () => {
                     onStart={startStack}
                     onStop={stopStack}
                     onRestart={restartStack}
+                    onToggle={handleStackToggle} // NEW
+                    isSelected={selectedStack?.name === stack.name} // NEW
                     loading={loading}
                     disabled={!!error}
                   />
@@ -411,6 +423,8 @@ export const DockerOverviewContent: React.FC = () => {
                     onStart={startStack}
                     onStop={stopStack}
                     onRestart={restartStack}
+                    onToggle={handleStackToggle} // NEW
+                    isSelected={selectedStack?.name === stack.name} // NEW
                     loading={loading}
                     disabled={!!error}
                   />
@@ -435,6 +449,8 @@ export const DockerOverviewContent: React.FC = () => {
                     onStart={startStack}
                     onStop={stopStack}
                     onRestart={restartStack}
+                    onToggle={handleStackToggle} // NEW
+                    isSelected={selectedStack?.name === stack.name} // NEW
                     loading={loading}
                     disabled={!!error}
                   />

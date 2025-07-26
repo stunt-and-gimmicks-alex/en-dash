@@ -172,15 +172,17 @@ async def get_container_logs(container_id: str, tail: int = 100, follow: bool = 
 # =============================================================================
 
 @router.get("/stacks", response_model=List[Stack])
+
 async def get_stacks():
-    """Get all Docker Compose stacks from the stacks directory"""
+    """Get all Docker Compose stacks PLUS orphan containers as individual stacks"""
     stacks_dir = Path(settings.STACKS_DIRECTORY)
     stacks = []
     
-    if not stacks_dir.exists():
-        return stacks
+    if not stacks_dir.exists(): 
+        stacks_dir.mkdir(parents=True, exist_ok=True) 
     
     try:
+        # Process real compose stacks
         for stack_path in stacks_dir.iterdir():
             if not stack_path.is_dir():
                 continue
@@ -250,7 +252,45 @@ async def get_stacks():
                 last_modified=datetime.fromtimestamp(stack_path.stat().st_mtime).isoformat()
             ))
         
-        return sorted(stacks, key=lambda x: x.name)
+        # Process orphan containers - FIXED INDENTATION
+        if docker_client:
+            all_containers = docker_client.containers.list(all=True)
+            stack_managed_containers = set()
+            
+            # Collect IDs of all stack-managed containers
+            for container in all_containers:
+                if container.labels.get('com.docker.compose.project'):
+                    stack_managed_containers.add(container.id)
+            
+            # Create individual stacks for orphan containers
+            for container in all_containers:
+                if container.id not in stack_managed_containers:
+                    # Create a pseudo-stack for this orphan
+                    orphan_stack = Stack(
+                        name=f"_Orphan.{container.name}",
+                        path="",
+                        compose_file="",
+                        status="running" if container.status == "running" else "stopped",
+                        services=[container.name],
+                        containers=[Container(
+                            id=container.id,
+                            short_id=container.short_id,
+                            name=container.name,
+                            status=container.status,
+                            state=container.attrs['State']['Status'],
+                            image=container.image.tags[0] if container.image.tags else container.image.id,
+                            image_id=container.image.id,
+                            created=container.attrs['Created'],
+                            ports=[],  # Keep empty, get details from /containers if needed
+                            labels=container.labels or {},
+                            compose_project=None,
+                            compose_service=None
+                        )],
+                        last_modified=container.attrs['Created']
+                    )
+                    stacks.append(orphan_stack)
+        
+        return sorted(stacks, key=lambda x: (not x.name.startswith('_Orphan'), x.name))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving stacks: {str(e)}")
 

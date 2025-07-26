@@ -21,6 +21,7 @@ class Container(BaseModel):
     environment: List[str] = []
     mounts: List[Dict[str, Any]] = []
     networks: List[str] = []
+    ports: List[str] = []
     compose_project: Optional[str] = None
     compose_service: Optional[str] = None
     restart_policy: str = "no"

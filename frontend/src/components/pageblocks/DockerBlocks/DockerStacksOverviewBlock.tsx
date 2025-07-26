@@ -29,11 +29,12 @@ import type { ApiStack } from "@/services/apiService";
 import { useState } from "react";
 
 interface StackBlocksProps {
-  stack: ApiStack; // The entire stack object
+  stack: ApiStack;
   onStart: (stackName: string) => Promise<boolean>;
   onStop: (stackName: string) => Promise<boolean>;
   onRestart: (stackName: string) => Promise<boolean>;
-  onClick?: () => void; // Simple function
+  onToggle: (stack: ApiStack | null) => void; // NEW: Toggle callback
+  isSelected: boolean; // NEW: Selected state
   loading?: boolean;
   disabled?: boolean;
 }
@@ -43,21 +44,38 @@ export const StackBlocks: React.FC<StackBlocksProps> = ({
   onStart,
   onStop,
   onRestart,
+  onToggle,
+  isSelected,
   loading = false,
   disabled = false,
 }) => {
-  console.log("Received stack:", stack);
-  console.log("Stack keys:", stack ? Object.keys(stack) : "stack is undefined");
+  // Handle container click (but not button clicks)
+  const handleContainerClick = () => {
+    onToggle(isSelected ? null : stack);
+  };
+
+  // Prevent event bubbling from buttons
+  const handleButtonClick = (e: React.MouseEvent, action: () => void) => {
+    e.stopPropagation(); // This prevents container click
+    action();
+  };
+
   return (
     <Container
       maxW="6xl"
       p="8"
-      bg="brand.surfaceContainerHighest"
+      bg={
+        isSelected
+          ? "brand.surfaceContainerHigh"
+          : "brand.surfaceContainerHighest"
+      }
       borderWidth="2px"
       borderColor="transparent"
       _hover={{
         borderColor: "brand.focusRing",
+        bg: "brand.surfaceContainerHigh",
       }}
+      transition="background-color 0.2s"
     >
       <Flex
         justify="space-between"
@@ -125,10 +143,24 @@ export const StackBlocks: React.FC<StackBlocksProps> = ({
         <HStack gap="4">
           {stack.status === "running" ? (
             <>
-              <Button variant="ghost" colorPalette="gray" size="sm">
+              <Button
+                variant="ghost"
+                colorPalette="gray"
+                size="sm"
+                onClick={(e) =>
+                  handleButtonClick(e, () => onRestart(stack.name))
+                }
+                disabled={disabled}
+              >
                 <LuRotateCcw /> Restart
               </Button>
-              <Button size="lg" colorPalette="yellow" variant="outline">
+              <Button
+                size="lg"
+                colorPalette="yellow"
+                variant="outline"
+                onClick={(e) => handleButtonClick(e, () => onStop(stack.name))}
+                disabled={disabled}
+              >
                 <LuSquare />
                 Stop
               </Button>
@@ -138,7 +170,13 @@ export const StackBlocks: React.FC<StackBlocksProps> = ({
               <Button variant="ghost" colorPalette="gray" size="sm">
                 <LuRotateCcw /> Restart
               </Button>
-              <Button size="lg" colorPalette="yellow" variant="outline">
+              <Button
+                size="lg"
+                colorPalette="yellow"
+                variant="outline"
+                onClick={(e) => handleButtonClick(e, () => onStart(stack.name))}
+                disabled={disabled}
+              >
                 <LuRocket />
                 Start
               </Button>
