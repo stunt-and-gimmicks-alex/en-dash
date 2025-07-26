@@ -391,32 +391,43 @@ async def get_volumes():
 # SYSTEM STATS
 # =============================================================================
 
+# Add this to your existing backend/app/routers/docker.py
+
+# Replace the existing /stats endpoint with this enhanced version:
+
 @router.get("/stats")
 async def get_docker_stats():
-    """Get Docker system statistics"""
+    """Get comprehensive Docker system statistics including stack counts"""
     if not docker_client:
         raise HTTPException(status_code=503, detail="Docker daemon not available")
     
     try:
+        # Get basic Docker info
         info = docker_client.info()
         containers = docker_client.containers.list(all=True)
         images = docker_client.images.list()
         networks = docker_client.networks.list()
         volumes = docker_client.volumes.list()
         
+        # Container statistics
         running_containers = len([c for c in containers if c.status == 'running'])
         stopped_containers = len([c for c in containers if c.status == 'exited'])
+        paused_containers = len([c for c in containers if c.status == 'paused'])
+        
+        # Stack statistics - reuse the logic from get_stacks()
+        stacks_stats = await _get_stack_statistics()
         
         return {
+            "stacks": stacks_stats,
             "containers": {
                 "total": len(containers),
                 "running": running_containers,
                 "stopped": stopped_containers,
-                "paused": len([c for c in containers if c.status == 'paused']),
+                "paused": paused_containers,
             },
             "images": {
                 "total": len(images),
-                "size": sum(img.attrs['Size'] for img in images)
+                "size": sum(img.attrs.get('Size', 0) for img in images)
             },
             "networks": {
                 "total": len(networks)
@@ -436,3 +447,73 @@ async def get_docker_stats():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving Docker stats: {str(e)}")
+
+async def _get_stack_statistics():
+    """Get stack counts by status"""
+    stacks_dir = Path(settings.STACKS_DIRECTORY)
+    
+    if not stacks_dir.exists():
+        return {
+            "total": 0,
+            "running": 0,
+            "stopped": 0,
+            "partial": 0
+        }
+    
+    try:
+        running_count = 0
+        stopped_count = 0
+        partial_count = 0
+        total_count = 0
+        
+        for stack_path in stacks_dir.iterdir():
+            if not stack_path.is_dir():
+                continue
+                
+            # Find compose file
+            compose_files = ['docker-compose.yml', 'compose.yaml', 'docker-compose.yaml', 'compose.yml']
+            compose_file = None
+            for filename in compose_files:
+                if (stack_path / filename).exists():
+                    compose_file = filename
+                    break
+            
+            if not compose_file:
+                continue
+                
+            total_count += 1
+            
+            # Get containers for this stack
+            if docker_client:
+                stack_containers = [c for c in docker_client.containers.list(all=True) 
+                                 if c.labels.get('com.docker.compose.project') == stack_path.name]
+            else:
+                stack_containers = []
+            
+            running_containers = [c for c in stack_containers if c.status == 'running']
+            
+            # Determine stack status
+            if len(stack_containers) == 0:
+                stopped_count += 1
+            elif len(running_containers) == len(stack_containers):
+                running_count += 1
+            elif len(running_containers) > 0:
+                partial_count += 1
+            else:
+                stopped_count += 1
+        
+        return {
+            "total": total_count,
+            "running": running_count,
+            "stopped": stopped_count,
+            "partial": partial_count
+        }
+        
+    except Exception as e:
+        # Return zeros if there's an error
+        return {
+            "total": 0,
+            "running": 0,
+            "stopped": 0,
+            "partial": 0
+        }

@@ -247,11 +247,42 @@ export const useDockerStats = () => {
     return () => clearInterval(interval);
   }, [fetchStats]);
 
+  // Helper getters for easy access to counts
+  const stackCounts = stats?.stacks || {
+    total: 0,
+    running: 0,
+    stopped: 0,
+    partial: 0,
+  };
+
+  const containerCounts = stats?.containers || {
+    total: 0,
+    running: 0,
+    stopped: 0,
+    paused: 0,
+  };
+
   return {
     stats,
     loading,
     error,
     refreshStats: fetchStats,
+
+    // Easy access to specific counts
+    stackCounts,
+    containerCounts,
+    imageCounts: stats?.images || { total: 0, size: 0 },
+    networkCount: stats?.networks?.total || 0,
+    volumeCount: stats?.volumes?.total || 0,
+
+    // Helper methods
+    getTotalStacks: () => stackCounts.total,
+    getRunningStacks: () => stackCounts.running,
+    getStoppedStacks: () => stackCounts.stopped,
+    getPartialStacks: () => stackCounts.partial,
+
+    getTotalContainers: () => containerCounts.total,
+    getRunningContainers: () => containerCounts.running,
   };
 };
 

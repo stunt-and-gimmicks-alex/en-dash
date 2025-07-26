@@ -1,13 +1,19 @@
 import {
+  ActionBar,
   Badge,
   Button,
+  Checkbox,
   Container,
   Flex,
   HStack,
   Heading,
+  Kbd,
+  Link,
+  Portal,
   Stack,
   Status,
-  Link,
+  Table,
+  Text,
 } from "@chakra-ui/react";
 import {
   LuGitBranch,
@@ -19,10 +25,40 @@ import {
   LuSquare,
   LuSettings,
 } from "react-icons/lu";
+import type { ApiStack } from "@/services/apiService";
+import { useState } from "react";
 
-export const StackBlocks = () => {
+interface StackBlocksProps {
+  stack: ApiStack; // The entire stack object
+  onStart: (stackName: string) => Promise<boolean>;
+  onStop: (stackName: string) => Promise<boolean>;
+  onRestart: (stackName: string) => Promise<boolean>;
+  onClick?: () => void; // Simple function
+  loading?: boolean;
+  disabled?: boolean;
+}
+
+export const StackBlocks: React.FC<StackBlocksProps> = ({
+  stack,
+  onStart,
+  onStop,
+  onRestart,
+  loading = false,
+  disabled = false,
+}) => {
+  console.log("Received stack:", stack);
+  console.log("Stack keys:", stack ? Object.keys(stack) : "stack is undefined");
   return (
-    <Container maxW="6xl" p="8" bg="brand.surfaceContainerHighest">
+    <Container
+      maxW="6xl"
+      p="8"
+      bg="brand.surfaceContainerHighest"
+      borderWidth="2px"
+      borderColor="transparent"
+      _hover={{
+        borderColor: "brand.focusRing",
+      }}
+    >
       <Flex
         justify="space-between"
         align="flex-start"
@@ -31,18 +67,43 @@ export const StackBlocks = () => {
       >
         <Stack gap="3">
           <HStack fontWeight="medium" color="fg.muted">
-            <LuLayers /> Stack
+            <LuLayers /> Status:{" "}
+            <Status.Root
+              colorPalette={
+                stack.status === "running"
+                  ? "green"
+                  : stack.status === "partial"
+                  ? "yellow"
+                  : stack.status === "stopped"
+                  ? "red"
+                  : "gray"
+              }
+              color="brand.onSurfaceVariant"
+            >
+              {stack.status}&ensp;
+              <Status.Indicator />
+            </Status.Root>
           </HStack>
 
           <HStack>
             <Heading size="2xl" mr="4">
-              chakra-v3-docs
+              {stack.name}
             </Heading>
-            <Badge size="md" colorPalette="gray" fontWeight="medium">
-              Public
+            <Badge
+              size="sm"
+              variant="outline"
+              fontWeight="medium"
+              colorPalette="teal"
+              p="1"
+            >
+              {stack.containers?.filter((c) => c.status === "running").length ||
+                0}{" "}
+              running
             </Badge>
-            <Badge size="md" fontWeight="medium">
-              Template
+            <Badge size="sm" variant="outline" colorPalette="blue" p="1">
+              {stack.containers?.filter((c) => c.status === "exited").length ||
+                0}{" "}
+              stopped
             </Badge>
           </HStack>
 
@@ -54,30 +115,35 @@ export const StackBlocks = () => {
             mb="2"
           >
             <HStack>
-              <LuSettings /> chakra-ui/chakra-v3-docs
+              <LuSettings /> {stack.containers?.length || 0} containers
             </HStack>
             <HStack>
-              <LuSettings /> main
+              <LuSettings /> {stack.path || "orphan" + stack.name}
             </HStack>
-            <Status.Root colorPalette="green">
-              <Status.Indicator />
-              Ready
-            </Status.Root>
           </HStack>
-
-          <Link color="colorPalette.fg" href="#">
-            https://chakra-v3-docs.vercel.app
-          </Link>
         </Stack>
-
         <HStack gap="4">
-          <Button variant="outline" colorPalette="gray" size="lg">
-            <LuRotateCcw /> Rollback
-          </Button>
-          <Button size="lg">
-            <LuSettings />
-            Deploy
-          </Button>
+          {stack.status === "running" ? (
+            <>
+              <Button variant="ghost" colorPalette="gray" size="sm">
+                <LuRotateCcw /> Restart
+              </Button>
+              <Button size="lg" colorPalette="yellow" variant="outline">
+                <LuSquare />
+                Stop
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="ghost" colorPalette="gray" size="sm">
+                <LuRotateCcw /> Restart
+              </Button>
+              <Button size="lg" colorPalette="yellow" variant="outline">
+                <LuRocket />
+                Start
+              </Button>
+            </>
+          )}
         </HStack>
       </Flex>
     </Container>

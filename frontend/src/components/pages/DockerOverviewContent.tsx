@@ -1,4 +1,4 @@
-// src/components/pages/DockerOverviewContent.tsx - Updated with skeleton loading
+// src/components/pages/DockerOverviewContent.tsx - Fixed with correct API types
 import React from "react";
 import {
   Badge,
@@ -20,7 +20,7 @@ import {
   Text,
 } from "@chakra-ui/react";
 import { Layers, Play, Plus, RotateCcw, Settings, Square } from "lucide-react";
-import { useDockgeStacks, useDockgeStats } from "@/hooks/useDockge";
+import { useStacks, useDockerStats } from "@/hooks/useApi";
 import { StackBlocks } from "@/components/pageblocks/DockerBlocks/DockerStacksOverviewBlock";
 
 export const DockerOverviewContent: React.FC = () => {
@@ -32,7 +32,11 @@ export const DockerOverviewContent: React.FC = () => {
     stopStack,
     restartStack,
     refreshStacks,
-  } = useDockgeStacks();
+  } = useStacks();
+  const { stats, stackCounts } = useDockerStats();
+  const runningStacks = stacks.filter((stack) => stack.status === "running");
+  const partialgStacks = stacks.filter((stack) => stack.status === "partial");
+  const stoppedStacks = stacks.filter((stack) => stack.status === "stopped");
 
   return (
     <Box
@@ -67,7 +71,7 @@ export const DockerOverviewContent: React.FC = () => {
             <Skeleton loading={loading} height="4" width="80">
               <Text fontSize="sm" color="brand.onSurfaceVariant">
                 {error
-                  ? "Showing cached data - Connect to Dockge for live updates"
+                  ? "Showing cached data - API connection failed"
                   : "Manage your Docker Compose stacks"}
               </Text>
             </Skeleton>
@@ -81,7 +85,7 @@ export const DockerOverviewContent: React.FC = () => {
                 loading={loading}
                 colorPalette="brand"
               >
-                {error ? "Connect" : "Refresh"}
+                {error ? "Reconnect" : "Refresh"}
               </Button>
             </Skeleton>
             <Skeleton loading={loading} height="8" width="100%">
@@ -134,7 +138,7 @@ export const DockerOverviewContent: React.FC = () => {
               </Text>
               <Text fontSize="sm" color="brand.onError">
                 {error
-                  ? "Check your Dockge connection and try again"
+                  ? "Check your Docker setup and API connection"
                   : "Create your first stack or check your stacks directory"}
               </Text>
               {error ? (
@@ -142,7 +146,7 @@ export const DockerOverviewContent: React.FC = () => {
                   onClick={refreshStacks}
                   variant="outline"
                   size="sm"
-                  color="bran.errorContainer"
+                  colorPalette="orange"
                 >
                   Try Again
                 </Button>
@@ -194,12 +198,10 @@ export const DockerOverviewContent: React.FC = () => {
                           colorPalette={
                             stack.status === "running"
                               ? "green"
-                              : stack.status === "error"
+                              : stack.status === "partial"
+                              ? "yellow"
+                              : stack.status === "stopped"
                               ? "red"
-                              : stack.status === "starting"
-                              ? "blue"
-                              : stack.status === "stopping"
-                              ? "orange"
                               : "gray"
                           }
                           variant="solid"
@@ -230,9 +232,9 @@ export const DockerOverviewContent: React.FC = () => {
 
                       <Skeleton loading={loading} height="4" width="24">
                         <Text>
-                          {stack.lastUpdated
+                          {stack.last_modified
                             ? `Updated ${new Date(
-                                stack.lastUpdated
+                                stack.last_modified
                               ).toLocaleDateString()}`
                             : "Recently updated"}
                         </Text>
@@ -327,24 +329,24 @@ export const DockerOverviewContent: React.FC = () => {
         )}
       </Stack>
       <Container maxW="6xl" colorPalette="brand">
-        <Heading size="3xl" pb="6">
-          Docker Stacks
+        <Heading size="2xl" pb="2">
+          Stacks
         </Heading>
         <Tabs.Root size="lg" defaultValue="running">
           <Tabs.List>
             <Tabs.Trigger value="running">
               <Badge colorPalette="green" size="lg" variant="plain">
-                Running&emsp;{stacks?.length || 0}
+                Running&emsp;{stackCounts?.running || 0}
               </Badge>
             </Tabs.Trigger>
             <Tabs.Trigger value="partial">
               <Badge colorPalette="yellow" size="lg" variant="plain">
-                Partial&emsp;{stacks?.length || 0}
+                Partial&emsp;{stackCounts?.partial || 0}
               </Badge>
             </Tabs.Trigger>
             <Tabs.Trigger value="stopped">
               <Badge colorPalette="red" size="lg" variant="plain">
-                Stopped &emsp;{stacks?.length || 0}
+                Stopped &emsp;{stackCounts?.stopped || 0}
               </Badge>
             </Tabs.Trigger>
             <Spacer />
@@ -369,17 +371,76 @@ export const DockerOverviewContent: React.FC = () => {
             </HStack>
           </Tabs.List>
           <Tabs.Content value="running">
-            <StackBlocks />
+            <Stack gap="4">
+              {runningStacks.length === 0 ? (
+                <Box textAlign="center" py="8">
+                  <Text color="gray.500">No running stacks found</Text>
+                  <Button mt="2" onClick={refreshStacks}>
+                    Refresh
+                  </Button>
+                </Box>
+              ) : (
+                runningStacks.map((stack) => (
+                  <StackBlocks
+                    key={stack.name}
+                    stack={stack}
+                    onStart={startStack}
+                    onStop={stopStack}
+                    onRestart={restartStack}
+                    loading={loading}
+                    disabled={!!error}
+                  />
+                ))
+              )}
+            </Stack>
           </Tabs.Content>
           <Tabs.Content value="partial">
-            <Text h="100px" borderWidth="1px">
-              Something Else
-            </Text>
+            <Stack gap="4">
+              {runningStacks.length === 0 ? (
+                <Box textAlign="center" py="8">
+                  <Text color="gray.500">No running stacks found</Text>
+                  <Button mt="2" onClick={refreshStacks}>
+                    Refresh
+                  </Button>
+                </Box>
+              ) : (
+                runningStacks.map((stack) => (
+                  <StackBlocks
+                    key={stack.name}
+                    stack={stack}
+                    onStart={startStack}
+                    onStop={stopStack}
+                    onRestart={restartStack}
+                    loading={loading}
+                    disabled={!!error}
+                  />
+                ))
+              )}
+            </Stack>
           </Tabs.Content>
           <Tabs.Content value="stopped">
-            <Text h="100px" borderWidth="1px">
-              Something Else
-            </Text>
+            <Stack gap="4">
+              {runningStacks.length === 0 ? (
+                <Box textAlign="center" py="8">
+                  <Text color="gray.500">No running stacks found</Text>
+                  <Button mt="2" onClick={refreshStacks}>
+                    Refresh
+                  </Button>
+                </Box>
+              ) : (
+                runningStacks.map((stack) => (
+                  <StackBlocks
+                    key={stack.name}
+                    stack={stack}
+                    onStart={startStack}
+                    onStop={stopStack}
+                    onRestart={restartStack}
+                    loading={loading}
+                    disabled={!!error}
+                  />
+                ))
+              )}
+            </Stack>
           </Tabs.Content>
         </Tabs.Root>
       </Container>

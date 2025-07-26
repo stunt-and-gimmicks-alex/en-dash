@@ -126,9 +126,21 @@ export interface ApiDockerStats {
   volumes: {
     total: number;
   };
+  system: {
+    docker_version: string;
+    api_version: string;
+    kernel_version: string;
+    operating_system: string;
+    architecture: string;
+    cpus: number;
+    memory: number;
+  };
 }
 
 class ApiService {
+  dockerHealthCheck(): any {
+    throw new Error("Method not implemented.");
+  }
   private baseUrl: string;
 
   constructor(baseUrl: string = API_BASE_URL) {
