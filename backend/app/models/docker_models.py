@@ -58,11 +58,12 @@ class Stack(BaseModel):
     name: str
     path: str
     compose_file: str
+    compose_content: Optional[str] = None  # ADD: Raw YAML content
     status: str  # running, stopped, partial
     services: List[str] = []
     containers: List[Container] = []
     last_modified: Optional[str] = None
-
+    
 # Request/Response models
 class StackCreate(BaseModel):
     """Create new stack request"""

@@ -203,13 +203,15 @@ async def get_stacks():
             # Find compose file
             compose_files = ['docker-compose.yml', 'compose.yaml', 'docker-compose.yaml', 'compose.yml']
             compose_file = None
+            compose_path = None
             for filename in compose_files:
-                compose_path = stack_path / filename
-                if compose_path.exists():
+                potential_path = stack_path / filename
+                if potential_path.exists():
                     compose_file = filename
+                    compose_path = potential_path
                     break
             
-            if not compose_file:
+            if not compose_file or not compose_path:
                 continue
             
             project_name = stack_path.name
@@ -234,20 +236,24 @@ async def get_stacks():
             else:
                 status = "stopped"
             
-            # Read compose file for service info
+            # Read compose file for service info AND content
             services = []
+            compose_content = None
             try:
-                with open(stack_path / compose_file, 'r') as f:
-                    compose_data = yaml.safe_load(f)
+                with open(compose_path, 'r') as f:
+                    compose_content = f.read()  # Store raw content
+                    compose_data = yaml.safe_load(compose_content)  # Parse for services
                     if compose_data and 'services' in compose_data:
                         services = list(compose_data['services'].keys())
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"Error reading compose file {compose_path}: {e}")
+                # Still create the stack even if we can't read the file
             
             stacks.append(Stack(
                 name=project_name,
                 path=str(stack_path),
                 compose_file=compose_file,
+                compose_content=compose_content,  # ADD: Include raw content
                 status=status,
                 services=services,
                 containers=[
@@ -294,19 +300,26 @@ async def get_stacks():
                 # Get the compose file path from the first container's labels
                 compose_file_path = ""
                 working_dir = ""
+                compose_content = None
+                
                 if project_containers:
                     labels = project_containers[0].labels
                     compose_file_path = labels.get('com.docker.compose.project.config_files', '')
                     working_dir = labels.get('com.docker.compose.project.working_dir', '')
-                
-                # Extract service names from containers
-                services = list(set(c.labels.get('com.docker.compose.service', c.name) 
-                              for c in project_containers))
+                    
+                    # Try to read external compose file
+                    if compose_file_path and Path(compose_file_path).exists():
+                        try:
+                            with open(compose_file_path, 'r') as f:
+                                compose_content = f.read()
+                        except Exception as e:
+                            print(f"Error reading external compose file {compose_file_path}: {e}")
                 
                 stacks.append(Stack(
-                    name=f"[External] {project_name}",  # Mark as external
+                    name=f"[External] {project_name}",
                     path=working_dir or "external",
                     compose_file=compose_file_path.split('/')[-1] if compose_file_path else "external",
+                    compose_content=compose_content,  # ADD: Include content for external stacks too
                     status=status,
                     services=services,
                     containers=[
