@@ -55,55 +55,7 @@ async def get_containers(all: bool = True):
         raise HTTPException(status_code=503, detail="Docker daemon not available")
     
     try:
-        containers = []
-        for container in docker_client.containers.list(all=all):
-            # Get network information
-            networks = {}
-            if container.attrs.get('NetworkSettings', {}).get('Networks'):
-                networks = container.attrs['NetworkSettings']['Networks']
-            
-            # Get port mappings
-            port_mappings = []
-            if container.ports:
-                for container_port, host_ports in container.ports.items():
-                    if host_ports:
-                        for host_port in host_ports:
-                            port_mappings.append(f"{host_port['HostPort']}:{container_port}")
-                    else:
-                        port_mappings.append(container_port)
-            
-            # Get volume mounts
-            mounts = []
-            for mount in container.attrs.get('Mounts', []):
-                mounts.append({
-                    "source": mount.get('Source', ''),
-                    "destination": mount.get('Destination', ''),
-                    "mode": mount.get('Mode', ''),
-                    "type": mount.get('Type', '')
-                })
-            
-            containers.append(Container(
-                id=container.id,
-                short_id=container.short_id,
-                name=container.name,
-                status=container.status,
-                state=container.attrs['State']['Status'],
-                image=container.image.tags[0] if container.image.tags else container.image.id,
-                image_id=container.image.id,
-                created=container.attrs['Created'],
-                started_at=container.attrs['State'].get('StartedAt'),
-                finished_at=container.attrs['State'].get('FinishedAt'),
-                ports=port_mappings,
-                labels=container.labels or {},
-                environment=container.attrs['Config'].get('Env', []),
-                mounts=mounts,
-                networks=list(networks.keys()),
-                compose_project=container.labels.get('com.docker.compose.project'),
-                compose_service=container.labels.get('com.docker.compose.service'),
-                restart_policy=container.attrs['HostConfig'].get('RestartPolicy', {}).get('Name', 'no')
-            ))
-        
-        return containers
+        return await _get_all_containers_with_details()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving containers: {str(e)}")
 
@@ -167,6 +119,72 @@ async def get_container_logs(container_id: str, tail: int = 100, follow: bool = 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving logs: {str(e)}")
 
+async def _get_all_containers_with_details():
+    """Internal function to get all containers with full details (ports, etc.)"""
+    if not docker_client:
+        return []
+    
+    containers = []
+    for container in docker_client.containers.list(all=True):
+        # Extract ports from Docker API
+        ports = []
+        if 'Ports' in container.attrs:
+            for port_info in container.attrs['Ports']:
+                if 'PublicPort' in port_info and 'PrivatePort' in port_info:
+                    ports.append(f"{port_info['PublicPort']}:{port_info['PrivatePort']}")
+                elif 'PrivatePort' in port_info:
+                    ports.append(str(port_info['PrivatePort']))
+
+        # Fallback to NetworkSettings.Ports
+        if not ports and 'NetworkSettings' in container.attrs:
+            network_ports = container.attrs['NetworkSettings']['Ports']
+            for internal_port, external_bindings in network_ports.items():
+                if external_bindings:
+                    for binding in external_bindings:
+                        ports.append(f"{binding['HostPort']}:{internal_port.split('/')[0]}")
+                else:
+                    ports.append(internal_port.split('/')[0])
+        
+        # Get network information
+        networks = {}
+        if container.attrs.get('NetworkSettings', {}).get('Networks'):
+            networks = container.attrs['NetworkSettings']['Networks']
+        
+        # Get mounts
+        mounts = []
+        if 'Mounts' in container.attrs:
+            mounts = [
+                {
+                    "source": mount.get('Source', ''),
+                    "destination": mount.get('Destination', ''),
+                    "type": mount.get('Type', ''),
+                    "mode": mount.get('Mode', '')
+                }
+                for mount in container.attrs['Mounts']
+            ]
+        
+        containers.append(Container(
+            id=container.id,
+            short_id=container.short_id,
+            name=container.name,
+            status=container.status,
+            state=container.attrs['State']['Status'],
+            image=container.image.tags[0] if container.image.tags else container.image.id,
+            image_id=container.image.id,
+            created=container.attrs['Created'],
+            started_at=container.attrs['State'].get('StartedAt'),
+            finished_at=container.attrs['State'].get('FinishedAt'),
+            ports=ports,
+            labels=container.labels or {},
+            environment=container.attrs['Config'].get('Env', []),
+            mounts=mounts,
+            networks=list(networks.keys()),
+            compose_project=container.labels.get('com.docker.compose.project'),
+            compose_service=container.labels.get('com.docker.compose.service'),
+            restart_policy=container.attrs['HostConfig'].get('RestartPolicy', {}).get('Name', 'no')
+        ))
+    
+    return containers
 # =============================================================================
 # DOCKER COMPOSE STACK MANAGEMENT
 # =============================================================================
@@ -181,19 +199,22 @@ async def get_stacks():
         stacks_dir.mkdir(parents=True, exist_ok=True) 
     
     try:
-        # Track all compose-managed containers by project name
-        external_compose_projects = set()
+        # Get all containers with full details ONCE
+        all_containers = await _get_all_containers_with_details()
         
-        if docker_client:
-            all_containers = docker_client.containers.list(all=True)
-            
-            # First pass: identify all compose projects
-            for container in all_containers:
-                compose_project = container.labels.get('com.docker.compose.project')
-                if compose_project:
-                    external_compose_projects.add(compose_project)
+        # Convert to dict for easy lookup by project
+        containers_by_project = {}
+        orphan_containers = []
         
-        # Process stacks from /opt/stacks directory (En-Dash managed)
+        for container in all_containers:
+            if container.compose_project:
+                if container.compose_project not in containers_by_project:
+                    containers_by_project[container.compose_project] = []
+                containers_by_project[container.compose_project].append(container)
+            else:
+                orphan_containers.append(container)
+        
+        # Process stacks from /opt/stacks directory
         processed_projects = set()
         
         for stack_path in stacks_dir.iterdir():
@@ -217,13 +238,8 @@ async def get_stacks():
             project_name = stack_path.name
             processed_projects.add(project_name)
             
-            # Get containers for this stack
-            if docker_client:
-                stack_containers = [c for c in all_containers 
-                                 if c.labels.get('com.docker.compose.project') == project_name]
-            else:
-                stack_containers = []
-            
+            # Get containers for this stack (already with ports!)
+            stack_containers = containers_by_project.get(project_name, [])
             running_containers = [c for c in stack_containers if c.status == 'running']
             
             # Determine stack status
@@ -236,146 +252,86 @@ async def get_stacks():
             else:
                 status = "stopped"
             
-            # Read compose file for service info AND content
+            # Read compose file content
             services = []
             compose_content = None
             try:
                 with open(compose_path, 'r') as f:
-                    compose_content = f.read()  # Store raw content
-                    compose_data = yaml.safe_load(compose_content)  # Parse for services
+                    compose_content = f.read()
+                    compose_data = yaml.safe_load(compose_content)
                     if compose_data and 'services' in compose_data:
                         services = list(compose_data['services'].keys())
             except Exception as e:
                 print(f"Error reading compose file {compose_path}: {e}")
-                # Still create the stack even if we can't read the file
             
             stacks.append(Stack(
                 name=project_name,
                 path=str(stack_path),
                 compose_file=compose_file,
-                compose_content=compose_content,  # ADD: Include raw content
+                compose_content=compose_content,
                 status=status,
                 services=services,
-                containers=[
-                    Container(
-                        id=c.id,
-                        short_id=c.short_id,
-                        name=c.name,
-                        status=c.status,
-                        state=c.attrs['State']['Status'],
-                        image=c.image.tags[0] if c.image.tags else c.image.id,
-                        image_id=c.image.id,
-                        created=c.attrs['Created'],
-                        labels=c.labels or {},
-                        compose_project=c.labels.get('com.docker.compose.project'),
-                        compose_service=c.labels.get('com.docker.compose.service')
-                    ) for c in stack_containers
-                ],
+                containers=stack_containers,  # Already fully populated!
                 last_modified=datetime.fromtimestamp(stack_path.stat().st_mtime).isoformat()
             ))
         
-        # Process external compose projects (not in /opt/stacks)
-        if docker_client:
-            for project_name in external_compose_projects:
-                if project_name in processed_projects:
-                    continue  # Already processed from /opt/stacks
+        # Process external compose projects
+        for project_name, project_containers in containers_by_project.items():
+            if project_name in processed_projects:
+                continue  # Already processed from /opt/stacks
+            
+            running_containers = [c for c in project_containers if c.status == 'running']
+            
+            # Determine status
+            if len(running_containers) == len(project_containers):
+                status = "running"
+            elif len(running_containers) > 0:
+                status = "partial"
+            else:
+                status = "stopped"
+            
+            # Try to read external compose file
+            compose_content = None
+            compose_file_path = ""
+            working_dir = ""
+            
+            if project_containers:
+                labels = project_containers[0].labels
+                compose_file_path = labels.get('com.docker.compose.project.config_files', '')
+                working_dir = labels.get('com.docker.compose.project.working_dir', '')
                 
-                # Get containers for this external project
-                project_containers = [c for c in all_containers 
-                                   if c.labels.get('com.docker.compose.project') == project_name]
-                
-                if not project_containers:
-                    continue
-                
-                running_containers = [c for c in project_containers if c.status == 'running']
-                
-                # Determine status
-                if len(running_containers) == len(project_containers):
-                    status = "running"
-                elif len(running_containers) > 0:
-                    status = "partial"
-                else:
-                    status = "stopped"
-                
-                # Get the compose file path from the first container's labels
-                compose_file_path = ""
-                working_dir = ""
-                compose_content = None
-                
-                if project_containers:
-                    labels = project_containers[0].labels
-                    compose_file_path = labels.get('com.docker.compose.project.config_files', '')
-                    working_dir = labels.get('com.docker.compose.project.working_dir', '')
-                    
-                    # Try to read external compose file
-                    if compose_file_path and Path(compose_file_path).exists():
-                        try:
-                            with open(compose_file_path, 'r') as f:
-                                compose_content = f.read()
-                        except Exception as e:
-                            print(f"Error reading external compose file {compose_file_path}: {e}")
-                
-                stacks.append(Stack(
-                    name=f"[External] {project_name}",
-                    path=working_dir or "external",
-                    compose_file=compose_file_path.split('/')[-1] if compose_file_path else "external",
-                    compose_content=compose_content,  # ADD: Include content for external stacks too
-                    status=status,
-                    services=services,
-                    containers=[
-                        Container(
-                            id=c.id,
-                            short_id=c.short_id,
-                            name=c.name,
-                            status=c.status,
-                            state=c.attrs['State']['Status'],
-                            image=c.image.tags[0] if c.image.tags else c.image.id,
-                            image_id=c.image.id,
-                            created=c.attrs['Created'],
-                            labels=c.labels or {},
-                            compose_project=c.labels.get('com.docker.compose.project'),
-                            compose_service=c.labels.get('com.docker.compose.service')
-                        ) for c in project_containers
-                    ],
-                    last_modified=project_containers[0].attrs['Created']
-                ))
+                if compose_file_path and Path(compose_file_path).exists():
+                    try:
+                        with open(compose_file_path, 'r') as f:
+                            compose_content = f.read()
+                    except Exception as e:
+                        print(f"Error reading external compose file {compose_file_path}: {e}")
+            
+            services = list(set(c.compose_service for c in project_containers if c.compose_service))
+            
+            stacks.append(Stack(
+                name=f"[External] {project_name}",
+                path=working_dir or "external",
+                compose_file=compose_file_path.split('/')[-1] if compose_file_path else "external",
+                compose_content=compose_content,
+                status=status,
+                services=services,
+                containers=project_containers,  # Already fully populated!
+                last_modified=project_containers[0].created if project_containers else datetime.now().isoformat()
+            ))
         
-        # Process truly orphaned containers (no compose labels)
-        if docker_client:
-            stack_managed_containers = set()
-            
-            # Collect IDs of all compose-managed containers
-            for container in all_containers:
-                if container.labels.get('com.docker.compose.project'):
-                    stack_managed_containers.add(container.id)
-            
-            # Create individual stacks for orphan containers
-            for container in all_containers:
-                if container.id not in stack_managed_containers:
-                    # Create a pseudo-stack for this orphan
-                    orphan_stack = Stack(
-                        name=f"_Orphan.{container.name}",
-                        path="",
-                        compose_file="",
-                        status="running" if container.status == "running" else "stopped",
-                        services=[container.name],
-                        containers=[Container(
-                            id=container.id,
-                            short_id=container.short_id,
-                            name=container.name,
-                            status=container.status,
-                            state=container.attrs['State']['Status'],
-                            image=container.image.tags[0] if container.image.tags else container.image.id,
-                            image_id=container.image.id,
-                            created=container.attrs['Created'],
-                            ports=[],
-                            labels=container.labels or {},
-                            compose_project=None,
-                            compose_service=None
-                        )],
-                        last_modified=container.attrs['Created']
-                    )
-                    stacks.append(orphan_stack)
+        # Process orphan containers
+        for container in orphan_containers:
+            orphan_stack = Stack(
+                name=f"_Orphan.{container.name}",
+                path="",
+                compose_file="",
+                status="running" if container.status == "running" else "stopped",
+                services=[container.name],
+                containers=[container],  # Already fully populated!
+                last_modified=container.created
+            )
+            stacks.append(orphan_stack)
         
         return sorted(stacks, key=lambda x: (not x.name.startswith('_Orphan'), x.name))
     except Exception as e:
@@ -400,6 +356,8 @@ async def restart_stack(stack_name: str, background_tasks: BackgroundTasks):
 async def pull_stack(stack_name: str, background_tasks: BackgroundTasks):
     """Pull latest images for a Docker Compose stack"""
     return await _execute_stack_command(stack_name, "pull", "pulled")
+
+
 
 async def _execute_stack_command(stack_name: str, command: str, action: str) -> Dict[str, Any]:
     """Execute a docker compose command on a stack"""

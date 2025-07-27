@@ -4,16 +4,13 @@ import {
   Box,
   Button,
   Container,
-  Code,
-  DataList,
   Flex,
-  For,
   HStack,
   Heading,
   Stack,
-  VStack,
   Status,
   Text,
+  Wrap,
 } from "@chakra-ui/react";
 import {
   LuRotateCcw,
@@ -22,8 +19,14 @@ import {
   LuSettings,
   LuCalendarDays,
 } from "react-icons/lu";
-import type { ApiStack } from "@/services/apiService";
+import {
+  type ApiStack,
+  type StackContainer,
+  mapToStackContainers,
+} from "@/services/apiService";
 import { useComposeParser } from "@/hooks/useComposeParser";
+import { ContainerBlock } from "../container-block/container-block";
+import { useMemo } from "react";
 
 interface StackBlocksProps {
   stack: ApiStack;
@@ -231,6 +234,12 @@ export const StackDetail: React.FC<StackBlocksProps> = ({
 
   if (!isValid) return <div>Invalid compose file</div>;
 
+  const stackContainers = useMemo(
+    () => mapToStackContainers(stack.containers),
+    [stack.containers]
+  );
+  console.log("Passing stackContainers:", stackContainers);
+
   return (
     <Container py={{ base: "4", md: "6" }}>
       <Stack gap={{ base: "1", md: "2" }}>
@@ -314,18 +323,26 @@ export const StackDetail: React.FC<StackBlocksProps> = ({
               borderWidth="1px"
               borderColor="brand.Outline"
             >
-              <Accordion.Root>
+              <ContainerBlock stackContainers={stackContainers} />
+
+              <Accordion.Root w="full">
                 {stack.containers.map((container) => (
                   <Accordion.Item key={container.name} value={container.name}>
-                    <Accordion.ItemTrigger>
-                      <Accordion.ItemIndicator />
+                    <Accordion.ItemTrigger w="full">
                       <Stack gap="1">
                         <Text color="brand.onSecondaryContainer">
                           {container.name}
                         </Text>
+                        <Text fontSize="sm">
+                          {
+                            container.labels[
+                              "org.opencontainers.image.description"
+                            ]
+                          }
+                        </Text>
 
                         <Box>
-                          <HStack>
+                          <Wrap>
                             <Badge
                               size="md"
                               colorPalette={
@@ -340,12 +357,21 @@ export const StackDetail: React.FC<StackBlocksProps> = ({
                             >
                               {container.state}
                             </Badge>
+                            {container.ports.map((port) => (
+                              <Badge colorPalette="teal" size="md">
+                                {port}
+                              </Badge>
+                            ))}
                             <Badge colorPalette="grey" size="md">
-                              {container.ports}
+                              Created: {container.created.slice(0, 10)}
                             </Badge>
-                          </HStack>
+                            <Badge colorPalette="grey" size="md">
+                              Started: {container.started_at?.slice(0, 10)}
+                            </Badge>
+                          </Wrap>
                         </Box>
                       </Stack>
+                      <Accordion.ItemIndicator />
                     </Accordion.ItemTrigger>
                     <Accordion.ItemContent>
                       <Accordion.ItemBody>{container.image}</Accordion.ItemBody>
@@ -357,6 +383,12 @@ export const StackDetail: React.FC<StackBlocksProps> = ({
           </Container>
         </Stack>
         Blah blah blah
+        {stack.containers?.map((container) => (
+          <Box key={container.id} p={2} bg="black" fontSize="xs">
+            <Text fontWeight="bold">{container.name}</Text>
+            <pre>{JSON.stringify(container, null, 2)}</pre>
+          </Box>
+        ))}
       </Stack>
     </Container>
   );

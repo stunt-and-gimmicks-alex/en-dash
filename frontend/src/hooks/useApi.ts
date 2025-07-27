@@ -1,12 +1,13 @@
 // frontend/src/hooks/useApi.ts - Updated hooks for REST API
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   apiService,
   type ApiContainer,
   type ApiStack,
   type ApiSystemStats,
   type ApiDockerStats,
+  mapToStackContainers,
 } from "../services/apiService";
 
 // =============================================================================
@@ -216,6 +217,18 @@ export const useStacks = () => {
     stopStack,
     restartStack,
   };
+};
+
+export const useStackContainers = (stackName: string) => {
+  const { stacks, loading, error } = useStacks(); // ← Destructure these from useStacks
+
+  const stack = stacks.find((s) => s.name === stackName);
+  const stackContainers = useMemo(
+    () => (stack ? mapToStackContainers(stack.containers) : []),
+    [stack]
+  );
+
+  return { stackContainers, loading, error }; // ← Now these exist
 };
 
 export const useDockerStats = () => {
@@ -428,7 +441,7 @@ export const useHealth = () => {
 
       const [apiHealth, dockerHealth] = await Promise.allSettled([
         apiService.healthCheck(),
-        apiService.dockerHealthCheck(),
+        apiService.getDockerHealth(),
       ]);
 
       setHealth({
