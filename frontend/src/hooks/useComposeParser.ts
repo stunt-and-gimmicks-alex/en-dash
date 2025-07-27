@@ -6,6 +6,7 @@ import {
   type ParsedCompose,
   type ParsedService,
 } from "@/utils/composeParser";
+import yaml from "js-yaml";
 
 export type { ParsedService, ParsedCompose };
 
@@ -72,6 +73,25 @@ export const useComposeParser = (composeContent: string | null) => {
     return [...new Set([...serviceNetworks, ...definedNetworks])];
   };
 
+  const formattedYaml = useMemo(() => {
+    if (!composeContent) return "";
+
+    try {
+      // Parse then dump with proper formatting
+      const parsed = yaml.load(composeContent);
+      return yaml.dump(parsed, {
+        indent: 2,
+        lineWidth: -1, // Don't wrap lines
+        noRefs: true, // Don't use references
+        quotingType: '"', // Use double quotes
+        forceQuotes: false, // Only quote when necessary
+      });
+    } catch (error) {
+      // If parsing fails, return original
+      return composeContent;
+    }
+  }, [composeContent]);
+
   return {
     parsed,
     isValid: parsed !== null,
@@ -90,5 +110,6 @@ export const useComposeParser = (composeContent: string | null) => {
     networks: parsed?.networks || {},
     volumes: parsed?.volumes || {},
     version: parsed?.version,
+    formattedYaml,
   };
 };

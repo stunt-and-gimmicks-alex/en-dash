@@ -43,6 +43,7 @@ export interface ApiContainer {
 }
 
 export interface ApiStack {
+  compose_content: string | null;
   name: string;
   path: string;
   compose_file: string;
@@ -138,9 +139,6 @@ export interface ApiDockerStats {
 }
 
 class ApiService {
-  dockerHealthCheck(): any {
-    throw new Error("Method not implemented.");
-  }
   private baseUrl: string;
 
   constructor(baseUrl: string = API_BASE_URL) {
