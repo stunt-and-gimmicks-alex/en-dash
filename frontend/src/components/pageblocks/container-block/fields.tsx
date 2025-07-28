@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Badge,
   Box,
   ColorPicker,
   Field,
@@ -11,6 +12,8 @@ import {
   NumberInput,
   parseColor,
   SegmentGroup,
+  Text,
+  Textarea,
 } from "@chakra-ui/react";
 
 interface BaseFieldProps {
@@ -31,16 +34,78 @@ export function TextField(props: TextFieldProps) {
   const { name, label, invalid, disabled, defaultValue, onChange, value } =
     props;
   return (
-    <Field.Root orientation="horizontal" invalid={invalid} disabled={disabled}>
-      <Field.Label>{label}</Field.Label>
+    <Field.Root
+      orientation="horizontal"
+      invalid={invalid}
+      disabled={false}
+      colorPalette="brand"
+    >
+      <Field.Label>
+        <Badge colorPalette="gray" variant="outline">
+          {label}
+        </Badge>
+      </Field.Label>
       <Input
         name={name}
         size="sm"
-        maxW="var(--max-width)"
+        maxW="1/2"
         flex="1"
         defaultValue={defaultValue}
         onChange={(e) => onChange?.(e.currentTarget.value)}
         value={value}
+        borderColor="brand.outlineVariant"
+        variant="flushed"
+        color="teal.solid"
+      />
+    </Field.Root>
+  );
+}
+
+interface TextAreaProps extends BaseFieldProps {
+  placeholder?: string;
+  value?: string;
+  defaultValue?: string;
+  size?: "sm" | "md" | "lg" | "xl" | "xs" | undefined;
+  onChange?: (value: string) => void;
+}
+
+export function TextArea(props: TextAreaProps) {
+  const {
+    name,
+    label,
+    size,
+    invalid,
+    disabled,
+    defaultValue,
+    onChange,
+    value,
+  } = props;
+  return (
+    <Field.Root
+      orientation="vertical"
+      invalid={invalid}
+      disabled={false}
+      width="full"
+    >
+      <Field.Label>
+        <Badge colorPalette="gray" variant="outline">
+          {label}
+        </Badge>
+      </Field.Label>
+      <Textarea
+        name={name}
+        size="sm"
+        maxW="Full"
+        flex="1"
+        defaultValue={defaultValue}
+        onChange={(e) => onChange?.(e.currentTarget.value)}
+        value={value}
+        autoresize
+        maxH="5lh"
+        resize="none"
+        borderColor="brand.outlineVariant"
+        variant="flushed"
+        color="teal.solid"
       />
     </Field.Root>
   );
@@ -75,14 +140,16 @@ export function SelectField(props: SelectFieldProps) {
       <Field.Label>{label}</Field.Label>
       <NativeSelect.Root
         size="sm"
-        maxW={orientation === "horizontal" ? "var(--max-width)" : "auto"}
+        maxW={orientation === "horizontal" ? "1/2" : "auto"}
         flex="1"
+        borderColor="brand.outlineVariant"
       >
         <NativeSelect.Field
           name={name}
           value={value}
           defaultValue={defaultValue}
           onChange={(e) => onChange?.(e.currentTarget.value)}
+          color="teal.solid"
         >
           {options.map((option) => (
             <option key={option.value} value={option.value}>
@@ -117,15 +184,21 @@ export function SegmentField(props: SegmentFieldProps) {
   } = props;
   return (
     <Field.Root orientation="horizontal" invalid={invalid} disabled={disabled}>
-      <Field.Label>{label}</Field.Label>
+      <Field.Label>
+        <Badge colorPalette="gray" variant="outline">
+          {label}
+        </Badge>
+      </Field.Label>
       <SegmentGroup.Root
         name={name}
         defaultValue={defaultValue}
         value={value}
         size="sm"
         flex="1"
-        maxW="var(--max-width)"
+        maxW="1/2"
         onValueChange={(e) => onChange?.(e.value as string)}
+        borderColor="brand.outlineVariant"
+        color="teal.solid"
       >
         <SegmentGroup.Indicator />
         <SegmentGroup.Items
@@ -163,11 +236,15 @@ export function NumberField(props: NumberFieldProps) {
   } = props;
   return (
     <Field.Root orientation="horizontal" invalid={invalid} disabled={disabled}>
-      <Field.Label>{label}</Field.Label>
+      <Field.Label>
+        <Badge colorPalette="gray" variant="outline">
+          {label}
+        </Badge>
+      </Field.Label>
       <NumberInput.Root
         name={name}
         flex="1"
-        maxW="var(--max-width)"
+        maxW="1/2"
         size="sm"
         onValueChange={(e) => onChange?.(e.value)}
         value={value}
@@ -175,6 +252,8 @@ export function NumberField(props: NumberFieldProps) {
         min={min}
         max={max}
         step={step}
+        borderColor="brand.outlineVariant"
+        color="teal.solid"
       >
         <NumberInput.Control />
         <NumberInput.Input />
@@ -204,8 +283,12 @@ export function NumberFieldWithUnit(props: NumberFieldWithUnitProps) {
 
   return (
     <Field.Root orientation="horizontal" invalid={invalid} disabled={disabled}>
-      <Field.Label>{label}</Field.Label>
-      <HStack flex="1" maxW="var(--max-width)">
+      <Field.Label>
+        <Badge colorPalette="gray" variant="outline">
+          {label}
+        </Badge>
+      </Field.Label>
+      <HStack flex="1" maxW="1/2">
         <NumberInput.Root
           name={name}
           min={min}
@@ -216,6 +299,8 @@ export function NumberFieldWithUnit(props: NumberFieldWithUnitProps) {
           size="sm"
           flex="1"
           onValueChange={(e) => onChange?.(e.value)}
+          borderColor="brand.outlineVariant"
+          color="teal.solid"
         >
           <NumberInput.Control />
           <Box
@@ -223,7 +308,7 @@ export function NumberFieldWithUnit(props: NumberFieldWithUnitProps) {
             top="1.5"
             fontSize="sm"
             right="8"
-            color="fg.muted"
+            color="teal.solid"
           >
             {unit}
           </Box>
@@ -245,16 +330,22 @@ export function ColorField(props: ColorFieldProps) {
     props;
   return (
     <Field.Root orientation="horizontal" invalid={invalid} disabled={disabled}>
-      <Field.Label>{label}</Field.Label>
+      <Field.Label>
+        <Badge colorPalette="gray" variant="outline">
+          {label}
+        </Badge>
+      </Field.Label>
       <ColorPicker.Root
         name={name}
         value={value ? parseColor(value) : undefined}
         defaultValue={parseColor(defaultValue || "rgba(0,0,0,1)")}
         format="hsla"
         flex="1"
-        maxW="var(--max-width)"
+        maxW="1/2"
         size="sm"
         onValueChange={(e) => onChange?.(e.valueAsString)}
+        borderColor="brand.outlineVariant"
+        color="gray.focusRing"
       >
         <ColorPicker.HiddenInput />
         <ColorPicker.Control>

@@ -4,6 +4,7 @@ import {
   Badge,
   Box,
   Button,
+  CloseButton,
   Container,
   Drawer,
   Flex,
@@ -15,11 +16,12 @@ import {
   SkeletonText,
   Spacer,
   Stack,
+  Status,
   Tabs,
   Text,
   useTabs,
 } from "@chakra-ui/react";
-import { Plus } from "lucide-react";
+import { Plus, SquarePlus } from "lucide-react";
 import { useStacks, useDockerStats } from "@/hooks/useApi";
 import {
   StackBlocks,
@@ -186,26 +188,61 @@ export const DockerOverviewContent: React.FC = () => {
       <Drawer.Root
         open={!!selectedStack}
         onOpenChange={(details) => !details.open && handleCloseDrawer()}
-        size="xl"
+        size="full"
         placement="end"
       >
         <Portal>
           <Drawer.Backdrop />
           <Drawer.Positioner>
             <Drawer.Content>
-              {/* Just pass the selectedStack to your existing StackDetail component */}
-              {selectedStack && (
-                <StackDetail
-                  stack={selectedStack}
-                  onStart={startStack}
-                  onStop={stopStack}
-                  onRestart={restartStack}
-                  onToggle={handleStackToggle}
-                  isSelected={true}
-                  loading={loading}
-                  disabled={!!error}
-                />
-              )}
+              {/* Drawer Header with Close Button */}
+              <Drawer.Header bg="primary.700" pb={{ base: "6", md: "8" }}>
+                <Drawer.Title>
+                  <Stack>
+                    <HStack>
+                      <Status.Root
+                        size="xl"
+                        colorPalette={
+                          selectedStack?.status === "running"
+                            ? "green"
+                            : selectedStack?.status === "partial"
+                            ? "yellow"
+                            : selectedStack?.status === "stopped"
+                            ? "red"
+                            : "gray"
+                        }
+                      >
+                        <Status.Indicator />
+                        <Badge size="md" fontWeight="medium" variant="outline">
+                          {selectedStack?.status || "Undefined"}
+                        </Badge>
+                      </Status.Root>
+                    </HStack>
+                  </Stack>
+                  <Heading size="4xl">
+                    {selectedStack?.name || "Stack Details"}
+                  </Heading>
+                </Drawer.Title>
+                <Drawer.CloseTrigger asChild>
+                  <CloseButton size="md" colorPalette="gray" variant="ghost" />
+                </Drawer.CloseTrigger>
+              </Drawer.Header>
+
+              {/* Drawer Body with Stack Details */}
+              <Drawer.Body p="0">
+                {selectedStack && (
+                  <StackDetail
+                    stack={selectedStack}
+                    onStart={startStack}
+                    onStop={stopStack}
+                    onRestart={restartStack}
+                    onToggle={handleStackToggle}
+                    isSelected={true}
+                    loading={loading}
+                    disabled={!!error}
+                  />
+                )}
+              </Drawer.Body>
             </Drawer.Content>
           </Drawer.Positioner>
         </Portal>

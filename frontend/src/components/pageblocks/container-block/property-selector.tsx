@@ -22,8 +22,16 @@ interface ContainerSelectorProps {
 
 export function ContainerSelector(props: ContainerSelectorProps) {
   const { defaultValue, value, onChange, items = [] } = props;
-  const containers = useMemo(() => createListCollection({ items }), [items]);
-  console.log(defaultValue);
+  const containers = useMemo(
+    () =>
+      createListCollection({
+        items,
+        itemToValue: (item) => item.id,
+        itemToString: (item) => item.label,
+      }),
+    [items]
+  );
+
   return (
     <Select.Root
       collection={containers}
@@ -31,10 +39,11 @@ export function ContainerSelector(props: ContainerSelectorProps) {
       defaultValue={defaultValue ? [defaultValue] : undefined}
       value={value ? [value] : undefined}
       onValueChange={(e) => onChange?.(e.value[0])}
+      borderColor="brand.outlineVariant"
     >
       <Select.HiddenSelect />
-      <Select.Label>Select theme</Select.Label>
-      <Select.Control>
+      <Select.Label>Select container</Select.Label>
+      <Select.Control borderColor="brand.outlineVariant">
         <Select.Trigger>
           <ValueContainer />
         </Select.Trigger>
@@ -43,9 +52,13 @@ export function ContainerSelector(props: ContainerSelectorProps) {
         </Select.IndicatorGroup>
       </Select.Control>
       <Select.Positioner>
-        <Select.Content>
+        <Select.Content borderColor="brand.outlineVariant">
           {containers.items.map((container) => (
-            <Select.Item item={container} key={container.id}>
+            <Select.Item
+              item={container}
+              key={container.id}
+              borderColor="brand.outlineVariant"
+            >
               <HStack>
                 <Select.ItemIndicator />
                 {container.label}
@@ -78,30 +91,33 @@ export function ContainerSelector(props: ContainerSelectorProps) {
 function ValueContainer() {
   const api = useSelectContext();
   const [container] = api.selectedItems as StackContainer[];
+
+  // Use Select.ValueText for proper integration with ChakraUI v3 Select
   return (
-    <HStack gap="3">
-      <Span>{container?.label ?? "Select container"}</Span>
+    <Select.ValueText placeholder="Select container">
       {container && (
-        <HStack gap="1">
-          <Group attached maxW="80px" grow>
-            <ColorSwatch
-              value={
-                container.status === "running"
-                  ? "green"
-                  : container.status === "partial"
-                  ? "yellow"
-                  : container.status === "stopped"
-                  ? "red"
-                  : "gray"
-              }
-              size="sm"
-            />
-            <Badge variant="outline" colorPalette="grey">
-              {container.status}
-            </Badge>
-          </Group>
+        <HStack gap="3" justify="flex-start">
+          <Span>{container.label}</Span>
+          <HStack gap="1">
+            <Group attached maxW="80px" grow>
+              <Badge
+                variant="outline"
+                colorPalette={
+                  container.status === "running"
+                    ? "green"
+                    : container.status === "partial"
+                    ? "yellow"
+                    : container.status === "stopped"
+                    ? "red"
+                    : "gray"
+                }
+              >
+                {container.status}
+              </Badge>
+            </Group>
+          </HStack>
         </HStack>
       )}
-    </HStack>
+    </Select.ValueText>
   );
 }

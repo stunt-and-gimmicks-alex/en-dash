@@ -241,39 +241,21 @@ export const StackDetail: React.FC<StackBlocksProps> = ({
   console.log("Passing stackContainers:", stackContainers);
 
   return (
-    <Container py={{ base: "4", md: "6" }}>
+    <Container
+      py={{ base: "4", md: "6" }}
+      px={{ base: "4", md: "6" }}
+      w="full"
+      fluid
+    >
       <Stack gap={{ base: "1", md: "2" }}>
         <Stack gap={{ base: "1", md: "2" }}>
-          <Stack gap={{ base: "1", md: "2" }}>
-            <Box>
-              <Status.Root
-                size="md"
-                fontWeight="medium"
-                colorPalette={
-                  stack.status === "running"
-                    ? "green"
-                    : stack.status === "partial"
-                    ? "yellow"
-                    : stack.status === "stopped"
-                    ? "red"
-                    : "gray"
-                }
-              >
-                <Status.Indicator />
-                <Text color="colorPalette.fg">{stack.status}</Text>
-              </Status.Root>
-            </Box>
-            <Heading as="h1" textStyle={{ base: "4xl", md: "5xl" }}>
-              {stack.name}
-            </Heading>
-          </Stack>
           <HStack>
             {stack.status === "running" ? (
               <>
                 <Button
                   variant="ghost"
                   colorPalette="gray"
-                  size="sm"
+                  size="md"
                   onClick={(e) =>
                     handleButtonClick(e, () => onRestart(stack.name))
                   }
@@ -314,82 +296,16 @@ export const StackDetail: React.FC<StackBlocksProps> = ({
               </>
             )}
           </HStack>
-          <Container>
-            <Stack
-              boxShadow="inset"
-              p="6"
-              gap="1"
-              rounded="l3"
-              borderWidth="1px"
-              borderColor="brand.Outline"
-            >
-              <ContainerBlock stackContainers={stackContainers} />
-
-              <Accordion.Root w="full">
-                {stack.containers.map((container) => (
-                  <Accordion.Item key={container.name} value={container.name}>
-                    <Accordion.ItemTrigger w="full">
-                      <Stack gap="1">
-                        <Text color="brand.onSecondaryContainer">
-                          {container.name}
-                        </Text>
-                        <Text fontSize="sm">
-                          {
-                            container.labels[
-                              "org.opencontainers.image.description"
-                            ]
-                          }
-                        </Text>
-
-                        <Box>
-                          <Wrap>
-                            <Badge
-                              size="md"
-                              colorPalette={
-                                container.state === "running"
-                                  ? "green"
-                                  : stack.status === "partial"
-                                  ? "yellow"
-                                  : stack.status === "stopped"
-                                  ? "red"
-                                  : "gray"
-                              }
-                            >
-                              {container.state}
-                            </Badge>
-                            {container.ports.map((port) => (
-                              <Badge colorPalette="teal" size="md">
-                                {port}
-                              </Badge>
-                            ))}
-                            <Badge colorPalette="grey" size="md">
-                              Created: {container.created.slice(0, 10)}
-                            </Badge>
-                            <Badge colorPalette="grey" size="md">
-                              Started: {container.started_at?.slice(0, 10)}
-                            </Badge>
-                          </Wrap>
-                        </Box>
-                      </Stack>
-                      <Accordion.ItemIndicator />
-                    </Accordion.ItemTrigger>
-                    <Accordion.ItemContent>
-                      <Accordion.ItemBody>{container.image}</Accordion.ItemBody>
-                    </Accordion.ItemContent>
-                  </Accordion.Item>
-                ))}
-              </Accordion.Root>
-            </Stack>
-          </Container>
         </Stack>
-        Blah blah blah
-        {stack.containers?.map((container) => (
-          <Box key={container.id} p={2} bg="black" fontSize="xs">
-            <Text fontWeight="bold">{container.name}</Text>
-            <pre>{JSON.stringify(container, null, 2)}</pre>
-          </Box>
-        ))}
       </Stack>
+      <HStack pt="4">
+        <Container maxW="1/3" minH="75vh" fluid>
+          Test
+        </Container>
+        <Container maxW="2/3" minH="75vh" maxH="75vh">
+          <ContainerBlock stackContainers={stackContainers} />
+        </Container>
+      </HStack>
     </Container>
   );
 };

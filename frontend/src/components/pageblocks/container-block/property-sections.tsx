@@ -20,10 +20,16 @@ interface PropertySectionProps {
 export function PropertySection(props: PropertySectionProps) {
   const { title, children, info } = props;
   return (
-    <Collapsible.Root defaultOpen unstyled>
+    <Collapsible.Root unstyled>
       <Stack
         _notLast={{ borderBottomWidth: "1px", pb: "6" }}
         borderColor="border.muted"
+        bg="brand.surfaceContainerHigh"
+        px="2"
+        pb="2"
+        maxH="50vh"
+        overflow="scroll"
+        scrollbar="hidden"
       >
         <Collapsible.Trigger as="div" userSelect="none" cursor="pointer">
           <HStack py="3">
@@ -41,7 +47,7 @@ export function PropertySection(props: PropertySectionProps) {
         </Collapsible.Trigger>
         <Collapsible.Content animationDuration="0s">
           <Stack
-            gap="4"
+            gap="2"
             css={{ "--max-width": "160px", "--field-label-width": "50%" }}
           >
             {children}

@@ -1,4 +1,4 @@
-// src/components/Layout.tsx - Updated with working navigation system
+// src/components/Layout.tsx - Updated with working navigation system for both desktop and mobile
 import React, { useState } from "react";
 import { Container, Flex, Stack, Box, Text } from "@chakra-ui/react";
 import { ColorModeButton } from "@/components/ui/color-mode";
@@ -252,14 +252,14 @@ export const Layout: React.FC = () => {
 
   return (
     <Box minH="100vh" bg="brand.surfaceContainerLowest">
-      {/* Color Mode Toggle */}
-      <Box position="fixed" top="4" right="4" zIndex="1000">
+      {/* Color Mode Toggle - moved to bottom right to avoid navbar interference */}
+      <Box position="fixed" bottom="4" right="4" zIndex="1000">
         <ColorModeButton />
       </Box>
 
-      {/* Navbar - show only on mobile */}
+      {/* Navbar - show only on mobile, now with navigation props */}
       <Box display={{ base: "block", md: "none" }}>
-        <Navbar />
+        <Navbar currentPage={currentPage} onNavigate={handleNavigation} />
       </Box>
 
       <Flex flex="1" minH="100vh">
