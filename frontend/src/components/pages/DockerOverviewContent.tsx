@@ -1,4 +1,4 @@
-// src/components/pages/DockerOverviewContent.tsx - Fixed with correct API types
+// src/components/pages/DockerOverviewContent.tsx - Fixed with key props
 import React from "react";
 import {
   Badge,
@@ -9,6 +9,7 @@ import {
   Drawer,
   Flex,
   Heading,
+  Highlight,
   HStack,
   NativeSelect,
   Portal,
@@ -16,12 +17,11 @@ import {
   SkeletonText,
   Spacer,
   Stack,
-  Status,
   Tabs,
   Text,
   useTabs,
 } from "@chakra-ui/react";
-import { Plus, SquarePlus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useStacks, useDockerStats } from "@/hooks/useApi";
 import {
   StackBlocks,
@@ -101,7 +101,7 @@ export const DockerOverviewContent: React.FC = () => {
           <Tabs.RootProvider value={tabs} size="lg" defaultValue="running">
             <Tabs.List>
               {stackFilter.map((item) => (
-                <Tabs.Trigger value={item.status}>
+                <Tabs.Trigger key={item.status} value={item.status}>
                   <Skeleton asChild loading={loading}>
                     <Badge
                       colorPalette={item.colorPalette}
@@ -153,7 +153,7 @@ export const DockerOverviewContent: React.FC = () => {
               </Container>
             )}
             {stackFilter.map((item) => (
-              <Tabs.Content value={item.status}>
+              <Tabs.Content key={item.status} value={item.status}>
                 <Stack gap="4">
                   {item.content.length === 0 ? (
                     <Box textAlign="center" py="8">
@@ -172,8 +172,8 @@ export const DockerOverviewContent: React.FC = () => {
                         onStart={startStack}
                         onStop={stopStack}
                         onRestart={restartStack}
-                        onToggle={handleStackToggle} // NEW
-                        isSelected={selectedStack?.name === stack.name} // NEW
+                        onToggle={handleStackToggle}
+                        isSelected={selectedStack?.name === stack.name}
                         loading={loading}
                         disabled={!!error}
                       />
@@ -185,6 +185,8 @@ export const DockerOverviewContent: React.FC = () => {
           </Tabs.RootProvider>
         </Container>
       </Box>
+
+      {/* Enhanced Drawer with Header and Close Button */}
       <Drawer.Root
         open={!!selectedStack}
         onOpenChange={(details) => !details.open && handleCloseDrawer()}
@@ -196,40 +198,33 @@ export const DockerOverviewContent: React.FC = () => {
           <Drawer.Positioner>
             <Drawer.Content>
               {/* Drawer Header with Close Button */}
-              <Drawer.Header bg="primary.700" pb={{ base: "6", md: "8" }}>
-                <Drawer.Title>
+              <Drawer.Header bg="primary.900" pb={{ sm: "2", md: "4" }}>
+                <Drawer.Title h={{ sm: "2dvh", md: "4dvh" }}>
                   <Stack>
-                    <HStack>
-                      <Status.Root
-                        size="xl"
-                        colorPalette={
-                          selectedStack?.status === "running"
-                            ? "green"
-                            : selectedStack?.status === "partial"
-                            ? "yellow"
-                            : selectedStack?.status === "stopped"
-                            ? "red"
-                            : "gray"
-                        }
-                      >
-                        <Status.Indicator />
-                        <Badge size="md" fontWeight="medium" variant="outline">
-                          {selectedStack?.status || "Undefined"}
-                        </Badge>
-                      </Status.Root>
+                    <HStack gap="6">
+                      <Heading size="4xl" textTransform="lowercase">
+                        <Highlight
+                          ignoreCase
+                          query="./stacks/"
+                          styles={{ color: "brand.onPrimaryContainer" }}
+                        >
+                          {"./stacks/" + selectedStack?.name || "Stack Details"}
+                        </Highlight>
+                      </Heading>
                     </HStack>
                   </Stack>
-                  <Heading size="4xl">
-                    {selectedStack?.name || "Stack Details"}
-                  </Heading>
                 </Drawer.Title>
-                <Drawer.CloseTrigger asChild>
-                  <CloseButton size="md" colorPalette="gray" variant="ghost" />
+                <Drawer.CloseTrigger asChild m={{ sm: "2", md: "4" }}>
+                  <CloseButton
+                    size="lg"
+                    variant="outline"
+                    borderColor="brand.outline"
+                  />
                 </Drawer.CloseTrigger>
               </Drawer.Header>
 
               {/* Drawer Body with Stack Details */}
-              <Drawer.Body p="0">
+              <Drawer.Body p="0" bg="brand.surfaceContainerLowest">
                 {selectedStack && (
                   <StackDetail
                     stack={selectedStack}

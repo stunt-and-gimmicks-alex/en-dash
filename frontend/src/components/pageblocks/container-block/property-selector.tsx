@@ -7,6 +7,7 @@ import {
   HStack,
   Select,
   Span,
+  Text,
   createListCollection,
   useSelectContext,
 } from "@chakra-ui/react";
@@ -39,12 +40,16 @@ export function ContainerSelector(props: ContainerSelectorProps) {
       defaultValue={defaultValue ? [defaultValue] : undefined}
       value={value ? [value] : undefined}
       onValueChange={(e) => onChange?.(e.value[0])}
-      borderColor="brand.outlineVariant"
+      variant="subtle"
     >
       <Select.HiddenSelect />
-      <Select.Label>Select container</Select.Label>
-      <Select.Control borderColor="brand.outlineVariant">
-        <Select.Trigger>
+      <Select.Label>
+        <Text textStyle="sm" fontWeight="medium" color="fg.muted">
+          Service Containers
+        </Text>
+      </Select.Label>
+      <Select.Control bg="brand.surfaceContainerLowest">
+        <Select.Trigger bg="brand.surfaceContainerLowest">
           <ValueContainer />
         </Select.Trigger>
         <Select.IndicatorGroup>
@@ -52,31 +57,32 @@ export function ContainerSelector(props: ContainerSelectorProps) {
         </Select.IndicatorGroup>
       </Select.Control>
       <Select.Positioner>
-        <Select.Content borderColor="brand.outlineVariant">
+        <Select.Content bg="brand.surfaceContainerLowest">
           {containers.items.map((container) => (
             <Select.Item
               item={container}
               key={container.id}
-              borderColor="brand.outlineVariant"
+              bg="brand.surfaceContainerLowest"
+              boxShadow="none"
             >
               <HStack>
                 <Select.ItemIndicator />
                 {container.label}
               </HStack>
               <Group attached maxW="80px" grow>
-                <ColorSwatch
-                  value={
-                    container.status === "running"
-                      ? "green"
-                      : container.status === "partial"
-                      ? "yellow"
-                      : container.status === "stopped"
-                      ? "red"
-                      : "gray"
-                  }
-                  size="sm"
-                />
-                <Badge variant="outline" colorPalette="grey">
+                <Badge variant="solid" colorPalette="gray" p="1">
+                  <ColorSwatch
+                    value={
+                      container.status === "running"
+                        ? "green"
+                        : container.status === "partial"
+                        ? "yellow"
+                        : container.status === "stopped"
+                        ? "red"
+                        : "gray"
+                    }
+                    size="sm"
+                  />
                   {container.status}
                 </Badge>
               </Group>

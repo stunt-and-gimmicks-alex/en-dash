@@ -1,4 +1,8 @@
-// frontend/src/services/apiService.ts - Smart API service with dynamic URL detection
+// src/services/apiService.ts - Main orchestrator
+import { ApiStackService } from "./api/apiStackService";
+import { ApiServicesService } from "./api/apiServicesService";
+import { ApiContainerService } from "./api/apiContainerService";
+import { BaseApiService } from "./api/baseApiService";
 
 // Smart API URL detection function
 const getApiBaseUrl = (): string => {
@@ -27,39 +31,7 @@ const API_BASE_URL = getApiBaseUrl();
 // Log the detected URL for debugging
 console.log("🔗 API Base URL detected:", API_BASE_URL);
 
-// Types (keep your existing interfaces, add these new ones)
-export interface ApiContainer {
-  id: string;
-  short_id: string;
-  name: string;
-  status: string;
-  state: string;
-  image: string;
-  image_id: string; // ← Add this
-  created: string;
-  started_at?: string; // ← Add this
-  finished_at?: string; // ← Add this
-  ports: string[];
-  labels: Record<string, string>;
-  environment?: string[]; // ← Add this
-  mounts?: any[]; // ← Add this
-  networks?: string[]; // ← Add this
-  restart_policy?: string; // ← Add this
-  compose_project?: string;
-  compose_service?: string;
-}
-
-export interface ApiStack {
-  compose_content: string | null;
-  name: string;
-  path: string;
-  compose_file: string;
-  status: "running" | "stopped" | "partial";
-  services: string[];
-  containers: ApiContainer[];
-  last_modified?: string;
-}
-
+// System stats interfaces
 export interface ApiSystemStats {
   cpu: {
     percent: number;
@@ -111,228 +83,21 @@ export interface ApiSystemStats {
   timestamp: string;
 }
 
-export interface ApiDockerStats {
-  stacks: {
-    total: number;
-    running: number;
-    stopped: number;
-    partial: number;
-  };
-  containers: {
-    total: number;
-    running: number;
-    stopped: number;
-    paused: number;
-  };
-  images: {
-    total: number;
-    size: number;
-  };
-  networks: {
-    total: number;
-  };
-  volumes: {
-    total: number;
-  };
-  system: {
-    docker_version: string;
-    api_version: string;
-    kernel_version: string;
-    operating_system: string;
-    architecture: string;
-    cpus: number;
-    memory: number;
-  };
-}
-
-interface EnvVar {
-  key: string;
-  value: string;
-}
-
-interface Mount {
-  source: string;
-  destination: string;
-  type: string;
-  mode: string;
-}
-
-export interface StackContainer {
-  label: string;
-  description?: string;
-  id: string;
-  full_id: string;
-  status: string;
-  state: string;
-  image: string;
-  image_id: string;
-  created_at: string;
-  started_at: string;
-  finished_at?: string;
-  version?: string;
-  stack?: {
-    name?: string;
-    service?: string;
-    configPath?: string;
-    workingPath?: string;
-  };
-  config: {
-    ports: string[];
-    config_hash?: string;
-    container_number?: string;
-    dependencies?: string[];
-    oneoff?: boolean;
-    service?: string;
-    environment?: EnvVar[];
-    mounts?: Mount[];
-    networks?: string[];
-    restart_policy?: string;
-  };
-  container_image: {
-    created: string;
-    license?: string;
-    revision?: string;
-    source?: string;
-    title?: string;
-    url?: string;
-    version?: string;
-  };
-}
-
-class ApiService {
-  private baseUrl: string;
+// Main API Service Orchestrator
+class ApiService extends BaseApiService {
+  // Sub-services
+  public readonly stacks: ApiStackService;
+  public readonly services: ApiServicesService;
+  public readonly containers: ApiContainerService;
 
   constructor(baseUrl: string = API_BASE_URL) {
-    this.baseUrl = baseUrl;
+    super(baseUrl);
     console.log("🚀 ApiService initialized with URL:", this.baseUrl);
-  }
 
-  // Generic fetch wrapper with error handling
-  private async fetchApi<T>(
-    endpoint: string,
-    options?: RequestInit
-  ): Promise<T> {
-    const url = `${this.baseUrl}${endpoint}`;
-    console.log("📡 API Request:", url);
-
-    try {
-      const response = await fetch(url, {
-        headers: {
-          "Content-Type": "application/json",
-          ...options?.headers,
-        },
-        ...options,
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      console.log("✅ API Response received for:", endpoint);
-      return data;
-    } catch (error) {
-      console.error("❌ API Error for:", url, error);
-      throw error;
-    }
-  }
-
-  // =============================================================================
-  // HEALTH & CONNECTION
-  // =============================================================================
-
-  async healthCheck(): Promise<{ status: string; service: string }> {
-    return this.fetchApi("/health");
-  }
-
-  // =============================================================================
-  // DOCKER MANAGEMENT
-  // =============================================================================
-
-  // Docker health check
-  async getDockerHealth(): Promise<{ status: string; docker_version: string }> {
-    return this.fetchApi("/docker/health");
-  }
-
-  // Container management
-  async getContainers(): Promise<ApiContainer[]> {
-    return this.fetchApi("/docker/containers");
-  }
-
-  async startContainer(containerId: string): Promise<{ message: string }> {
-    return this.fetchApi(`/docker/containers/${containerId}/start`, {
-      method: "POST",
-    });
-  }
-
-  async stopContainer(containerId: string): Promise<{ message: string }> {
-    return this.fetchApi(`/docker/containers/${containerId}/stop`, {
-      method: "POST",
-    });
-  }
-
-  async restartContainer(containerId: string): Promise<{ message: string }> {
-    return this.fetchApi(`/docker/containers/${containerId}/restart`, {
-      method: "POST",
-    });
-  }
-
-  async removeContainer(containerId: string): Promise<{ message: string }> {
-    return this.fetchApi(`/docker/containers/${containerId}`, {
-      method: "DELETE",
-    });
-  }
-
-  // Stack management
-  async getStacks(): Promise<ApiStack[]> {
-    return this.fetchApi("/docker/stacks");
-  }
-
-  async startStack(stackName: string): Promise<{ message: string }> {
-    return this.fetchApi(`/docker/stacks/${stackName}/start`, {
-      method: "POST",
-    });
-  }
-
-  async stopStack(stackName: string): Promise<{ message: string }> {
-    return this.fetchApi(`/docker/stacks/${stackName}/stop`, {
-      method: "POST",
-    });
-  }
-
-  async restartStack(stackName: string): Promise<{ message: string }> {
-    return this.fetchApi(`/docker/stacks/${stackName}/restart`, {
-      method: "POST",
-    });
-  }
-
-  async removeStack(stackName: string): Promise<{ message: string }> {
-    return this.fetchApi(`/docker/stacks/${stackName}`, {
-      method: "DELETE",
-    });
-  }
-
-  // Docker images
-  async getImages(): Promise<
-    Array<{
-      id: string;
-      tags: string[];
-      size: number;
-      created: string;
-    }>
-  > {
-    return this.fetchApi("/docker/images");
-  }
-
-  async removeImage(imageId: string): Promise<{ message: string }> {
-    return this.fetchApi(`/docker/images/${imageId}`, {
-      method: "DELETE",
-    });
-  }
-
-  // Docker stats
-  async getDockerStats(): Promise<ApiDockerStats> {
-    return this.fetchApi("/docker/stats");
+    // Initialize sub-services
+    this.stacks = new ApiStackService(baseUrl);
+    this.services = new ApiServicesService(baseUrl);
+    this.containers = new ApiContainerService(baseUrl);
   }
 
   // =============================================================================
@@ -343,82 +108,15 @@ class ApiService {
     return this.fetchApi("/system/stats");
   }
 
-  async getSystemInfo(): Promise<{
-    hostname: string;
-    system: string;
-    release: string;
-    version: string;
-    machine: string;
-    processor: string;
-    python_version: string;
-    cpu_count: number;
-    memory_total: number;
-    disk_total: number;
-  }> {
+  async getSystemInfo(): Promise<any> {
     return this.fetchApi("/system/info");
   }
 
-  // Process management
-  async getProcesses(
-    limit: number = 50,
-    sortBy: string = "cpu_percent"
-  ): Promise<
-    Array<{
-      pid: number;
-      name: string;
-      cpu_percent: number;
-      memory_percent: number;
-      memory_mb: number;
-      status: string;
-      username: string;
-      command: string;
-      created: string;
-    }>
-  > {
-    return this.fetchApi(`/system/processes?limit=${limit}&sort_by=${sortBy}`);
-  }
+  // =============================================================================
+  // FILESYSTEM OPERATIONS
+  // =============================================================================
 
-  async killProcess(
-    pid: number,
-    signal: number = 15
-  ): Promise<{ message: string }> {
-    return this.fetchApi(`/system/processes/${pid}/kill`, {
-      method: "POST",
-      body: JSON.stringify({ signal }),
-    });
-  }
-
-  // Service management
-  async getServices(limit: number = 100): Promise<
-    Array<{
-      name: string;
-      load_state: string;
-      active_state: string;
-      sub_state: string;
-      description: string;
-    }>
-  > {
-    return this.fetchApi(`/system/services?limit=${limit}`);
-  }
-
-  async getUptime(): Promise<{
-    uptime_seconds: number;
-    uptime_formatted: string;
-    boot_time: string;
-  }> {
-    return this.fetchApi("/system/uptime");
-  }
-
-  // File system
-  async browseFileSystem(path: string = "/"): Promise<
-    Array<{
-      name: string;
-      path: string;
-      type: string;
-      size: number;
-      modified: string;
-    }>
-  > {
+  async browseFilesystem(path: string = "/"): Promise<any> {
     const encodedPath = encodeURIComponent(path);
     return this.fetchApi(`/system/filesystem/browse?path=${encodedPath}`);
   }
@@ -437,97 +135,145 @@ class ApiService {
   }
 
   // =============================================================================
-  // UTILITY METHODS
+  // CONVENIENCE METHODS - High-level operations using sub-services
   // =============================================================================
 
-  // Check if the API is reachable
-  async isAvailable(): Promise<boolean> {
-    try {
-      await this.healthCheck();
-      return true;
-    } catch {
-      return false;
-    }
+  // Get stacks with parsed services
+  async getStacksWithServices(serviceLevel = "intermediate" as const) {
+    return this.stacks.getStacksWithServices(this.services, serviceLevel);
   }
 
-  // Get connection status
-  getConnectionStatus(): "connected" | "connecting" | "disconnected" {
-    // Since REST is stateless, we're always "connected" if the API is reachable
-    // You could enhance this with actual connectivity checks
-    return "connected";
+  // Get single stack with parsed services
+  async getStackWithServices(
+    stackName: string,
+    serviceLevel = "intermediate" as const
+  ) {
+    return this.stacks.getStackWithServices(
+      stackName,
+      this.services,
+      serviceLevel
+    );
   }
 
-  // Get the current API base URL (useful for debugging)
-  getBaseUrl(): string {
-    return this.baseUrl;
+  // Get services for a specific stack
+  getServicesForStack(stack: any, level = "intermediate" as const) {
+    return this.services.parseServices(
+      stack.compose_content,
+      stack.containers,
+      level
+    );
+  }
+
+  // =============================================================================
+  // PORT NORMALIZATION UTILITIES
+  // =============================================================================
+
+  // Normalize ports from any service
+  normalizePorts(ports: any[] | undefined) {
+    return this.services.normalizeServicePorts(ports);
+  }
+
+  // Normalize single port
+  normalizePort(port: any) {
+    return this.services.normalizeServicePort(port);
+  }
+
+  // Complete stack management with services
+  async startStackAndRefresh(stackName: string) {
+    await this.stacks.startStack(stackName);
+    return this.getStackWithServices(stackName);
+  }
+
+  async stopStackAndRefresh(stackName: string) {
+    await this.stacks.stopStack(stackName);
+    return this.getStackWithServices(stackName);
+  }
+
+  async restartStackAndRefresh(stackName: string) {
+    await this.stacks.restartStack(stackName);
+    return this.getStackWithServices(stackName);
+  }
+
+  // Service-level operations
+  async startServiceAndRefresh(stackName: string, serviceName: string) {
+    await this.services.startService(stackName, serviceName);
+    return this.getStackWithServices(stackName);
+  }
+
+  async stopServiceAndRefresh(stackName: string, serviceName: string) {
+    await this.services.stopService(stackName, serviceName);
+    return this.getStackWithServices(stackName);
+  }
+
+  async restartServiceAndRefresh(stackName: string, serviceName: string) {
+    await this.services.restartService(stackName, serviceName);
+    return this.getStackWithServices(stackName);
+  }
+
+  // Container-level operations
+  async startContainerAndRefresh(stackName: string, containerId: string) {
+    await this.containers.startContainer(containerId);
+    return this.getStackWithServices(stackName);
+  }
+
+  async stopContainerAndRefresh(stackName: string, containerId: string) {
+    await this.containers.stopContainer(containerId);
+    return this.getStackWithServices(stackName);
+  }
+
+  async restartContainerAndRefresh(stackName: string, containerId: string) {
+    await this.containers.restartContainer(containerId);
+    return this.getStackWithServices(stackName);
   }
 }
 
 // =============================================================================
-// DATA TRANSFORMATION UTILITIES
+// EXPORT ALL TYPES AND SERVICES
 // =============================================================================
-export function mapToStackContainer(
-  apiContainer: ApiContainer
-): StackContainer {
-  return {
-    label: apiContainer.name,
-    description: apiContainer.labels["org.opencontainers.image.description"],
-    id: apiContainer.short_id,
-    full_id: apiContainer.id,
-    status: apiContainer.status,
-    state: apiContainer.state,
-    image: apiContainer.image,
-    image_id: apiContainer.image_id,
-    created_at: apiContainer.created,
-    started_at: apiContainer.started_at || "",
-    finished_at: apiContainer.finished_at,
 
-    stack: {
-      name: apiContainer.compose_project,
-      service: apiContainer.compose_service,
-      configPath:
-        apiContainer.labels["com.docker.compose.project.config_files"],
-      workingPath:
-        apiContainer.labels["com.docker.compose.project.working_dir"],
-    },
+// Re-export types from sub-services for convenience
+export type { ApiStack, ApiDockerStats } from "./api/apiStackService";
+export type {
+  DockerService,
+  DockerServiceShort,
+  DockerServiceIntermediate,
+  ServiceParseLevel,
+  NormalizedPort,
+} from "./api/apiServicesService";
+export type { ApiContainer, StackContainer } from "./api/apiContainerService";
 
-    config: {
-      ports: apiContainer.ports,
-      config_hash: apiContainer.labels["com.docker.compose.config-hash"],
-      container_number:
-        apiContainer.labels["com.docker.compose.container-number"],
-      dependencies:
-        apiContainer.labels["com.docker.compose.depends_on"]?.split(",") || [],
-      oneoff: apiContainer.labels["com.docker.compose.oneoff"] === "True",
-      environment: apiContainer.environment?.map((env) => {
-        const [key, ...valueParts] = env.split("=");
-        return { key, value: valueParts.join("=") };
-      }),
-      mounts: apiContainer.mounts,
-      networks: apiContainer.networks,
-      restart_policy: apiContainer.restart_policy,
-    },
-
-    container_image: {
-      created: apiContainer.labels["org.opencontainers.image.created"],
-      license: apiContainer.labels["org.opencontainers.image.licenses"],
-      revision: apiContainer.labels["org.opencontainers.image.revision"],
-      source: apiContainer.labels["org.opencontainers.image.source"],
-      title: apiContainer.labels["org.opencontainers.image.title"],
-      url: apiContainer.labels["org.opencontainers.image.url"],
-      version: apiContainer.labels["org.opencontainers.image.version"],
-    },
-  };
-}
-
-export function mapToStackContainers(
-  apiContainers: ApiContainer[]
-): StackContainer[] {
-  return apiContainers.map(mapToStackContainer);
-}
+// Re-export utility functions for backwards compatibility
+export const mapToStackContainer = (apiContainer: any) =>
+  apiService.containers.mapToStackContainer(apiContainer);
+export const mapToStackContainers = (apiContainers: any[]) =>
+  apiService.containers.mapToStackContainers(apiContainers);
 
 // Create and export singleton instance
 export const apiService = new ApiService();
 
-// Export for backward compatibility with your existing code
+// Export class for testing/custom instances
 export default ApiService;
+
+// =============================================================================
+// USAGE EXAMPLES
+// =============================================================================
+
+/*
+// Basic usage - access sub-services directly:
+const stacks = await apiService.stacks.getStacks();
+const containers = await apiService.containers.getContainers();
+
+// High-level convenience methods:
+const stacksWithServices = await apiService.getStacksWithServices("short");
+const fullStackDetail = await apiService.getStackWithServices("my-app", "full");
+
+// Operations with automatic refresh:
+await apiService.startStackAndRefresh("my-app");
+await apiService.restartServiceAndRefresh("my-app", "web");
+await apiService.stopContainerAndRefresh("my-app", "container-id");
+
+// Different service levels based on use case:
+// - "short": Service list views, quick overviews
+// - "intermediate": Service detail panels, configuration views  
+// - "full": Advanced configuration, debugging, complete compose editing
+*/

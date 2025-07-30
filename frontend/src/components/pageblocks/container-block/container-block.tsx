@@ -1,9 +1,9 @@
 "use client";
 
-import { Badge, Container, HStack, Stack, Text } from "@chakra-ui/react";
+import { Accordion, Badge, Container, Stack, Text } from "@chakra-ui/react";
 import { useCallback, useState } from "react";
 import { flushSync } from "react-dom";
-import { TextField, TextArea, SelectField } from "./fields";
+import { TextField, TextArea, SelectField, LabelField } from "./fields";
 import { PropertySection } from "./property-sections";
 import { ContainerSelector } from "./property-selector";
 import type { StackContainer } from "@/services/apiService";
@@ -63,120 +63,136 @@ export const ContainerBlock: React.FC<ContainerBlockProps> = ({
       overflow="scroll"
       scrollbar="hidden"
     >
-      <Stack p="6" gap="4">
+      <Stack p="6" gap="4" overflow="scroll" scrollbar="hidden">
         <ContainerSelector
           items={stackContainers}
           defaultValue={stackContainers[0].id}
           value={stackContainer?.id}
           onChange={(value) => setContainerValue(value)}
         />
-        <PropertySection
-          title="Container Details"
-          info="General container information."
-        >
-          <TextArea
-            label="Description"
-            value={stackContainer?.description}
-            defaultValue={stackContainers[0].description}
-          />
-          <TextField
-            label={"Container Number:"}
-            value={stackContainer?.config.container_number}
-            defaultValue={stackContainers[0].config.container_number}
-          />
-          <TextField
-            label={"Created At:"}
-            value={stackContainer?.created_at.slice(0, 10)}
-            defaultValue={stackContainers[0].created_at[0]}
-          />
-          <TextField
-            label={"Started At:"}
-            value={stackContainer?.started_at.slice(0, 10)}
-            defaultValue={stackContainers[0].started_at}
-          />
-          <SelectField
-            label="Restart Policy"
-            options={restartOptions}
-            orientation="vertical"
-            defaultValue={stackContainer?.config.restart_policy}
-          />
-        </PropertySection>
-        <PropertySection title="Ports" info="Container port bindings">
-          {stackContainer?.config.ports.map((port, i) => (
-            <TextField
-              label={"Port " + (i + 1) + ":"}
-              value={port}
-              defaultValue={stackContainers[0].config.ports[0]}
-              disabled={true}
+        <Accordion.Root collapsible overflow="scroll" scrollbar="hidden">
+          <PropertySection
+            title="Container Details"
+            info="General container information."
+          >
+            <TextArea
+              label="Description"
+              cols={2}
+              value={stackContainer?.description}
+              defaultValue={stackContainers[0].description}
             />
-          ))}
-        </PropertySection>
-        <PropertySection
-          title="Dependencies"
-          info="Container dependency management (WIP)"
-        >
-          {stackContainer?.config.dependencies.map((dependency, i) => (
             <TextField
-              label="Dependent on :"
-              value={dependency}
-              defaultValue={stackContainers[0]?.config.dependencies[0]}
-              disabled={true}
+              label={"Created At:"}
+              value={stackContainer?.created_at.slice(0, 10)}
+              defaultValue={stackContainers[0].created_at[0]}
             />
-          ))}
-        </PropertySection>
-        <PropertySection title="Mounts" info="Container mounted volumes">
-          {stackContainer?.config.mounts.map((mount, i) => (
-            <>
-              <Text color="fg.muted" fontWeight="bold">
-                <Badge colorPalette="blue" size="md">
-                  {mount.mode}
-                </Badge>
-                <Badge colorPalette="grey" variant="outline">
-                  {" " + mount.type + " " + (i + 1) + ": "}
-                </Badge>
-              </Text>
-
-              <TextArea
-                label="Source"
-                value={mount.source}
-                defaultValue={stackContainers[0]?.config.mounts[0].source}
+            <TextField
+              label={"Started At:"}
+              value={stackContainer?.started_at.slice(0, 10)}
+              defaultValue={stackContainers[0].started_at}
+            />
+            <TextField
+              label={"Container Number:"}
+              value={stackContainer?.config.container_number}
+              defaultValue={stackContainers[0].config.container_number}
+            />
+            <SelectField
+              label="Restart Policy"
+              options={restartOptions}
+              orientation="vertical"
+              defaultValue={stackContainer?.config.restart_policy}
+            />
+            <TextField
+              label={"Container Image Source:"}
+              value={stackContainer?.container_image.source}
+              defaultValue={stackContainers[0].container_image.source}
+            />
+            <TextField
+              label={"Container Image URL:"}
+              value={stackContainer?.container_image.url}
+              defaultValue={stackContainers[0].container_image.url}
+            />
+          </PropertySection>
+          <PropertySection title="Ports" info="Container port bindings">
+            {stackContainer?.config.ports.map((port, i) => (
+              <TextField
+                label={"Port " + (i + 1) + ":"}
+                value={port}
+                defaultValue={stackContainers[0].config.ports[0]}
                 disabled={true}
               />
-              <TextArea
-                label="Destination"
-                value={mount.destination}
-                defaultValue={stackContainers[0]?.config.mounts[0].destination}
+            ))}
+          </PropertySection>
+          <PropertySection
+            title="Dependencies"
+            info="Container dependency management (WIP)"
+          >
+            {stackContainer?.config.dependencies.map((dependency, i) => (
+              <TextField
+                label="Dependency:"
+                cols={2}
+                value={dependency}
+                defaultValue={stackContainers[0]?.config.dependencies[0]}
                 disabled={true}
               />
-            </>
-          ))}
-        </PropertySection>
-        <PropertySection
-          title="Networks"
-          info="Docker networks the container is connected to."
-        >
-          {stackContainer?.config.networks.map((netw, i) => (
-            <TextField
-              label={"Network" + (i + 0) + ":"}
-              value={netw}
-              defaultValue={stackContainers[0]?.config.networks[0]}
-              disabled={false}
-            />
-          ))}
-        </PropertySection>
-        <PropertySection
-          title="Environmental Variables"
-          info="Environmental variables found in the container."
-        >
-          {stackContainer?.config.environment.map((env, i) => (
-            <TextField
-              label={env.key}
-              value={env.value}
-              defaultValue={stackContainers[0]?.config.environment[0].value}
-              disabled={false}
-            />
-          ))}
-        </PropertySection>
+            ))}
+          </PropertySection>
+          <PropertySection title="Mounts" info="Container mounted volumes">
+            {stackContainer?.config.mounts.map((mount, i) => (
+              <Stack gap="1" bg="brand.surfaceContainer" p="2">
+                <LabelField
+                  label="mount"
+                  badgeColor="blue"
+                  cols={2}
+                  badgeText={mount.mode}
+                  value={" " + mount.type + " " + (i + 1)}
+                />
+                <TextField
+                  label="Source"
+                  value={mount.source}
+                  cols={2}
+                  defaultValue={stackContainers[0]?.config.mounts[0].source}
+                  disabled={true}
+                />
+                <TextField
+                  label="Destination"
+                  value={mount.destination}
+                  cols={2}
+                  defaultValue={
+                    stackContainers[0]?.config.mounts[0].destination
+                  }
+                  disabled={true}
+                />
+              </Stack>
+            ))}
+          </PropertySection>
+          <PropertySection
+            title="Networks"
+            info="Docker networks the container is connected to."
+          >
+            {stackContainer?.config.networks.map((netw, i) => (
+              <TextField
+                label={"Network" + (i + 0) + ":"}
+                value={netw}
+                defaultValue={stackContainers[0]?.config.networks[0]}
+                disabled={false}
+              />
+            ))}
+          </PropertySection>
+          <PropertySection
+            title="Environmental Variables"
+            info="Environmental variables found in the container."
+          >
+            {stackContainer?.config.environment.map((env, i) => (
+              <TextField
+                label={env.key}
+                value={env.value}
+                defaultValue={stackContainers[0]?.config.environment[0].value}
+                disabled={false}
+              />
+            ))}
+          </PropertySection>
+        </Accordion.Root>
       </Stack>
     </Container>
   );

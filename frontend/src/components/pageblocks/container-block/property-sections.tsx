@@ -2,11 +2,13 @@
 
 import { Tooltip } from "@/components/ui/tooltip";
 import {
-  Collapsible,
+  Accordion,
+  Grid,
+  GridItem,
   HStack,
   Icon,
   Stack,
-  useCollapsibleContext,
+  Text,
 } from "@chakra-ui/react";
 import { HiInformationCircle } from "react-icons/hi";
 import { LuChevronRight } from "react-icons/lu";
@@ -20,52 +22,39 @@ interface PropertySectionProps {
 export function PropertySection(props: PropertySectionProps) {
   const { title, children, info } = props;
   return (
-    <Collapsible.Root unstyled>
-      <Stack
-        _notLast={{ borderBottomWidth: "1px", pb: "6" }}
-        borderColor="border.muted"
-        bg="brand.surfaceContainerHigh"
-        px="2"
-        pb="2"
-        maxH="50vh"
-        overflow="scroll"
-        scrollbar="hidden"
-      >
-        <Collapsible.Trigger as="div" userSelect="none" cursor="pointer">
-          <HStack py="3">
-            <CollapsibleIcon />
-            <HStack
-              fontWeight="medium"
-              flex="1"
+    <>
+      <Accordion.Item value={title}>
+        <Accordion.ItemTrigger>
+          <HStack fontWeight="medium" flex="1" textStyle="sm" color="fg">
+            <Text
               textStyle="sm"
-              colorPalette="gray"
+              fontWeight="medium"
+              color="brand.onTertiaryContainer"
             >
               {title}
-              {info && <HoverTip content={info} />}
-            </HStack>
+            </Text>
+            {info && <HoverTip content={info} />}
           </HStack>
-        </Collapsible.Trigger>
-        <Collapsible.Content animationDuration="0s">
-          <Stack
-            gap="2"
-            css={{ "--max-width": "160px", "--field-label-width": "50%" }}
-          >
-            {children}
-          </Stack>
-        </Collapsible.Content>
-      </Stack>
-    </Collapsible.Root>
-  );
-}
-
-function CollapsibleIcon() {
-  const api = useCollapsibleContext();
-  return (
-    <Icon
-      size="xs"
-      as={LuChevronRight}
-      transform={api.open ? "rotate(90deg)" : ""}
-    />
+          <Accordion.ItemIndicator />
+        </Accordion.ItemTrigger>
+        <Accordion.ItemContent overflow="scroll" scrollbar="hidden">
+          <Accordion.ItemBody>
+            <Stack gap="2" css={{ "--field-label-width": "50%" }}>
+              <Grid
+                gap="6"
+                templateColumns="repeat(2, minmax(0, 1fr))"
+                gridAutoFlow="row"
+                overflow="scroll"
+                scrollbar="hidden"
+                maxH="40dvh"
+              >
+                {children}
+              </Grid>
+            </Stack>
+          </Accordion.ItemBody>
+        </Accordion.ItemContent>
+      </Accordion.Item>
+    </>
   );
 }
 

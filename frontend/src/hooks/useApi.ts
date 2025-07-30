@@ -1,4 +1,4 @@
-// frontend/src/hooks/useApi.ts - Updated hooks for REST API
+// frontend/src/hooks/useApi.ts - Updated hooks for modular REST API
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
@@ -55,7 +55,7 @@ export const useApiConnection = () => {
 };
 
 // =============================================================================
-// DOCKER HOOKS
+// DOCKER HOOKS - Updated for modular API structure
 // =============================================================================
 
 export const useContainers = () => {
@@ -67,7 +67,8 @@ export const useContainers = () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await apiService.getContainers();
+      // UPDATED: Use modular API structure
+      const data = await apiService.containers.getContainers();
       setContainers(data);
     } catch (err) {
       setError(
@@ -81,8 +82,8 @@ export const useContainers = () => {
   const startContainer = useCallback(
     async (containerId: string) => {
       try {
-        await apiService.startContainer(containerId);
-        // Refresh containers list after action
+        // UPDATED: Use modular API structure
+        await apiService.containers.startContainer(containerId);
         await fetchContainers();
         return true;
       } catch (err) {
@@ -98,7 +99,8 @@ export const useContainers = () => {
   const stopContainer = useCallback(
     async (containerId: string) => {
       try {
-        await apiService.stopContainer(containerId);
+        // UPDATED: Use modular API structure
+        await apiService.containers.stopContainer(containerId);
         await fetchContainers();
         return true;
       } catch (err) {
@@ -114,7 +116,8 @@ export const useContainers = () => {
   const restartContainer = useCallback(
     async (containerId: string) => {
       try {
-        await apiService.restartContainer(containerId);
+        // UPDATED: Use modular API structure
+        await apiService.containers.restartContainer(containerId);
         await fetchContainers();
         return true;
       } catch (err) {
@@ -151,7 +154,8 @@ export const useStacks = () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await apiService.getStacks();
+      // UPDATED: Use modular API structure
+      const data = await apiService.stacks.getStacks();
       setStacks(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch stacks");
@@ -163,7 +167,8 @@ export const useStacks = () => {
   const startStack = useCallback(
     async (stackName: string) => {
       try {
-        await apiService.startStack(stackName);
+        // UPDATED: Use modular API structure
+        await apiService.stacks.startStack(stackName);
         await fetchStacks();
         return true;
       } catch (err) {
@@ -177,7 +182,8 @@ export const useStacks = () => {
   const stopStack = useCallback(
     async (stackName: string) => {
       try {
-        await apiService.stopStack(stackName);
+        // UPDATED: Use modular API structure
+        await apiService.stacks.stopStack(stackName);
         await fetchStacks();
         return true;
       } catch (err) {
@@ -191,7 +197,8 @@ export const useStacks = () => {
   const restartStack = useCallback(
     async (stackName: string) => {
       try {
-        await apiService.restartStack(stackName);
+        // UPDATED: Use modular API structure
+        await apiService.stacks.restartStack(stackName);
         await fetchStacks();
         return true;
       } catch (err) {
@@ -220,7 +227,7 @@ export const useStacks = () => {
 };
 
 export const useStackContainers = (stackName: string) => {
-  const { stacks, loading, error } = useStacks(); // ← Destructure these from useStacks
+  const { stacks, loading, error } = useStacks();
 
   const stack = stacks.find((s) => s.name === stackName);
   const stackContainers = useMemo(
@@ -228,7 +235,7 @@ export const useStackContainers = (stackName: string) => {
     [stack]
   );
 
-  return { stackContainers, loading, error }; // ← Now these exist
+  return { stackContainers, loading, error };
 };
 
 export const useDockerStats = () => {
@@ -240,7 +247,8 @@ export const useDockerStats = () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await apiService.getDockerStats();
+      // UPDATED: Use modular API structure
+      const data = await apiService.stacks.getDockerStats();
       setStats(data);
     } catch (err) {
       setError(
@@ -300,7 +308,7 @@ export const useDockerStats = () => {
 };
 
 // =============================================================================
-// SYSTEM MONITORING HOOKS
+// SYSTEM MONITORING HOOKS - Updated for modular API structure
 // =============================================================================
 
 export const useSystemStats = () => {
@@ -312,6 +320,7 @@ export const useSystemStats = () => {
     try {
       setLoading(true);
       setError(null);
+      // UPDATED: System stats remain on main orchestrator
       const data = await apiService.getSystemStats();
       setStats(data);
     } catch (err) {
@@ -349,8 +358,11 @@ export const useProcesses = () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await apiService.getProcesses(50);
-      setProcesses(data);
+      // UPDATED: Add getProcesses method to system operations
+      // NOTE: This method doesn't exist yet, commenting out for now
+      // const data = await apiService.getProcesses(50);
+      // setProcesses(data);
+      setProcesses([]); // Temporary empty array until method is implemented
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to fetch processes"
@@ -378,7 +390,93 @@ export const useProcesses = () => {
 };
 
 // =============================================================================
-// COMBINED HOOKS (for backward compatibility)
+// ENHANCED HOOKS - New capabilities with modular API
+// =============================================================================
+
+// Hook for stacks with parsed services
+export const useStacksWithServices = (
+  serviceLevel: "short" | "intermediate" | "full" = "intermediate"
+) => {
+  const [stacksWithServices, setStacksWithServices] = useState<ApiStack[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchStacksWithServices = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      // NEW: Use convenience method from orchestrator
+      const data = await apiService.getStacksWithServices(serviceLevel as any);
+      setStacksWithServices(data);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to fetch stacks with services"
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [serviceLevel]);
+
+  useEffect(() => {
+    fetchStacksWithServices();
+  }, [fetchStacksWithServices]);
+
+  return {
+    stacks: stacksWithServices,
+    loading,
+    error,
+    refreshStacks: fetchStacksWithServices,
+  };
+};
+
+// Hook for single stack with services
+export const useStackWithServices = (
+  stackName: string,
+  serviceLevel: "short" | "intermediate" | "full" = "intermediate"
+) => {
+  const [stack, setStack] = useState<ApiStack | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchStackWithServices = useCallback(async () => {
+    if (!stackName) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+      // NEW: Use convenience method from orchestrator
+      const data = await apiService.getStackWithServices(
+        stackName,
+        serviceLevel as any
+      );
+      setStack(data);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to fetch stack with services"
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [stackName, serviceLevel]);
+
+  useEffect(() => {
+    fetchStackWithServices();
+  }, [fetchStackWithServices]);
+
+  return {
+    stack,
+    loading,
+    error,
+    refreshStack: fetchStackWithServices,
+  };
+};
+
+// =============================================================================
+// BACKWARDS COMPATIBILITY HOOKS (for existing components)
 // =============================================================================
 
 // This replaces your old useDockgeStacks hook
@@ -441,7 +539,7 @@ export const useHealth = () => {
 
       const [apiHealth, dockerHealth] = await Promise.allSettled([
         apiService.healthCheck(),
-        apiService.getDockerHealth(),
+        apiService.stacks.getDockerStats(), // UPDATED: Use modular API
       ]);
 
       setHealth({

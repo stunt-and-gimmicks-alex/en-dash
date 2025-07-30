@@ -246,6 +246,44 @@ const config = defineConfig({
             value: { _light: "#E0E4DC", _dark: "#313630" },
           },
         },
+        brandError: {
+          error: {
+            value: { _light: "#BA1A1A", _dark: "#FFB4AB" },
+          },
+          onError: {
+            value: { _light: "#FFFFFF", _dark: "#690005" },
+          },
+          errorContainer: {
+            value: { _light: "#FFDAD6", _dark: "#93000A" },
+          },
+          onErrorContainer: {
+            value: { _light: "#93000A", _dark: "#FFDAD6" },
+            solid: {
+              value: {
+                _light: "#BA1A1A",
+                _dark: "#FFB4AB",
+              },
+            },
+            contrast: {
+              value: { _light: "#FFFFFF", _dark: "#690005" },
+            },
+            fg: {
+              value: { _light: "#BA1A1A", _dark: "#FFB4AB" },
+            },
+            muted: {
+              value: { _light: "#FFDAD6", _dark: "#93000A" },
+            },
+            subtle: {
+              value: { _light: "#FFDAD6", _dark: "#690005" },
+            },
+            emphasized: {
+              value: { _light: "#93000A", _dark: "#FFDAD6" },
+            },
+            focusRing: {
+              value: { _light: "#BA1A1A", _dark: "#BA1A1A" },
+            },
+          },
+        },
       },
     },
   },
