@@ -1,16 +1,16 @@
-// src/components/layout/AppLayout.tsx - EXACT same styling as your current Layout
+// frontend/src/components/layout/AppLayout.tsx
+// Clean layout using centralized navigation types and new API
+
 import React from "react";
 import { Box, Container, Flex, Stack } from "@chakra-ui/react";
 import { ColorModeButton } from "@/components/ui/color-mode";
-import { Navbar } from "../sidebar/Navbar";
-import { Sidebar } from "../sidebar/Sidebar";
-import { HeaderStatsBlock } from "../HeaderStatsBlock";
-import type { PageKey } from "@/App";
+import { MobileNavbar } from "@/components/navigation/MobileNavbar";
+import { Sidebar } from "@/components/navigation/Sidebar";
+import { HeaderStatsBlock } from "@/components/HeaderStatsBlock";
+import type { NavigationProps } from "@/types/navigation";
 
-interface AppLayoutProps {
+interface AppLayoutProps extends NavigationProps {
   children: React.ReactNode;
-  currentPage: PageKey;
-  onPageChange: (page: PageKey) => void;
   pageTitle: string;
   pageDescription: string;
 }
@@ -18,36 +18,36 @@ interface AppLayoutProps {
 export const AppLayout: React.FC<AppLayoutProps> = ({
   children,
   currentPage,
-  onPageChange,
+  onNavigate,
   pageTitle,
   pageDescription,
 }) => {
   return (
     <Box minH="100vh" bg="brand.surfaceContainerLowest">
-      {/* Color Mode Toggle - EXACT same position and styling */}
+      {/* Color Mode Toggle - Fixed position */}
       <Box position="fixed" bottom="4" right="4" zIndex="1000">
         <ColorModeButton />
       </Box>
 
-      {/* Navbar - EXACT same mobile display logic */}
+      {/* Mobile Navigation - Only visible on mobile */}
       <Box display={{ base: "block", md: "none" }}>
-        <Navbar currentPage={currentPage} onNavigate={onPageChange} />
+        <MobileNavbar currentPage={currentPage} onNavigate={onNavigate} />
       </Box>
 
       <Flex flex="1" minH="100vh">
-        {/* Sidebar - EXACT same desktop display and sizing */}
+        {/* Desktop Sidebar - Only visible on desktop */}
         <Box display={{ base: "none", md: "block" }}>
           <Box w="325px" minW="325px" position="sticky" top="0" height="100vh">
-            <Sidebar currentPage={currentPage} onNavigate={onPageChange} />
+            <Sidebar currentPage={currentPage} onNavigate={onNavigate} />
           </Box>
         </Box>
 
-        {/* Main Content Area - EXACT same layout structure */}
+        {/* Main Content Area */}
         <Stack gap="0" flex="1" alignItems="stretch">
-          {/* Dynamic Header Stats Block - EXACT same */}
+          {/* Dynamic Header Stats Block */}
           <HeaderStatsBlock title={pageTitle} description={pageDescription} />
 
-          {/* Main Content Area - EXACT same Container and Stack styling */}
+          {/* Page Content Container */}
           <Container display="flex" flex="1" maxW="full" py="8">
             <Stack gap="8" direction={{ base: "column", lg: "row" }} flex="1">
               {children}

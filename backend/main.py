@@ -18,6 +18,10 @@ from pathlib import Path
 from app.routers import docker, system, auth
 # Import new WebSocket routers
 from app.routers import websocket_system, websocket_docker
+# Import your existing working routers + the missing unified router
+from app.routers import docker, system, auth
+from app.routers import docker_unified  # <-- ADD THIS LINE
+from app.routers import websocket_system, websocket_docker
 
 # Simplified configuration - just fix the immediate issue
 class Settings:
@@ -85,6 +89,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # Include your existing working routers
 app.include_router(docker.router, prefix="/api/docker", tags=["docker"])
+app.include_router(docker_unified.router, prefix="/api/docker", tags=["docker-unified"])  # <-- ADD THIS LINE
 app.include_router(system.router, prefix="/api/system", tags=["system"])
 app.include_router(auth.router, prefix="/api/auth", tags=["authentication"])
 

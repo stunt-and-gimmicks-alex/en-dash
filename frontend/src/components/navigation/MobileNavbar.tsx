@@ -1,32 +1,21 @@
-// src/components/sidebar/Navbar.tsx - Mobile responsive navbar with working navigation
+// frontend/src/components/navigation/MobileNavbar.tsx
+// Clean mobile navigation with drawer using ChakraUI v3
+
 import React, { useState } from "react";
 import { Container, HStack, IconButton, Box } from "@chakra-ui/react";
 import { Menu, X } from "lucide-react";
+
 import { Logo } from "./Logo";
 import { Sidebar } from "./Sidebar";
+import type { NavigationProps } from "@/types/navigation";
 
-// Import the same CurrentPage type used in Layout and Sidebar
-type CurrentPage =
-  | "dashboard"
-  | "system-monitor"
-  | "storage"
-  | "processes"
-  | "network"
-  | "security"
-  | "docker-overview"
-  | "databases-overview"
-  | "web-services-overview"
-  | "monitoring-overview";
-
-interface NavbarProps {
-  currentPage: CurrentPage;
-  onNavigate: (page: CurrentPage) => void;
-}
-
-export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate }) => {
+export const MobileNavbar: React.FC<NavigationProps> = ({
+  currentPage,
+  onNavigate,
+}) => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
-  const handleNavigation = (page: CurrentPage) => {
+  const handleNavigation = (page: NavigationProps["currentPage"]) => {
     // Close the drawer when navigating
     setIsDrawerOpen(false);
     // Call the parent navigation handler
@@ -35,11 +24,12 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate }) => {
 
   return (
     <>
+      {/* Top navigation bar */}
       <Container
         py="2.5"
-        bg={{ base: "white", _dark: "gray.800" }}
+        bg="brand.surfaceContainerLowest"
         borderBottomWidth="1px"
-        borderColor={{ base: "gray.200", _dark: "gray.700" }}
+        borderColor="brand.subtle"
       >
         <HStack justify="space-between">
           <Logo />
@@ -47,7 +37,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate }) => {
             aria-label="Open Menu"
             variant="ghost"
             onClick={() => setIsDrawerOpen(true)}
-            color={{ base: "gray.600", _dark: "gray.400" }}
+            color="brand.onSurface"
           >
             <Menu />
           </IconButton>
@@ -76,12 +66,12 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate }) => {
             left="0"
             width="320px"
             height="100vh"
-            bg={{ base: "white", _dark: "gray.800" }}
+            bg="brand.surfaceContainerLowest"
             zIndex="1001"
             transform={isDrawerOpen ? "translateX(0)" : "translateX(-100%)"}
             transition="transform 0.3s ease"
             borderRightWidth="1px"
-            borderColor={{ base: "gray.200", _dark: "gray.700" }}
+            borderColor="brand.subtle"
             overflowY="auto"
           >
             <Box p="4">
@@ -93,7 +83,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPage, onNavigate }) => {
                   variant="ghost"
                   size="sm"
                   onClick={() => setIsDrawerOpen(false)}
-                  color={{ base: "gray.600", _dark: "gray.400" }}
+                  color="brand.onSurface"
                 >
                   <X size="16" />
                 </IconButton>
