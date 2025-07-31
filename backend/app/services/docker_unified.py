@@ -97,6 +97,351 @@ class UnifiedStackService:
             logger.error(f"Error building unified stack {stack_name}: {e}")
             raise
     
+    async def get_all_unified_stacks(self) -> List[Dict[str, Any]]:
+        """
+        Get all unified stacks using comprehensive discovery:
+        1. Stacks from /opt/stacks directory
+        2. External compose projects (containers with compose labels but not in /opt/stacks)
+        3. Orphaned containers (→ _ORPHAN_{container_name} pseudo-stacks)
+        """
+        try:
+            logger.info("Starting comprehensive stack discovery...")
+            
+            # Step 1: Get ALL containers with full details ONCE
+            all_containers = await self._get_all_containers_with_details()
+            logger.info(f"Found {len(all_containers)} total containers")
+            
+            # Step 2: Group containers by project
+            containers_by_project = {}
+            orphan_containers = []
+            
+            for container in all_containers:
+                compose_project = container.get("compose", {}).get("project")
+                if compose_project:
+                    if compose_project not in containers_by_project:
+                        containers_by_project[compose_project] = []
+                    containers_by_project[compose_project].append(container)
+                else:
+                    orphan_containers.append(container)
+            
+            logger.info(f"Found {len(containers_by_project)} compose projects, {len(orphan_containers)} orphan containers")
+            
+            unified_stacks = []
+            processed_projects = set()
+            
+            # Step 3: Process stacks from /opt/stacks directory
+            if self.stacks_directory.exists():
+                for stack_path in self.stacks_directory.iterdir():
+                    if not stack_path.is_dir():
+                        continue
+                    
+                    # Find compose file
+                    compose_file = self._find_compose_file(stack_path)
+                    if not compose_file:
+                        continue
+                    
+                    project_name = stack_path.name
+                    processed_projects.add(project_name)
+                    
+                    # Get containers for this stack
+                    stack_containers = containers_by_project.get(project_name, [])
+                    
+                    # Build unified stack using existing logic
+                    try:
+                        unified_stack = await self._build_unified_stack_from_path(
+                            project_name, stack_path, compose_file, stack_containers
+                        )
+                        unified_stacks.append(unified_stack)
+                        logger.debug(f"Processed /opt/stacks stack: {project_name}")
+                    except Exception as e:
+                        logger.error(f"Error processing stack {project_name}: {e}")
+            
+            # Step 4: Process external compose projects
+            for project_name, project_containers in containers_by_project.items():
+                if project_name in processed_projects:
+                    continue  # Already processed from /opt/stacks
+                
+                try:
+                    unified_stack = await self._build_unified_stack_from_external_project(
+                        project_name, project_containers
+                    )
+                    unified_stacks.append(unified_stack)
+                    logger.debug(f"Processed external project: {project_name}")
+                except Exception as e:
+                    logger.error(f"Error processing external project {project_name}: {e}")
+            
+            # Step 5: Process orphan containers → _ORPHAN_{name} pseudo-stacks
+            for container in orphan_containers:
+                try:
+                    orphan_stack = await self._build_orphan_pseudo_stack(container)
+                    unified_stacks.append(orphan_stack)
+                    logger.debug(f"Processed orphan container: {container['name']}")
+                except Exception as e:
+                    logger.error(f"Error processing orphan container {container['name']}: {e}")
+            
+            # Sort stacks: non-orphans first, then alphabetically
+            unified_stacks.sort(key=lambda x: (x['name'].startswith('_ORPHAN_'), x['name']))
+            
+            logger.info(f"Discovery complete: {len(unified_stacks)} total stacks")
+            return unified_stacks
+            
+        except Exception as e:
+            logger.error(f"Error in comprehensive stack discovery: {e}")
+            return []
+
+    async def _get_all_containers_with_details(self) -> List[Dict[str, Any]]:
+        """Get all containers with full unified details"""
+        try:
+            containers = []
+            for container in self.docker_client.containers.list(all=True):
+                container_data = self._build_detailed_container(container)
+                containers.append(container_data)
+            return containers
+        except Exception as e:
+            logger.error(f"Error getting all containers: {e}")
+            return []
+
+    def _find_compose_file(self, stack_path: Path) -> Optional[Path]:
+        """Find compose file in stack directory"""
+        compose_files = [
+            'docker-compose.yml', 
+            'compose.yaml', 
+            'docker-compose.yaml', 
+            'compose.yml'
+        ]
+        
+        for filename in compose_files:
+            compose_path = stack_path / filename
+            if compose_path.exists():
+                return compose_path
+        return None
+
+    async def _build_unified_stack_from_path(
+        self, 
+        project_name: str, 
+        stack_path: Path, 
+        compose_file: Path, 
+        containers: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """Build unified stack from /opt/stacks directory (reuses existing logic)"""
+        
+        # Parse compose file
+        with open(compose_file, 'r') as f:
+            compose_content = yaml.safe_load(f)
+        
+        # Get Docker networks and volumes for this stack
+        docker_networks = self._get_stack_networks(project_name)
+        docker_volumes = self._get_stack_volumes(project_name)
+        
+        # Build unified stack object using existing methods
+        unified_stack = {
+            "name": project_name,
+            "path": str(stack_path),
+            "compose_file": str(compose_file),
+            "compose_content": compose_content,
+            "last_modified": datetime.fromtimestamp(compose_file.stat().st_mtime).isoformat(),
+            "status": self._calculate_stack_status(containers),
+            
+            # Use all existing unified methods
+            "services": self._build_unified_services(
+                compose_content.get('services', {}),
+                containers
+            ),
+            "networks": self._build_unified_networks(
+                compose_content.get('networks', {}),
+                containers,
+                docker_networks
+            ),
+            "volumes": self._build_unified_volumes(
+                compose_content.get('volumes', {}),
+                containers,
+                docker_volumes
+            ),
+            "containers": self._build_container_summary(containers),
+            "stats": self._build_stack_stats(containers, docker_networks, docker_volumes),
+            "environment": self._extract_environment_info(compose_content, stack_path),
+            "health": self._build_health_summary(containers)
+        }
+        
+        return unified_stack
+
+    async def _build_unified_stack_from_external_project(
+        self, 
+        project_name: str, 
+        containers: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """Build unified stack from external compose project"""
+        
+        # Try to find and read external compose file
+        compose_content = None
+        compose_file_path = ""
+        working_dir = ""
+        
+        if containers:
+            # Get compose file info from container labels
+            first_container = containers[0]
+            labels = first_container.get("labels", {})
+            compose_file_path = labels.get('com.docker.compose.project.config_files', '')
+            working_dir = labels.get('com.docker.compose.project.working_dir', '')
+            
+            if compose_file_path and Path(compose_file_path).exists():
+                try:
+                    with open(compose_file_path, 'r') as f:
+                        compose_content = yaml.safe_load(f)
+                except Exception as e:
+                    logger.warning(f"Could not read external compose file {compose_file_path}: {e}")
+        
+        # Get Docker networks and volumes for this stack
+        docker_networks = self._get_stack_networks(project_name)
+        docker_volumes = self._get_stack_volumes(project_name)
+        
+        # Extract services from containers if no compose file available
+        if not compose_content:
+            compose_content = self._infer_compose_from_containers(containers)
+        
+        # Build unified stack object
+        unified_stack = {
+            "name": f"[External] {project_name}",
+            "path": working_dir or "external",
+            "compose_file": compose_file_path.split('/')[-1] if compose_file_path else "external",
+            "compose_content": compose_content,
+            "last_modified": containers[0].get("created") if containers else datetime.now().isoformat(),
+            "status": self._calculate_stack_status(containers),
+            
+            # Use existing unified methods
+            "services": self._build_unified_services(
+                compose_content.get('services', {}),
+                containers
+            ),
+            "networks": self._build_unified_networks(
+                compose_content.get('networks', {}),
+                containers,
+                docker_networks
+            ),
+            "volumes": self._build_unified_volumes(
+                compose_content.get('volumes', {}),
+                containers,
+                docker_volumes
+            ),
+            "containers": self._build_container_summary(containers),
+            "stats": self._build_stack_stats(containers, docker_networks, docker_volumes),
+            "environment": self._extract_external_environment_info(containers),
+            "health": self._build_health_summary(containers)
+        }
+        
+        return unified_stack
+
+    async def _build_orphan_pseudo_stack(self, container: Dict[str, Any]) -> Dict[str, Any]:
+        """Build pseudo-stack for orphaned container"""
+        
+        # Create minimal compose content for the orphan
+        compose_content = {
+            "version": "3.8",
+            "services": {
+                container["name"]: {
+                    "image": container["image"],
+                    "container_name": container["name"],
+                    "restart": container.get("restart_policy", "no"),
+                    # Add ports if any
+                    "ports": self._extract_ports_for_compose(container),
+                    # Add volumes if any  
+                    "volumes": self._extract_volumes_for_compose(container),
+                    # Add environment if any
+                    "environment": container.get("environment", [])
+                }
+            }
+        }
+        
+        # Remove empty sections
+        service_config = compose_content["services"][container["name"]]
+        for key in ["ports", "volumes", "environment"]:
+            if not service_config[key]:
+                del service_config[key]
+        
+        # Build unified stack for this single container
+        unified_stack = {
+            "name": f"_ORPHAN_{container['name']}",
+            "path": "",
+            "compose_file": "pseudo",
+            "compose_content": compose_content,
+            "last_modified": container.get("created", datetime.now().isoformat()),
+            "status": "running" if container["status"] == "running" else "stopped",
+            
+            # Use existing unified methods with single container
+            "services": self._build_unified_services(
+                compose_content.get('services', {}),
+                [container]
+            ),
+            "networks": self._build_unified_networks(
+                {},  # No compose-defined networks for orphans
+                [container],
+                []   # No stack-specific Docker networks
+            ),
+            "volumes": self._build_unified_volumes(
+                {},  # No compose-defined volumes for orphans  
+                [container],
+                []   # No stack-specific Docker volumes
+            ),
+            "containers": self._build_container_summary([container]),
+            "stats": self._build_stack_stats([container], [], []),
+            "environment": {"compose_version": "3.8", "env_files": [], "secrets": [], "configs": []},
+            "health": self._build_health_summary([container])
+        }
+        
+        return unified_stack
+
+    def _infer_compose_from_containers(self, containers: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Infer compose structure from containers when compose file unavailable"""
+        services = {}
+        
+        for container in containers:
+            service_name = container.get("compose", {}).get("service") or container["name"]
+            services[service_name] = {
+                "image": container["image"],
+                "container_name": container["name"],
+                "restart": container.get("restart_policy", "no"),
+                "ports": self._extract_ports_for_compose(container),
+                "volumes": self._extract_volumes_for_compose(container),
+                "environment": container.get("environment", [])
+            }
+            
+            # Clean up empty sections
+            for key in ["ports", "volumes", "environment"]:
+                if not services[service_name][key]:
+                    del services[service_name][key]
+        
+        return {
+            "version": "3.8",
+            "services": services
+        }
+
+    def _extract_ports_for_compose(self, container: Dict[str, Any]) -> List[str]:
+        """Extract ports in compose format from container"""
+        ports = []
+        for container_port, bindings in container.get("ports", {}).items():
+            for binding in bindings:
+                if binding["host_port"]:
+                    ports.append(f"{binding['host_port']}:{container_port}")
+        return ports
+
+    def _extract_volumes_for_compose(self, container: Dict[str, Any]) -> List[str]:
+        """Extract volumes in compose format from container"""
+        volumes = []
+        for mount in container.get("mounts", []):
+            if mount["source"] and mount["destination"]:
+                mode = f":{mount['mode']}" if mount.get("mode") and mount["mode"] != "rw" else ""
+                volumes.append(f"{mount['source']}:{mount['destination']}{mode}")
+        return volumes
+
+    def _extract_external_environment_info(self, containers: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Extract environment info for external projects"""
+        return {
+            "compose_version": "3.8",  # Default for external
+            "env_files": [],  # Can't detect external env files
+            "secrets": [],
+            "configs": []
+        }
+
     def _get_stack_containers(self, stack_name: str) -> List[Any]:
         """Get all containers belonging to this stack"""
         try:

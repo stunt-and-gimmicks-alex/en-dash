@@ -10,6 +10,8 @@ import json
 import logging
 from typing import Dict, Any, Set
 from datetime import datetime, timezone
+from pathlib import Path
+import yaml
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 import docker
@@ -116,7 +118,15 @@ class UnifiedStackConnectionManager:
             logger.error(f"Fatal error in unified stacks broadcasting: {e}")
     
     async def _get_unified_stacks(self):
-        """Get all unified stacks with complete processing"""
+        """
+        Get all unified stacks using comprehensive discovery
+        
+        This replaces the old directory-only scanning with the new comprehensive
+        discovery that includes:
+        1. Stacks from /opt/stacks directory
+        2. External compose projects  
+        3. Orphaned containers → _ORPHAN_{name} pseudo-stacks
+        """
         if not docker_client:
             return {
                 "available": False,
@@ -125,54 +135,28 @@ class UnifiedStackConnectionManager:
             }
         
         try:
-            # Get list of stack directories
-            stacks_dir = unified_stack_service.stacks_directory
-            if not stacks_dir.exists():
-                return {
-                    "available": True,
-                    "stacks": [],
-                    "message": "No stacks directory found"
-                }
+            logger.info("Starting comprehensive stack discovery via WebSocket...")
             
-            unified_stacks = []
+            # Use the new comprehensive discovery method
+            unified_stacks = await unified_stack_service.get_all_unified_stacks()
             
-            # Process each stack directory
-            for stack_path in stacks_dir.iterdir():
-                if stack_path.is_dir() and not stack_path.name.startswith('.'):
-                    try:
-                        # Get fully unified stack with all processing
-                        unified_stack = await unified_stack_service.get_unified_stack(stack_path.name)
-                        unified_stacks.append(unified_stack)
-                        
-                    except Exception as e:
-                        logger.error(f"Error processing stack {stack_path.name}: {e}")
-                        # Add error stack for debugging
-                        unified_stacks.append({
-                            "name": stack_path.name,
-                            "status": "error",
-                            "error": str(e),
-                            "path": str(stack_path),
-                            "services": {},
-                            "networks": {"all": []},
-                            "volumes": {"all": []},
-                            "containers": {"total": 0, "containers": []},
-                            "stats": {"containers": {"total": 0, "running": 0, "stopped": 0}},
-                            "health": {"overall_health": "error"}
-                        })
+            logger.info(f"Comprehensive discovery complete: {len(unified_stacks)} stacks found")
             
             return {
                 "available": True,
                 "stacks": unified_stacks,
                 "total_stacks": len(unified_stacks),
-                "processing_time": datetime.now(timezone.utc).isoformat()
+                "processing_time": datetime.now(timezone.utc).isoformat(),
+                "discovery_method": "comprehensive"  # For debugging
             }
             
         except Exception as e:
-            logger.error(f"Error getting unified stacks: {e}")
+            logger.error(f"Error in comprehensive unified stacks discovery: {e}")
             return {
                 "available": False,
                 "error": str(e),
-                "stacks": []
+                "stacks": [],
+                "discovery_method": "comprehensive_failed"
             }
 
 # Connection manager instance
@@ -266,15 +250,20 @@ async def unified_stacks_health():
 
 @router.get("/unified-stacks/debug")
 async def unified_stacks_debug():
-    """Debug endpoint to test unified stack processing (development only)"""
+    """Debug endpoint to test comprehensive unified stack processing"""
     try:
-        # Get unified stacks data for debugging
-        unified_data = await unified_manager._get_unified_stacks()
+        logger.info("Debug endpoint: testing comprehensive discovery...")
+        
+        # Use comprehensive discovery for debugging
+        unified_stacks = await unified_stack_service.get_all_unified_stacks()
         
         return {
             "debug": True,
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "data": unified_data
+            "discovery_method": "comprehensive",
+            "total_stacks": len(unified_stacks),
+            "stack_names": [stack["name"] for stack in unified_stacks],
+            "data": unified_stacks
         }
         
     except Exception as e:
@@ -282,5 +271,6 @@ async def unified_stacks_debug():
         return {
             "debug": True,
             "error": str(e),
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "discovery_method": "comprehensive_failed"
         }
