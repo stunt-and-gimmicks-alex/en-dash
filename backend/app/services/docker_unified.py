@@ -194,7 +194,7 @@ class UnifiedStackService:
         try:
             containers = []
             for container in self.docker_client.containers.list(all=True):
-                container_data = self._build_detailed_container(container)
+                container_data = self._build_detailed_container(container, include_stats=False)  # Add this parameter
                 containers.append(container_data)
             return containers
         except Exception as e:
@@ -457,7 +457,7 @@ class UnifiedStackService:
             logger.error(f"Error getting containers for stack {stack_name}: {e}")
             return []
     
-    def _build_detailed_container(self, container) -> Dict[str, Any]:
+    def _build_detailed_container(self, container, include_stats=True) -> Dict[str, Any]:
         """Build detailed container object with all relevant information"""
         try:
             # Basic container info
@@ -502,7 +502,7 @@ class UnifiedStackService:
             }
             
             # Add real-time stats if container is running
-            if container.status == 'running':
+            if container.status == 'running' and include_stats:  # Add include_stats check here
                 try:
                     stats = container.stats(stream=False)
                     container_data["live_stats"] = self._process_container_stats(stats)
