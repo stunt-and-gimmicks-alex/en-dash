@@ -6,7 +6,7 @@ import { Box, Container, Flex, Stack } from "@chakra-ui/react";
 import { ColorModeButton } from "@/components/ui/color-mode";
 import { MobileNavbar } from "@/components/navigation/MobileNavbar";
 import { Sidebar } from "@/components/navigation/Sidebar";
-import { HeaderStatsBlock } from "@/components/HeaderStatsBlock";
+import { HeaderStatsBlock } from "@/components/layout/HeaderStatsBlock";
 import type { NavigationProps } from "@/types/navigation";
 
 interface AppLayoutProps extends NavigationProps {
