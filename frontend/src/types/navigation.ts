@@ -9,7 +9,7 @@ export type PageKey =
   | "network"
   | "security"
   | "docker-overview" // Real overview page (stats, summary)
-  | "docker-stacks" // Current stacks list page
+  | "docker-stacks" // NEW - Stacks management page
   | "databases-overview"
   | "web-services-overview"
   | "monitoring-overview";

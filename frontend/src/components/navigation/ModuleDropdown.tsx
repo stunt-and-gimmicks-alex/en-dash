@@ -1,5 +1,5 @@
 // frontend/src/components/navigation/ModuleDropdown.tsx
-// Clean module dropdown component using ChakraUI v3 and Collapsible
+// Fixed module dropdown component with working item click handlers
 
 import React from "react";
 import { Button, Stack, Box, HStack, Text } from "@chakra-ui/react";
@@ -14,13 +14,15 @@ interface ModuleDropdownItem {
 }
 
 interface ModuleDropdownProps {
-  icon: LucideIcon;
-  label: string;
-  items: string[] | ModuleDropdownItem[];
-  isOpen?: boolean;
-  onToggle?: () => void;
+  icon: any;
+  label: string | React.ReactNode; // Update to accept React elements
+  items: string[];
+  isOpen: boolean;
+  onToggle: () => void;
   isMainActive?: boolean;
   onHeaderClick?: () => void;
+  onItemClick?: (item: string) => void;
+  disabled?: boolean; // Add disabled prop
 }
 
 export const ModuleDropdown: React.FC<ModuleDropdownProps> = ({
@@ -31,6 +33,8 @@ export const ModuleDropdown: React.FC<ModuleDropdownProps> = ({
   onToggle,
   isMainActive = false,
   onHeaderClick,
+  onItemClick,
+  disabled = false,
 }) => {
   // Convert items to consistent format
   const normalizedItems: ModuleDropdownItem[] = items.map((item) => {
@@ -63,14 +67,22 @@ export const ModuleDropdown: React.FC<ModuleDropdownProps> = ({
               : "brand.onSurface",
           }}
           borderRadius="md"
+          disabled={disabled}
           onClick={() => {
-            onHeaderClick?.();
-            onToggle?.();
+            if (!disabled) {
+              onHeaderClick?.();
+              onToggle?.();
+            }
           }}
         >
           <HStack gap="3">
             <Icon size="16" />
-            <Text fontSize="sm">{label}</Text>
+            {/* Handle both string and React element labels */}
+            {typeof label === "string" ? (
+              <Text fontSize="sm">{label}</Text>
+            ) : (
+              <Box fontSize="sm">{label}</Box>
+            )}
           </HStack>
           <ChevronDown
             size="16"
@@ -89,7 +101,13 @@ export const ModuleDropdown: React.FC<ModuleDropdownProps> = ({
             // Handle simple string items
             if (!item.status) {
               return (
-                <SidebarLink key={item.name} ps="9" fontSize="sm">
+                <SidebarLink
+                  key={item.name}
+                  ps="9"
+                  fontSize="sm"
+                  disabled={disabled}
+                  onClick={() => !disabled && onItemClick?.(item.name)}
+                >
                   {item.name}
                 </SidebarLink>
               );
@@ -104,7 +122,13 @@ export const ModuleDropdown: React.FC<ModuleDropdownProps> = ({
                 : "gray";
 
             return (
-              <SidebarLink key={item.name} ps="9" fontSize="sm">
+              <SidebarLink
+                key={item.name}
+                ps="9"
+                fontSize="sm"
+                disabled={disabled}
+                onClick={() => !disabled && onItemClick?.(item.name)}
+              >
                 <HStack justify="space-between" width="full">
                   <Text>{item.name}</Text>
                   <Status.Root colorPalette={statusColor} size="sm">

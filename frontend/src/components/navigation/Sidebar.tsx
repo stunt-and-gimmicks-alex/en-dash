@@ -1,8 +1,8 @@
 // frontend/src/components/navigation/Sidebar.tsx
-// Fixed sidebar using working API hooks and proper Docker module structure
+// Fixed sidebar maintaining existing structure and adding Docker item navigation
 
 import React, { useState } from "react";
-import { Stack, Box, Text } from "@chakra-ui/react";
+import { Stack, Box, Text, Spinner, Badge, HStack } from "@chakra-ui/react";
 import {
   LayoutDashboard,
   BarChart3,
@@ -26,12 +26,12 @@ import { ModuleDropdown } from "./ModuleDropdown";
 
 // USING NEW WEBSOCKET API with unified backend processing
 import { useStacks } from "@/hooks/useNewApi";
-// import { useDockgeStacks } from "@/hooks/useApi"; // OLD API - remove when confirmed working
 
 import type {
   NavigationProps,
   NavigationItem,
   ModuleGroup,
+  PageKey,
 } from "@/types/navigation";
 
 // Server management navigation items
@@ -66,6 +66,28 @@ const staticModuleGroups: ModuleGroup[] = [
   },
 ];
 
+// Pages that exist and should be enabled
+const EXISTING_PAGES: PageKey[] = [
+  "dashboard",
+  "docker-overview",
+  "docker-stacks",
+];
+
+// Check if a page exists and should be enabled
+const isPageEnabled = (pageKey: PageKey): boolean => {
+  return EXISTING_PAGES.includes(pageKey);
+};
+
+// Docker item to page mapping
+const DOCKER_ITEM_MAPPING: Record<string, PageKey> = {
+  Overview: "docker-overview",
+  Stacks: "docker-stacks",
+  Containers: "docker-overview", // TODO: Create separate containers page
+  Images: "docker-overview", // TODO: Create separate images page
+  Networks: "docker-overview", // TODO: Create separate networks page
+  Volumes: "docker-overview", // TODO: Create separate volumes page
+};
+
 export const Sidebar: React.FC<NavigationProps> = ({
   currentPage,
   onNavigate,
@@ -79,6 +101,48 @@ export const Sidebar: React.FC<NavigationProps> = ({
     setOpenModule(openModule === moduleLabel ? null : moduleLabel);
   };
 
+  // Docker item click handler
+  const handleDockerItemClick = (item: string) => {
+    console.log(`🐳 Docker item clicked: ${item}`);
+    const pageKey = DOCKER_ITEM_MAPPING[item];
+    if (pageKey && isPageEnabled(pageKey)) {
+      console.log(`🔍 Mapping ${item} → ${pageKey}`);
+      onNavigate(pageKey);
+    } else if (!isPageEnabled(pageKey)) {
+      console.warn(`⚠️ Page not yet implemented: ${pageKey}`);
+    } else {
+      console.warn(`⚠️ No mapping found for Docker item: ${item}`);
+    }
+  };
+
+  // Calculate stack statistics for badges
+  const getStackStats = () => {
+    if (!stacks || stacks.length === 0) {
+      return { running: 0, partial: 0, stopped: 0, total: 0 };
+    }
+
+    return stacks.reduce(
+      (counts, stack) => {
+        const runningContainers = stack.stats?.containers?.running || 0;
+        const totalContainers = stack.stats?.containers?.total || 0;
+
+        if (runningContainers === 0) {
+          counts.stopped++;
+        } else if (runningContainers === totalContainers) {
+          counts.running++;
+        } else {
+          counts.partial++;
+        }
+
+        counts.total++;
+        return counts;
+      },
+      { running: 0, partial: 0, stopped: 0, total: 0 }
+    );
+  };
+
+  const stackStats = getStackStats();
+
   // Create Docker module with proper structure
   const dockerModuleItems = [
     "Overview", // NEW: Real overview page
@@ -89,18 +153,85 @@ export const Sidebar: React.FC<NavigationProps> = ({
     "Volumes",
   ];
 
-  // Add status indicator for Docker label
-  const getDockerStatus = () => {
-    if (loading) return " (Connecting...)";
-    if (!connected) return " (Disconnected)";
-    if (error) return " (Error)";
-    if (stacks.length === 0) return " (No Stacks)";
-    return ` (${stacks.length} stacks)`;
+  // Build Docker label with status indicator
+  const getDockerLabel = () => {
+    // Show spinner if:
+    // 1. Still loading, OR
+    // 2. Connected but no stacks loaded yet (could be loading), OR
+    // 3. Error but still attempting to connect
+    if (
+      loading ||
+      (connected && stacks.length === 0 && !error) ||
+      (error && !connected)
+    ) {
+      return (
+        <HStack gap="2">
+          <Text>Docker</Text>
+          <Spinner size="sm" color="brand.onSurfaceVariant" />
+        </HStack>
+      );
+    }
+
+    // Only show error badge if there's a definitive error and we're not connected
+    if (error && !connected) {
+      return (
+        <HStack gap="2">
+          <Text>Docker</Text>
+          <Badge colorPalette="red" size="sm">
+            ✕
+          </Badge>
+        </HStack>
+      );
+    }
+
+    // Show "0" badge only if connected, no error, AND we've confirmed there are no stacks
+    if (connected && !error && stacks.length === 0) {
+      return (
+        <HStack gap="2">
+          <Text>Docker</Text>
+          <Badge colorPalette="gray" size="sm">
+            0
+          </Badge>
+        </HStack>
+      );
+    }
+
+    // Show color-coded badges for stack status when we have actual stack data
+    if (connected && stacks.length > 0) {
+      return (
+        <HStack gap="2">
+          <Text>Docker</Text>
+          {stackStats.running > 0 && (
+            <Badge colorPalette="green" size="sm">
+              {stackStats.running}
+            </Badge>
+          )}
+          {stackStats.partial > 0 && (
+            <Badge colorPalette="yellow" size="sm">
+              {stackStats.partial}
+            </Badge>
+          )}
+          {stackStats.stopped > 0 && (
+            <Badge colorPalette="red" size="sm">
+              {stackStats.stopped}
+            </Badge>
+          )}
+        </HStack>
+      );
+    }
+
+    // Fallback: show spinner for any uncertain states
+    return (
+      <HStack gap="2">
+        <Text>Docker</Text>
+        <Spinner size="sm" color="brand.onSurfaceVariant" />
+      </HStack>
+    );
   };
 
   const dockerModule: ModuleGroup = {
-    key: "docker-overview", // Still maps to docker-overview for now
-    label: `Docker${getDockerStatus()}`,
+    key: "docker-overview",
+    label: "Docker", // Will be overridden by custom label
     icon: Container,
     items: dockerModuleItems,
   };
@@ -142,7 +273,10 @@ export const Sidebar: React.FC<NavigationProps> = ({
                 <SidebarLink
                   key={link.key}
                   isActive={currentPage === link.key}
-                  onClick={() => onNavigate(link.key)}
+                  onClick={() =>
+                    isPageEnabled(link.key) ? onNavigate(link.key) : undefined
+                  }
+                  disabled={!isPageEnabled(link.key)}
                 >
                   <link.icon size="16" /> {link.label}
                 </SidebarLink>
@@ -167,12 +301,13 @@ export const Sidebar: React.FC<NavigationProps> = ({
               <ModuleDropdown
                 key={dockerModule.key}
                 icon={dockerModule.icon}
-                label={dockerModule.label}
+                label={getDockerLabel()} // Use custom label with badges/spinner
                 items={dockerModule.items}
-                isOpen={openModule === dockerModule.label}
-                onToggle={() => handleModuleToggle(dockerModule.label)}
+                isOpen={openModule === "Docker"} // Use consistent string
+                onToggle={() => handleModuleToggle("Docker")}
                 isMainActive={currentPage === dockerModule.key}
                 onHeaderClick={() => onNavigate(dockerModule.key)}
+                onItemClick={handleDockerItemClick}
               />
 
               {/* Static Modules */}
@@ -185,7 +320,12 @@ export const Sidebar: React.FC<NavigationProps> = ({
                   isOpen={openModule === module.label}
                   onToggle={() => handleModuleToggle(module.label)}
                   isMainActive={currentPage === module.key}
-                  onHeaderClick={() => onNavigate(module.key)}
+                  onHeaderClick={() =>
+                    isPageEnabled(module.key)
+                      ? onNavigate(module.key)
+                      : undefined
+                  }
+                  disabled={!isPageEnabled(module.key)}
                 />
               ))}
             </Stack>
@@ -197,10 +337,10 @@ export const Sidebar: React.FC<NavigationProps> = ({
       <Stack gap="4">
         <Box borderTop="1px" borderColor="brand.subtle" pt="4">
           <Stack gap="1">
-            <SidebarLink>
+            <SidebarLink disabled={true}>
               <HelpCircle size="16" /> Help Center
             </SidebarLink>
-            <SidebarLink>
+            <SidebarLink disabled={true}>
               <Settings size="16" /> Settings
             </SidebarLink>
           </Stack>

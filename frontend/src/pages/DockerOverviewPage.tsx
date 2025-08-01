@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { useDockerStats, useDockgeStacks } from "@/hooks/useApi";
 import type { NavigationProps } from "@/types/navigation";
+import { RealtimeStacksTest } from "@/components/debug/RealTimeStackTest";
 
 interface DockerOverviewPageProps {
   onNavigate?: (page: NavigationProps["currentPage"]) => void;
@@ -243,6 +244,7 @@ export const DockerOverviewPage: React.FC<DockerOverviewPageProps> = ({
               </GridItem>
             ))}
           </Grid>
+          <RealtimeStacksTest />
         </Stack>
       </Stack>
     </Box>

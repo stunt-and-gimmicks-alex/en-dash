@@ -12,6 +12,7 @@ import { PAGE_CONFIG } from "@/types/navigation";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { SystemMonitorPage } from "@/pages/SystemMonitorPage";
 import { DockerOverviewPage } from "@/pages/DockerOverviewPage";
+import { DockerStacksPage } from "@/pages/DockerStacksPage";
 import { StoragePage } from "@/pages/StoragePage";
 import { ProcessesPage } from "@/pages/ProcessPage";
 import { NetworkPage } from "@/pages/NetworkPage";
@@ -28,6 +29,7 @@ const PAGE_COMPONENTS: Record<PageKey, React.ComponentType> = {
   dashboard: DashboardPage,
   "system-monitor": SystemMonitorPage,
   "docker-overview": DockerOverviewPage,
+  "docker-stacks": DockerStacksPage,
   storage: StoragePage,
   processes: ProcessesPage,
   network: NetworkPage,
