@@ -8,18 +8,14 @@ import {
   Button,
   Card,
   Code,
-  CodeBlock,
   Container,
-  createShikiAdapter,
-  Dialog,
   HStack,
   Heading,
-  Icon,
   Stack,
   StackSeparator,
+  Status,
   Tabs,
   Text,
-  useEditable,
 } from "@chakra-ui/react";
 import {
   LuRotateCcw,
@@ -29,15 +25,14 @@ import {
   LuBookCheck,
   LuFileSymlink,
   LuInfo,
-  LuCheck,
-  LuPencilLine,
-  LuX,
 } from "react-icons/lu";
 import type { UnifiedStack } from "@/types/unified";
 import type { ApiContainer } from "@/services/apiService";
-import type { HighlighterGeneric } from "shiki";
 import { stringify } from "yaml";
 import { Tooltip } from "@/components/ui/tooltip";
+import { InfoField } from "@/components/ui/small/InfoField";
+import { EditableCodeViewDialog } from "@/components/ui/small/EditableCodeViewDialog";
+import { StackValidationAccordion } from "./StackValidationAccordion";
 
 // Keep container-block components as-is for now
 // import { ContainerBlock } from "@/components/pageblocks/container-block/container-block";
@@ -136,15 +131,12 @@ export const StackDetail: React.FC<StackDetailProps> = ({
     return "Default network";
   };
 
-  const shikiAdapter = createShikiAdapter<HighlighterGeneric<any, any>>({
-    async load() {
-      const { createHighlighter } = await import("shiki");
-      return createHighlighter({
-        langs: ["yaml", "json"],
-        themes: ["github-dark", "github-light"],
-      });
-    },
-  });
+  // Dummy save function for now - will be wired up later
+  const handleSaveCompose = async (editedYaml: string) => {
+    console.log("Saving compose file:", editedYaml);
+    // TODO: Implement actual save functionality
+    // This could call an API endpoint to update the compose file
+  };
 
   const yaml_file_text: string = stringify(stack.compose_content);
 
@@ -188,7 +180,7 @@ export const StackDetail: React.FC<StackDetailProps> = ({
                       <Badge
                         colorPalette="gray"
                         variant="solid"
-                        justifyContent="center"
+                        alignContent="center"
                       >
                         {stack.status}
                       </Badge>
@@ -286,116 +278,26 @@ export const StackDetail: React.FC<StackDetailProps> = ({
                 <Card.Body>
                   <HStack gap="4">
                     <Stack flexBasis="full" gap="3">
-                      <Stack gap="0.5">
-                        {/* TODO: Should also move these to a standard subcomponent */}
-                        <Text
-                          textStyle="sm"
-                          fontWeight="medium"
-                          color="brand.onSurfaceVariant"
-                        >
-                          Name:
-                        </Text>
-                        <Code
-                          textStyle="md"
-                          bg="brand.surfaceContainerLowest"
-                          py="1"
-                          pl="2"
-                        >
-                          {stack.name}
-                        </Code>
-                      </Stack>
-
-                      <Stack gap="0.5">
-                        <Text
-                          textStyle="sm"
-                          fontWeight="medium"
-                          color="brand.onSurfaceVariant"
-                        >
-                          Path:
-                        </Text>
-                        <Code
-                          textStyle="md"
-                          bg="brand.surfaceContainerLowest"
-                          py="1"
-                          pl="2"
-                        >
-                          {stack.path}
-                        </Code>
-                      </Stack>
-
-                      <Stack gap="0.5">
-                        <Text
-                          textStyle="sm"
-                          fontWeight="medium"
-                          color="brand.onSurfaceVariant"
-                        >
-                          Compose File:
-                        </Text>
-                        <Code
-                          textStyle="md"
-                          bg="brand.surfaceContainerLowest"
-                          py="1"
-                          pl="2"
-                        >
-                          {stack.compose_file || "docker-compose.yml"}
-                        </Code>
-                      </Stack>
+                      <InfoField label="Name" value={stack.name} />
+                      <InfoField label="Path" value={stack.path} />
+                      <InfoField
+                        label="Compose File"
+                        value={stack.compose_file || "docker-compose.yml"}
+                      />
                     </Stack>
                     <Stack flexBasis="full" gap="3">
                       <HStack>
-                        <Stack gap="0.5" flexBasis="full">
-                          <Text
-                            textStyle="sm"
-                            fontWeight="medium"
-                            color="brand.onSurfaceVariant"
-                          >
-                            Stack Health:
-                          </Text>
-                          <Code
-                            textStyle="md"
-                            bg="brand.surfaceContainerLowest"
-                            py="1"
-                            pl="2"
-                          >
-                            {stack.health.overall_health}
-                          </Code>
-                        </Stack>
-                        <Stack gap="0.5" flexBasis="full">
-                          <Text
-                            textStyle="sm"
-                            fontWeight="medium"
-                            color="brand.onSurfaceVariant"
-                          >
-                            Last Modified:
-                          </Text>
-                          <Code
-                            textStyle="md"
-                            bg="brand.surfaceContainerLowest"
-                            py="1"
-                            pl="2"
-                          >
-                            {stack.last_modified.slice(0, 16)}
-                          </Code>
-                        </Stack>
+                        <InfoField
+                          label="Stack Health"
+                          value={stack.health.overall_health}
+                        />
+                        <InfoField
+                          label="Last Modified"
+                          value={stack.last_modified.slice(0, 16)}
+                        />
                       </HStack>
                       <HStack>
-                        <Stack gap="0.5" flexBasis="full">
-                          <Text
-                            textStyle="sm"
-                            fontWeight="medium"
-                            color="brand.onSurfaceVariant"
-                          >
-                            Stack Status:
-                          </Text>
-                          <Code
-                            textStyle="md"
-                            bg="brand.surfaceContainerLowest"
-                            py="1"
-                            pl="2"
-                          >
-                            {stack.status}
-                          </Code>
-                        </Stack>
+                        <InfoField label="Stack Status" value={stack.status} />
                         <Stack gap="0.5" flexBasis="full">
                           <HStack p="0" m="0">
                             <Text
@@ -497,97 +399,23 @@ export const StackDetail: React.FC<StackDetailProps> = ({
                   </HStack>
                 </Card.Body>
                 <Card.Footer py="2">
-                  {/* View Compose Dialog -- updated to the new Chakra CodeBlock element -- TODO: should probably move this to a separate component*/}
-                  <Dialog.Root>
-                    <Dialog.Trigger asChild>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        colorPalette="gray"
-                        _hover={{ borderColor: "brand.contrast/0" }}
-                        borderColor="brand.contrast"
-                        color={{
-                          base: "brand.contrast/75",
-                          _hover: "brand.contrast",
-                        }}
-                      >
-                        <HStack p="1" gap="1" cursor="pointer">
-                          <Text textStyle="xs">View Compose</Text>
-                          <LuFileSymlink />
-                        </HStack>
-                      </Button>
-                    </Dialog.Trigger>
-                    <Dialog.Backdrop />
-                    <Dialog.Positioner>
-                      <Dialog.Content bg="brand.surfaceContainer">
-                        <Dialog.CloseTrigger />
-
-                        <Dialog.Body p="2">
-                          <CodeBlock.AdapterProvider value={shikiAdapter}>
-                            <Stack gap="8">
-                              <CodeBlock.Root
-                                size="lg"
-                                code={yaml_file_text}
-                                meta={{ showLineNumbers: true }}
-                                language="yaml"
-                              >
-                                <CodeBlock.Header>
-                                  <CodeBlock.Title>
-                                    {stack.compose_file}
-                                  </CodeBlock.Title>
-                                </CodeBlock.Header>
-                                <CodeBlock.Content>
-                                  <CodeBlock.Code>
-                                    <CodeBlock.CodeText />
-                                  </CodeBlock.Code>
-                                </CodeBlock.Content>
-                              </CodeBlock.Root>
-                            </Stack>
-                          </CodeBlock.AdapterProvider>
-                        </Dialog.Body>
-                      </Dialog.Content>
-                    </Dialog.Positioner>
-                  </Dialog.Root>
+                  {/* Using the new EditableCodeViewDialog component */}
+                  <EditableCodeViewDialog
+                    code={yaml_file_text}
+                    language="yaml"
+                    title={stack.compose_file}
+                    triggerText="View Compose"
+                    triggerIcon={<LuFileSymlink />}
+                    onSave={handleSaveCompose}
+                    editable={true}
+                    editButtonText="Edit YAML"
+                  />
                 </Card.Footer>
               </Card.Root>
             </Stack>
 
             {/* Stack Validation Accordion */}
-            <Card.Root
-              variant="subtle"
-              colorPalette="brand"
-              bg="brand.background"
-            >
-              <Accordion.Root collapsible variant="outline">
-                <Accordion.Item key="1" value="1" borderRadius="0">
-                  <Accordion.ItemTrigger
-                    py="0"
-                    px="4"
-                    bg="brand.secondaryContainer"
-                    color="brand.onSecondaryContainer"
-                    borderRadius="0"
-                  >
-                    <Icon fontSize="3xl" color="brand.onSecondaryContainer">
-                      <LuBookCheck />
-                    </Icon>
-                    <Card.Header gap="0.5" pb="4" w="100%">
-                      <Card.Title as="h4">Stack Compose Validation</Card.Title>
-                      <Card.Description color="brand.onSecondaryContainer">
-                        Identify and resolve Docker Compose issues for this
-                        stack.
-                      </Card.Description>
-                    </Card.Header>
-                  </Accordion.ItemTrigger>
-                  <Accordion.ItemContent>
-                    <Container p="4">
-                      <Text color="brand.onSurfaceVariant">
-                        Stack validation checks will appear here.
-                      </Text>
-                    </Container>
-                  </Accordion.ItemContent>
-                </Accordion.Item>
-              </Accordion.Root>
-            </Card.Root>
+            <StackValidationAccordion stack={stack} />
           </Stack>
         </Container>
 
