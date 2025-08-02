@@ -2,8 +2,9 @@
 // Editable code viewer dialog using ChakraUI v3 Editable component
 // Built on top of CodeViewDialog with editing functionality
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
+  Box,
   Button,
   CodeBlock,
   createShikiAdapter,
@@ -31,6 +32,46 @@ interface EditableCodeViewDialogProps {
   cancelButtonText?: string;
   editButtonText?: string;
 }
+
+// Line numbers component that matches CodeBlock styling
+const LineNumbers: React.FC<{ code: string }> = ({ code }) => {
+  const lineCount = useMemo(() => {
+    return code.split("\n").length;
+  }, [code]);
+
+  return (
+    <Box
+      position="absolute"
+      left="0"
+      top="0"
+      bottom="0"
+      width="60px"
+      bg="brand.surfaceContainerLowest"
+      borderRight="1px solid"
+      borderColor="brand.outline"
+      py="4"
+      px="2"
+      fontFamily="mono"
+      fontSize="sm"
+      color="brand.onSurfaceVariant/60"
+      userSelect="none"
+      pointerEvents="none"
+    >
+      {Array.from({ length: lineCount }, (_, i) => (
+        <Box
+          key={i + 1}
+          height="1.5em"
+          display="flex"
+          alignItems="center"
+          justifyContent="flex-end"
+          pr="2"
+        >
+          {i + 1}
+        </Box>
+      ))}
+    </Box>
+  );
+};
 
 export const EditableCodeViewDialog: React.FC<EditableCodeViewDialogProps> = ({
   code,
@@ -111,39 +152,51 @@ export const EditableCodeViewDialog: React.FC<EditableCodeViewDialogProps> = ({
       <Dialog.Positioner>
         <Dialog.Content bg="brand.surfaceContainer" maxW="4xl" w="90vw">
           <Dialog.CloseTrigger />
-          <Dialog.Header bg="brand.primaryContainer">
-            <Dialog.Title bg="brand.primaryContainer">{title}</Dialog.Title>
+          <Dialog.Header>
+            <Dialog.Title>{title}</Dialog.Title>
           </Dialog.Header>
           <Dialog.Body p="2">
             {isEditing ? (
-              // Edit mode - show Editable component in editing state
+              // Edit mode - Custom styled textarea with line numbers
               <Stack gap="4">
-                <Editable.Root
-                  value={editedCode}
-                  onValueChange={(details) => setEditedCode(details.value)}
-                  placeholder="Enter your YAML content..."
-                  edit={true}
-                  selectOnFocus={false}
-                >
-                  <Editable.Textarea
-                    minH="500px"
-                    maxH="70vh"
-                    p="4"
-                    bg="brand.surfaceContainerLowest"
-                    borderRadius="md"
-                    fontFamily="mono"
-                    fontSize="sm"
-                    whiteSpace="pre"
-                    overflow="auto"
-                    border="1px solid"
-                    borderColor="brand.primary"
-                    resize="none"
-                    _focus={{
-                      borderColor: "brand.primary",
-                      boxShadow: "0 0 0 1px var(--chakra-colors-brand-primary)",
-                    }}
-                  />
-                </Editable.Root>
+                <Box position="relative" w="full">
+                  {showLineNumbers && <LineNumbers code={editedCode} />}
+                  <Editable.Root
+                    value={editedCode}
+                    onValueChange={(details) => setEditedCode(details.value)}
+                    placeholder="Enter your YAML content..."
+                    edit={true}
+                    selectOnFocus={false}
+                  >
+                    <Editable.Textarea
+                      minH="500px"
+                      maxH="70vh"
+                      w="full"
+                      p="4"
+                      pl={showLineNumbers ? "70px" : "4"} // Add left padding for line numbers
+                      bg="brand.surfaceContainerLowest"
+                      borderRadius="md"
+                      fontFamily="mono"
+                      fontSize="sm"
+                      lineHeight="1.5"
+                      whiteSpace="pre"
+                      overflow="auto"
+                      border="1px solid"
+                      borderColor="brand.primary"
+                      resize="none"
+                      color="brand.onSurface"
+                      _focus={{
+                        borderColor: "brand.primary",
+                        boxShadow:
+                          "0 0 0 1px var(--chakra-colors-brand-primary)",
+                        outline: "none",
+                      }}
+                      _placeholder={{
+                        color: "brand.onSurfaceVariant/50",
+                      }}
+                    />
+                  </Editable.Root>
+                </Box>
               </Stack>
             ) : (
               // View mode - show CodeBlock

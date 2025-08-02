@@ -3,7 +3,6 @@
 
 import React, { useMemo } from "react";
 import {
-  Accordion,
   Badge,
   Button,
   Card,
@@ -12,26 +11,16 @@ import {
   HStack,
   Heading,
   Stack,
-  StackSeparator,
-  Status,
-  Tabs,
   Text,
 } from "@chakra-ui/react";
-import {
-  LuRotateCcw,
-  LuCirclePower,
-  LuWebhook,
-  LuHardDriveDownload,
-  LuBookCheck,
-  LuFileSymlink,
-  LuInfo,
-} from "react-icons/lu";
+import { LuFileSymlink, LuInfo } from "react-icons/lu";
 import type { UnifiedStack } from "@/types/unified";
-import type { ApiContainer } from "@/services/apiService";
 import { stringify } from "yaml";
 import { Tooltip } from "@/components/ui/tooltip";
 import { InfoField } from "@/components/ui/small/InfoField";
 import { EditableCodeViewDialog } from "@/components/ui/small/EditableCodeViewDialog";
+import { StackControlButtons } from "@/components/ui/small/StackControlButtons";
+import { ServicesPane } from "./ServicesPane";
 import { StackValidationAccordion } from "./StackValidationAccordion";
 
 // Keep container-block components as-is for now
@@ -58,78 +47,7 @@ export const StackDetail: React.FC<StackDetailProps> = ({
   loading = false,
   disabled = false,
 }) => {
-  // Prevent event bubbling from buttons
-  const handleButtonClick = (e: React.MouseEvent, action: () => void) => {
-    e.stopPropagation();
-    action();
-  };
-
-  // Work directly with UnifiedStack containers - no conversion needed
-  const stackContainers = useMemo(() => {
-    if (!stack.containers?.containers) return [];
-
-    // Return the UnifiedStack containers directly
-    return stack.containers.containers;
-  }, [stack.containers]);
-
-  // Get services directly from UnifiedStack data
-  const services = useMemo(() => {
-    // Use the actual UnifiedStack services if available
-    if (stack.services && Array.isArray(stack.services)) {
-      return stack.services.map((service) => ({
-        name: service.name || "unknown",
-        image: service.image || "unknown",
-        status:
-          service.status ||
-          (stack.stats?.containers?.running > 0 ? "running" : "stopped"),
-        healthStatus: { overall: service.health || "unknown" },
-        containers: stackContainers.filter(
-          (container) =>
-            container.name?.includes(service.name || "") ||
-            container.labels?.["com.docker.compose.service"] === service.name
-        ),
-      }));
-    }
-
-    // Fallback: create a service from container data
-    if (stackContainers.length > 0) {
-      return [
-        {
-          name: stack.name,
-          image: stackContainers[0]?.image || "unknown",
-          status: stack.stats?.containers?.running > 0 ? "running" : "stopped",
-          healthStatus: { overall: "unknown" },
-          containers: stackContainers,
-        },
-      ];
-    }
-
-    // Last fallback: single mock service
-    return [
-      {
-        name: stack.name,
-        image: "unknown",
-        status: stack.stats?.containers?.running > 0 ? "running" : "stopped",
-        healthStatus: { overall: "unknown" },
-        containers: [],
-      },
-    ];
-  }, [stack, stackContainers]);
-
-  // Get volumes and networks directly from UnifiedStack
-  const getVolumes = (serviceName: string) => {
-    if (stack.volumes && Array.isArray(stack.volumes)) {
-      return stack.volumes.map((vol) => vol.name || vol).join(", ");
-    }
-    return "No volumes configured";
-  };
-
-  const getNetworks = (serviceName: string) => {
-    if (stack.networks && Array.isArray(stack.networks)) {
-      return stack.networks.map((net) => net.name || net).join(", ");
-    }
-    return "Default network";
-  };
+  const services = Object.values(stack.services || {});
 
   // Dummy save function for now - will be wired up later
   const handleSaveCompose = async (editedYaml: string) => {
@@ -147,7 +65,7 @@ export const StackDetail: React.FC<StackDetailProps> = ({
         <Container
           maxW="1/3"
           fluid
-          bg="brand.surfaceContainerLow"
+          bg="brand.surfaceContainerLowest"
           py={{ sm: "4", md: "6" }}
         >
           <Stack gap={{ base: "4", md: "5" }} colorPalette="brand">
@@ -172,7 +90,7 @@ export const StackDetail: React.FC<StackDetailProps> = ({
                   <HStack gap="2">
                     <Stack flexBasis="50%" gap="0.5">
                       <Card.Title>Stack Details</Card.Title>
-                      <Card.Description color="brand.onPrimaryContainer">
+                      <Card.Description color="brand.onSecondaryContainer">
                         Key information about your stack.
                       </Card.Description>
                     </Stack>
@@ -186,91 +104,15 @@ export const StackDetail: React.FC<StackDetailProps> = ({
                       </Badge>
                     </Stack>
                     <Stack flexBasis="40%">
-                      <HStack
-                        bg="brand.background/35"
-                        p="1"
-                        justifyContent="space-evenly"
-                      >
-                        {/* TODO: These should DEFINITELY be moved to a STACK/SERVICE/CONTAINER Control component */}
-                        {stack.stats?.containers?.running > 0 ? (
-                          <>
-                            <Stack gap="0.5" flexBasis="1/3">
-                              <Button
-                                variant="ghost"
-                                color="brand.onSecondaryContainer"
-                                bg={{ _hover: "brand.secondaryContainer/75" }}
-                                size="lg"
-                                onClick={(e) =>
-                                  handleButtonClick(e, () =>
-                                    onRestart(stack.name)
-                                  )
-                                }
-                                disabled={disabled || loading}
-                              >
-                                <LuRotateCcw /> Restart
-                              </Button>
-                            </Stack>
-                            <Stack gap="0.5" flexBasis="1/3">
-                              <Button
-                                size="lg"
-                                color="brand.onErrorContainer"
-                                bg={{ _hover: "brand.errorContainer/75" }}
-                                variant="ghost"
-                                onClick={(e) =>
-                                  handleButtonClick(e, () => onStop(stack.name))
-                                }
-                                disabled={disabled || loading}
-                              >
-                                <LuCirclePower />
-                                Stop
-                              </Button>
-                            </Stack>
-                          </>
-                        ) : (
-                          <>
-                            <Stack gap="0.5" flexBasis="1/3">
-                              <Button
-                                variant="ghost"
-                                color="brand.onSecondaryContainer"
-                                bg={{ _hover: "brand.secondaryContainer/75" }}
-                                size="sm"
-                                disabled
-                              >
-                                <LuRotateCcw /> Restart
-                              </Button>
-                            </Stack>
-                            <Stack gap="0.5" flexBasis="1/3">
-                              <Button
-                                size="lg"
-                                color="brand.onContainer"
-                                bg={{ _hover: "brand.container/75" }}
-                                variant="ghost"
-                                onClick={(e) =>
-                                  handleButtonClick(e, () =>
-                                    onStart(stack.name)
-                                  )
-                                }
-                                disabled={disabled || loading}
-                              >
-                                <LuCirclePower />
-                                Start
-                              </Button>
-                            </Stack>
-                          </>
-                        )}
-                        <Stack gap="0.5" flexBasis="1/3">
-                          <Button
-                            size="lg"
-                            color="brand.onTertiaryContainer"
-                            bg={{ _hover: "brand.tertiaryContainer/75" }}
-                            variant="ghost"
-                            disabled={disabled}
-                          >
-                            <LuHardDriveDownload />
-                            Update
-                          </Button>
-                        </Stack>
-                      </HStack>
+                      <StackControlButtons
+                        status={stack.status}
+                        onStart={() => onStart(stack.name)}
+                        onStop={() => onStop(stack.name)}
+                        onRestart={() => onRestart(stack.name)}
+                        disabled={disabled}
+                        loading={loading}
+                        orientation="horizontal"
+                      />
                     </Stack>
                   </HStack>
                 </Card.Header>
@@ -420,258 +262,7 @@ export const StackDetail: React.FC<StackDetailProps> = ({
         </Container>
 
         {/* Right Panel - Services and Containers */}
-        <Container
-          fluid
-          bg="brand.surfaceContainerLow"
-          py={{ sm: "4", md: "6" }}
-        >
-          <Stack gap={{ base: "4", md: "5" }} colorPalette="brand">
-            <Stack gap={{ base: "2", md: "3" }}>
-              <Heading
-                as="h3"
-                textStyle={{ base: "2xl", md: "3xl" }}
-                color="brand.onSurface"
-              >
-                Service and Container Overview
-              </Heading>
-
-              <Stack>
-                <Tabs.Root
-                  defaultValue={services[0]?.name || "main"}
-                  orientation="vertical"
-                  colorPalette="brand"
-                  size="lg"
-                  h="82dvh"
-                  bg="brand.surfaceContainerLowest"
-                >
-                  <Tabs.List>
-                    {services.map((service) => (
-                      <Tabs.Trigger key={service.name} value={service.name}>
-                        <LuWebhook />
-                        {service.name}
-                      </Tabs.Trigger>
-                    ))}
-                  </Tabs.List>
-
-                  {services.map((service) => (
-                    <Tabs.Content
-                      key={service.name}
-                      value={service.name}
-                      minH="5/6"
-                      w="full"
-                      p="0"
-                    >
-                      <Stack p="2" gap="2" w="full">
-                        <HStack bg="brand.tertiaryContainer" p="4">
-                          <Heading as="h4" color="brand.onTertiaryContainer">
-                            Service Overview
-                          </Heading>
-                        </HStack>
-
-                        <HStack
-                          gap="6"
-                          bg="brand.surfaceContainerHigh"
-                          p="4"
-                          w="full"
-                        >
-                          <Stack gap="0.5" w="full">
-                            <Text
-                              textStyle="sm"
-                              fontWeight="medium"
-                              color="brand.onSurfaceVariant"
-                            >
-                              Service Name:
-                            </Text>
-                            <Code
-                              textStyle="md"
-                              bg="brand.surfaceContainerLowest"
-                              py="1"
-                              pl="2"
-                            >
-                              {service.name}
-                            </Code>
-                          </Stack>
-
-                          <Stack gap="0.5" w="full">
-                            <Text
-                              textStyle="sm"
-                              fontWeight="medium"
-                              color="brand.onSurfaceVariant"
-                            >
-                              Image:
-                            </Text>
-                            <Code
-                              textStyle="md"
-                              bg="brand.surfaceContainerLowest"
-                              py="1"
-                              pl="2"
-                            >
-                              {service.image}
-                            </Code>
-                          </Stack>
-
-                          <Stack gap="0.5" w="full">
-                            <Text
-                              textStyle="sm"
-                              fontWeight="medium"
-                              color="brand.onSurfaceVariant"
-                            >
-                              Status:
-                            </Text>
-                            <Code
-                              textStyle="md"
-                              bg="brand.surfaceContainerLowest"
-                              py="1"
-                              pl="2"
-                            >
-                              {service.status}
-                            </Code>
-                          </Stack>
-
-                          <Stack gap="0.5" w="full">
-                            <Text
-                              textStyle="sm"
-                              fontWeight="medium"
-                              color="brand.onSurfaceVariant"
-                            >
-                              Health:
-                            </Text>
-                            <Code
-                              textStyle="md"
-                              bg="brand.surfaceContainerLowest"
-                              py="1"
-                              pl="2"
-                            >
-                              {service.healthStatus?.overall}
-                            </Code>
-                          </Stack>
-                        </HStack>
-
-                        <HStack gap="2" p="0" w="full" alignItems="top">
-                          <Stack
-                            gap="6"
-                            w="full"
-                            bg="brand.surfaceContainerLow"
-                            p="0"
-                          >
-                            <Stack gap="0.5" w="full">
-                              <Text
-                                textStyle="sm"
-                                fontWeight="medium"
-                                color="brand.onSurfaceVariant"
-                              >
-                                Volumes:
-                              </Text>
-                              <Code
-                                textStyle="md"
-                                bg="brand.surfaceContainerLowest"
-                                py="1"
-                                pl="2"
-                              >
-                                {getVolumes(service.name)}
-                              </Code>
-                            </Stack>
-                            <Stack gap="0.5" w="full">
-                              <Text
-                                textStyle="sm"
-                                fontWeight="medium"
-                                color="brand.onSurfaceVariant"
-                              >
-                                Networks:
-                              </Text>
-                              <Code
-                                textStyle="md"
-                                bg="brand.surfaceContainerLowest"
-                                py="1"
-                                pl="2"
-                              >
-                                {getNetworks(service.name)}
-                              </Code>
-                            </Stack>
-                          </Stack>
-
-                          <Stack
-                            gap="6"
-                            w="full"
-                            bg="brand.surfaceContainerLow"
-                            p="0"
-                            h="68.2dvh"
-                          >
-                            <Container p="0" m="0" w="full">
-                              {stackContainers.length > 0 ? (
-                                <Stack gap="4" p="4">
-                                  <Text
-                                    fontSize="lg"
-                                    fontWeight="semibold"
-                                    color="brand.onSurface"
-                                  >
-                                    Containers ({stackContainers.length})
-                                  </Text>
-                                  {stackContainers.map((container, index) => (
-                                    <Card.Root
-                                      key={container.id || index}
-                                      bg="brand.surfaceContainer"
-                                    >
-                                      <Card.Body>
-                                        <Stack gap="2">
-                                          <HStack justify="space-between">
-                                            <Text
-                                              fontWeight="medium"
-                                              color="brand.onSurface"
-                                            >
-                                              {container.name}
-                                            </Text>
-                                            <Text
-                                              fontSize="sm"
-                                              color="brand.onSurfaceVariant"
-                                            >
-                                              {container.status}
-                                            </Text>
-                                          </HStack>
-                                          <Text
-                                            fontSize="sm"
-                                            color="brand.onSurfaceVariant"
-                                          >
-                                            Image: {container.image}
-                                          </Text>
-                                          {container.ports &&
-                                            Object.keys(container.ports)
-                                              .length > 0 && (
-                                              <Text
-                                                fontSize="sm"
-                                                color="brand.onSurfaceVariant"
-                                              >
-                                                Ports:{" "}
-                                                {Object.keys(
-                                                  container.ports
-                                                ).join(", ")}
-                                              </Text>
-                                            )}
-                                        </Stack>
-                                      </Card.Body>
-                                    </Card.Root>
-                                  ))}
-                                </Stack>
-                              ) : (
-                                <Text
-                                  textAlign="center"
-                                  py="8"
-                                  color="brand.onSurfaceVariant"
-                                >
-                                  No containers found for this service
-                                </Text>
-                              )}
-                            </Container>
-                          </Stack>
-                        </HStack>
-                      </Stack>
-                    </Tabs.Content>
-                  ))}
-                </Tabs.Root>
-              </Stack>
-            </Stack>
-          </Stack>
-        </Container>
+        <ServicesPane services={services} />
       </HStack>
     </Container>
   );

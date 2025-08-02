@@ -13,6 +13,7 @@ import {
 } from "@chakra-ui/react";
 import { LuRotateCcw, LuLayers, LuCirclePower } from "react-icons/lu";
 import type { UnifiedStack } from "@/types/unified";
+import { StackControlButtons } from "@/components/ui/small/StackControlButtons";
 
 interface StackBlocksProps {
   stacks: UnifiedStack[];
@@ -125,43 +126,15 @@ const SingleStackBlock: React.FC<SingleStackBlockProps> = ({
         </Stack>
 
         <HStack gap="2" flexShrink={0}>
-          {status === "stopped" ? (
-            <Button
-              size="sm"
-              variant="solid"
-              colorPalette="green"
-              onClick={(e) => handleButtonClick(e, () => onStart(stack.name))}
-              disabled={disabled || loading}
-            >
-              <LuCirclePower />
-              Start
-            </Button>
-          ) : (
-            <>
-              <Button
-                size="sm"
-                variant="outline"
-                colorPalette="orange"
-                onClick={(e) =>
-                  handleButtonClick(e, () => onRestart(stack.name))
-                }
-                disabled={disabled || loading}
-              >
-                <LuRotateCcw />
-                Restart
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                colorPalette="red"
-                onClick={(e) => handleButtonClick(e, () => onStop(stack.name))}
-                disabled={disabled || loading}
-              >
-                <LuCirclePower />
-                Stop
-              </Button>
-            </>
-          )}
+          <StackControlButtons
+            status={stack.status}
+            onStart={() => onStart(stack.name)}
+            onStop={() => onStop(stack.name)}
+            onRestart={() => onRestart(stack.name)}
+            disabled={disabled}
+            loading={loading}
+            orientation="horizontal"
+          />
         </HStack>
       </Flex>
     </Container>

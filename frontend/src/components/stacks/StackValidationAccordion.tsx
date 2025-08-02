@@ -471,7 +471,7 @@ export const StackValidationAccordion: React.FC<{ stack: UnifiedStack }> = ({
             </Icon>
             <Card.Header gap="0.5" pb="4" w="100%">
               <Card.Title as="h4">Stack Compose Validation</Card.Title>
-              <Card.Description color="colorPalette.fg">
+              <Card.Description color="brand.onSecondaryContainer">
                 Identify and resolve Docker Compose issues for this stack.
               </Card.Description>
             </Card.Header>
