@@ -482,7 +482,7 @@ export const StackValidationAccordion: React.FC<{ stack: UnifiedStack }> = ({
             <Accordion.ItemIndicator />
           </Accordion.ItemTrigger>
           <Accordion.ItemContent color="colorPalette.fg" borderRadius="0">
-            <Accordion.ItemBody>
+            <Accordion.ItemBody h="45dvh" overflow="auto">
               <Card.Body gap="4">
                 <Stack direction="column" justify="space-between" gap="0.5">
                   <Text fontWeight="medium">Stack Issues Identified</Text>
