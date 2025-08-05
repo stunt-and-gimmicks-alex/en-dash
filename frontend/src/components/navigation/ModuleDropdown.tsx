@@ -56,15 +56,15 @@ export const ModuleDropdown: React.FC<ModuleDropdownProps> = ({
           py="2"
           h="auto"
           fontWeight="normal"
-          color={isMainActive ? "brand.primary" : "brand.onSurface"}
-          bg={isMainActive ? "brand.primaryContainer" : "transparent"}
+          color={isMainActive ? "brand.onPrimary" : "brand.onPrimary/95"}
+          bg={isMainActive ? "brand.primaryContainer/25" : "transparent"}
           _hover={{
             bg: isMainActive
-              ? "brand.primaryContainer"
-              : "brand.surfaceContainer",
+              ? "brand.primaryContainer/80"
+              : "brand.primaryContainer",
             color: isMainActive
               ? "brand.onPrimaryContainer"
-              : "brand.onSurface",
+              : "brand.onPrimaryContainer",
           }}
           borderRadius="md"
           disabled={disabled}

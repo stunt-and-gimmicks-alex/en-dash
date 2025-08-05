@@ -34,44 +34,6 @@ interface EditableCodeViewDialogProps {
 }
 
 // Line numbers component that matches CodeBlock styling
-const LineNumbers: React.FC<{ code: string }> = ({ code }) => {
-  const lineCount = useMemo(() => {
-    return code.split("\n").length;
-  }, [code]);
-
-  return (
-    <Box
-      position="absolute"
-      left="0"
-      top="0"
-      bottom="0"
-      width="60px"
-      bg="brand.surfaceContainerLowest"
-      borderRight="1px solid"
-      borderColor="brand.outline"
-      py="4"
-      px="2"
-      fontFamily="mono"
-      fontSize="sm"
-      color="brand.onSurfaceVariant/60"
-      userSelect="none"
-      pointerEvents="none"
-    >
-      {Array.from({ length: lineCount }, (_, i) => (
-        <Box
-          key={i + 1}
-          height="1.5em"
-          display="flex"
-          alignItems="center"
-          justifyContent="flex-end"
-          pr="2"
-        >
-          {i + 1}
-        </Box>
-      ))}
-    </Box>
-  );
-};
 
 export const EditableCodeViewDialog: React.FC<EditableCodeViewDialogProps> = ({
   code,
@@ -131,17 +93,7 @@ export const EditableCodeViewDialog: React.FC<EditableCodeViewDialogProps> = ({
   return (
     <Dialog.Root onExitComplete={handleDialogClose}>
       <Dialog.Trigger asChild>
-        <Button
-          size="sm"
-          variant="outline"
-          colorPalette="gray"
-          _hover={{ borderColor: "brand.contrast/0" }}
-          borderColor="brand.contrast"
-          color={{
-            base: "brand.contrast/75",
-            _hover: "brand.contrast",
-          }}
-        >
+        <Button size="sm" variant="outline" colorPalette="grayBrand">
           <HStack p="1" gap="1" cursor="pointer">
             <Text textStyle="xs">{triggerText}</Text>
             {triggerIcon}
@@ -160,7 +112,6 @@ export const EditableCodeViewDialog: React.FC<EditableCodeViewDialogProps> = ({
               // Edit mode - Custom styled textarea with line numbers
               <Stack gap="4">
                 <Box position="relative" w="full">
-                  {showLineNumbers && <LineNumbers code={editedCode} />}
                   <Editable.Root
                     value={editedCode}
                     onValueChange={(details) => setEditedCode(details.value)}
@@ -223,7 +174,7 @@ export const EditableCodeViewDialog: React.FC<EditableCodeViewDialogProps> = ({
               // Edit mode buttons
               <HStack gap="2">
                 <Button
-                  variant="outline"
+                  variant="solid"
                   colorPalette="gray"
                   onClick={handleCancel}
                 >
@@ -239,7 +190,7 @@ export const EditableCodeViewDialog: React.FC<EditableCodeViewDialogProps> = ({
               // View mode button
               editable && (
                 <Button
-                  variant="outline"
+                  variant="solid"
                   colorPalette="brand"
                   onClick={handleEdit}
                 >

@@ -7,13 +7,14 @@ import {
   Alert,
   Button,
   Card,
-  Icon,
+  HStack,
+  ProgressCircle,
   Stack,
   Tabs,
   Text,
 } from "@chakra-ui/react";
-import { LuBookCheck, LuLayers, LuRotateCcw } from "react-icons/lu";
 import type { UnifiedStack } from "@/types/unified";
+import { PiWarning } from "react-icons/pi";
 
 // =============================================================================
 // UNIFIED STACK VALIDATION TYPES
@@ -452,235 +453,207 @@ export const StackValidationAccordion: React.FC<{ stack: UnifiedStack }> = ({
   const stackValidation = useUnifiedStackValidation(stack);
 
   return (
-    <Card.Root
-      variant="subtle"
-      colorPalette="brand"
-      bg="colorPalette.background"
-    >
-      <Accordion.Root collapsible variant="outline">
+    <Card.Root>
+      <Accordion.Root collapsible variant="outline" size="sm" py="0">
         <Accordion.Item key="1" value="1" borderRadius="0">
-          <Accordion.ItemTrigger
-            py="0"
-            px="4"
-            bg="colorPalette.secondaryContainer"
-            color="colorPalette.contrast"
-            borderRadius="0"
-          >
-            <Icon fontSize="3xl" color="brand.fg">
-              <LuBookCheck />
-            </Icon>
-            <Card.Header gap="0.5" pb="4" w="100%">
-              <Card.Title as="h4">Stack Compose Validation</Card.Title>
-              <Card.Description color="brand.onSecondaryContainer">
-                Identify and resolve Docker Compose issues for this stack.
-              </Card.Description>
+          <Accordion.ItemTrigger pr="6" justifyContent="space-between">
+            <Card.Header
+              gap="4"
+              flexDirection={{ base: "column", md: "row" }}
+              alignItems="center"
+              w="full"
+              py="2"
+              justifyContent="space-between"
+            >
+              <HStack gap="6">
+                <ProgressCircle.Root value={stackValidation.score} size="sm">
+                  <ProgressCircle.Circle>
+                    <ProgressCircle.Track />
+                    <ProgressCircle.Range strokeLinecap="round" />
+                  </ProgressCircle.Circle>
+                </ProgressCircle.Root>
+                <Stack gap="0">
+                  <Card.Description>Application Validation</Card.Description>
+                  <Card.Title textStyle="lg">
+                    {stackValidation.score}/100
+                  </Card.Title>
+                </Stack>
+              </HStack>
+              <Button colorPalette="secondaryBrand" variant="outline">
+                Validate
+              </Button>
             </Card.Header>
-            <Text fontSize="sm">
-              Score:&ensp;{stackValidation.score}/100 (
-              {stackValidation.healthGrade})
-            </Text>
             <Accordion.ItemIndicator />
           </Accordion.ItemTrigger>
-          <Accordion.ItemContent color="colorPalette.fg" borderRadius="0">
-            <Accordion.ItemBody h="45dvh" overflow="auto">
-              <Card.Body gap="4">
-                <Stack direction="column" justify="space-between" gap="0.5">
-                  <Text fontWeight="medium">Stack Issues Identified</Text>
-                  <Stack direction="column">
-                    <Tabs.Root defaultValue="critical">
-                      <Tabs.List>
-                        <Tabs.Trigger value="critical">
-                          <LuLayers />
-                          {stackValidation.summary.critical} Critical
-                        </Tabs.Trigger>
-                        <Tabs.Trigger value="high">
-                          <LuLayers />
-                          {stackValidation.summary.high} High
-                        </Tabs.Trigger>
-                        <Tabs.Trigger value="medium">
-                          <LuLayers />
-                          {stackValidation.summary.medium} Medium
-                        </Tabs.Trigger>
-                        <Tabs.Trigger value="low">
-                          <LuLayers />
-                          {stackValidation.summary.low} Low
-                        </Tabs.Trigger>
-                      </Tabs.List>
+          <Card.Body p="0">
+            <Accordion.ItemContent>
+              <Accordion.ItemBody h="23dvh">
+                <Tabs.Root defaultValue="critical" fitted px="2">
+                  <Tabs.List>
+                    <Tabs.Trigger value="critical">
+                      <PiWarning />
+                      {stackValidation.summary.critical} Critical
+                    </Tabs.Trigger>
+                    <Tabs.Trigger value="high">
+                      <PiWarning />
+                      {stackValidation.summary.high} High
+                    </Tabs.Trigger>
+                    <Tabs.Trigger value="medium">
+                      <PiWarning />
+                      {stackValidation.summary.medium} Medium
+                    </Tabs.Trigger>
+                    <Tabs.Trigger value="low">
+                      <PiWarning />
+                      {stackValidation.summary.low} Low
+                    </Tabs.Trigger>
+                  </Tabs.List>
 
-                      {/* Critical Issues */}
-                      <Tabs.Content value="critical">
-                        <Stack gap="4">
-                          {stackValidation.issues
-                            .filter((i) => i.impact === "critical")
-                            .map((issue, i) => (
-                              <Alert.Root
-                                key={i}
-                                status="error"
-                                bg="colorPalette.container"
-                              >
-                                <Alert.Indicator />
-                                <Alert.Content>
-                                  <Alert.Title>{issue.title}</Alert.Title>
-                                  <Alert.Description>
-                                    {issue.description}
-                                  </Alert.Description>
-                                  {issue.fix && (
-                                    <Text
-                                      fontSize="sm"
-                                      mt="2"
-                                      fontWeight="medium"
-                                    >
-                                      Fix: {issue.fix}
-                                    </Text>
-                                  )}
-                                </Alert.Content>
-                              </Alert.Root>
-                            ))}
-                          {stackValidation.issues.filter(
-                            (i) => i.impact === "critical"
-                          ).length === 0 && (
-                            <Text color="colorPalette.onContainer">
-                              No critical issues found.
-                            </Text>
-                          )}
-                        </Stack>
-                      </Tabs.Content>
+                  {/* Critical Issues */}
+                  <Tabs.Content
+                    value="critical"
+                    h="18dvh"
+                    overflow="auto"
+                    px="2"
+                  >
+                    <Stack gap="4">
+                      {stackValidation.issues
+                        .filter((i) => i.impact === "critical")
+                        .map((issue, i) => (
+                          <Alert.Root
+                            key={i}
+                            status="error"
+                            colorPalette="redBrand"
+                          >
+                            <Alert.Indicator />
+                            <Alert.Content>
+                              <Alert.Title>{issue.title}</Alert.Title>
+                              <Alert.Description>
+                                {issue.description}
+                              </Alert.Description>
+                              {issue.fix && (
+                                <Text fontSize="sm" mt="2" fontWeight="medium">
+                                  Fix: {issue.fix}
+                                </Text>
+                              )}
+                            </Alert.Content>
+                          </Alert.Root>
+                        ))}
+                      {stackValidation.issues.filter(
+                        (i) => i.impact === "critical"
+                      ).length === 0 && (
+                        <Text color="colorPalette.onContainer">
+                          No critical issues found.
+                        </Text>
+                      )}
+                    </Stack>
+                  </Tabs.Content>
 
-                      {/* High Issues */}
-                      <Tabs.Content value="high">
-                        <Stack gap="4">
-                          {stackValidation.issues
-                            .filter((i) => i.impact === "high")
-                            .map((issue, i) => (
-                              <Alert.Root
-                                key={i}
-                                status="warning"
-                                bg="colorPalette.container"
-                              >
-                                <Alert.Indicator />
-                                <Alert.Content>
-                                  <Alert.Title>{issue.title}</Alert.Title>
-                                  <Alert.Description>
-                                    {issue.description}
-                                  </Alert.Description>
-                                  {issue.fix && (
-                                    <Text
-                                      fontSize="sm"
-                                      mt="2"
-                                      fontWeight="medium"
-                                    >
-                                      Fix: {issue.fix}
-                                    </Text>
-                                  )}
-                                </Alert.Content>
-                              </Alert.Root>
-                            ))}
-                          {stackValidation.issues.filter(
-                            (i) => i.impact === "high"
-                          ).length === 0 && (
-                            <Text color="colorPalette.onContainer">
-                              No high priority issues found.
-                            </Text>
-                          )}
-                        </Stack>
-                      </Tabs.Content>
+                  {/* High Issues */}
+                  <Tabs.Content value="high" h="18dvh" overflow="auto" px="2">
+                    <Stack gap="4">
+                      {stackValidation.issues
+                        .filter((i) => i.impact === "high")
+                        .map((issue, i) => (
+                          <Alert.Root
+                            key={i}
+                            status="warning"
+                            colorPalette="yellowBrand"
+                          >
+                            <Alert.Indicator />
+                            <Alert.Content>
+                              <Alert.Title>{issue.title}</Alert.Title>
+                              <Alert.Description>
+                                {issue.description}
+                              </Alert.Description>
+                              {issue.fix && (
+                                <Text fontSize="sm" mt="2" fontWeight="medium">
+                                  Fix: {issue.fix}
+                                </Text>
+                              )}
+                            </Alert.Content>
+                          </Alert.Root>
+                        ))}
+                      {stackValidation.issues.filter((i) => i.impact === "high")
+                        .length === 0 && (
+                        <Text color="colorPalette.onContainer">
+                          No high priority issues found.
+                        </Text>
+                      )}
+                    </Stack>
+                  </Tabs.Content>
 
-                      {/* Medium Issues */}
-                      <Tabs.Content value="medium">
-                        <Stack gap="4">
-                          {stackValidation.issues
-                            .filter((i) => i.impact === "medium")
-                            .map((issue, i) => (
-                              <Alert.Root
-                                key={i}
-                                status="info"
-                                bg="colorPalette.container"
-                              >
-                                <Alert.Indicator />
-                                <Alert.Content>
-                                  <Alert.Title>{issue.title}</Alert.Title>
-                                  <Alert.Description>
-                                    {issue.description}
-                                  </Alert.Description>
-                                  {issue.fix && (
-                                    <Text
-                                      fontSize="sm"
-                                      mt="2"
-                                      fontWeight="medium"
-                                    >
-                                      Fix: {issue.fix}
-                                    </Text>
-                                  )}
-                                </Alert.Content>
-                              </Alert.Root>
-                            ))}
-                          {stackValidation.issues.filter(
-                            (i) => i.impact === "medium"
-                          ).length === 0 && (
-                            <Text color="colorPalette.onContainer">
-                              No medium priority issues found.
-                            </Text>
-                          )}
-                        </Stack>
-                      </Tabs.Content>
+                  {/* Medium Issues */}
+                  <Tabs.Content value="medium" h="18dvh" overflow="auto" px="2">
+                    <Stack gap="4">
+                      {stackValidation.issues
+                        .filter((i) => i.impact === "medium")
+                        .map((issue, i) => (
+                          <Alert.Root
+                            key={i}
+                            status="info"
+                            colorPalette="secondaryBrand"
+                          >
+                            <Alert.Indicator />
+                            <Alert.Content>
+                              <Alert.Title>{issue.title}</Alert.Title>
+                              <Alert.Description>
+                                {issue.description}
+                              </Alert.Description>
+                              {issue.fix && (
+                                <Text fontSize="sm" mt="2" fontWeight="medium">
+                                  Fix: {issue.fix}
+                                </Text>
+                              )}
+                            </Alert.Content>
+                          </Alert.Root>
+                        ))}
+                      {stackValidation.issues.filter(
+                        (i) => i.impact === "medium"
+                      ).length === 0 && (
+                        <Text color="colorPalette.onContainer">
+                          No medium priority issues found.
+                        </Text>
+                      )}
+                    </Stack>
+                  </Tabs.Content>
 
-                      {/* Low Issues */}
-                      <Tabs.Content value="low">
-                        <Stack gap="4">
-                          {stackValidation.issues
-                            .filter((i) => i.impact === "low")
-                            .map((issue, i) => (
-                              <Alert.Root
-                                key={i}
-                                status="neutral"
-                                bg="colorPalette.container"
-                              >
-                                <Alert.Indicator />
-                                <Alert.Content>
-                                  <Alert.Title>{issue.title}</Alert.Title>
-                                  <Alert.Description>
-                                    {issue.description}
-                                  </Alert.Description>
-                                  {issue.fix && (
-                                    <Text
-                                      fontSize="sm"
-                                      mt="2"
-                                      fontWeight="medium"
-                                    >
-                                      Fix: {issue.fix}
-                                    </Text>
-                                  )}
-                                </Alert.Content>
-                              </Alert.Root>
-                            ))}
-                          {stackValidation.issues.filter(
-                            (i) => i.impact === "low"
-                          ).length === 0 && (
-                            <Text color="colorPalette.onContainer">
-                              No low priority issues found.
-                            </Text>
-                          )}
-                        </Stack>
-                      </Tabs.Content>
-                    </Tabs.Root>
-                  </Stack>
-                </Stack>
-              </Card.Body>
-              <Card.Footer>
-                <Button
-                  variant="outline"
-                  colorPalette="gray"
-                  width="full"
-                  onClick={() => {
-                    // Force re-validation by triggering a re-render
-                    console.log("Refreshing validation for stack:", stack.name);
-                  }}
-                >
-                  <LuRotateCcw /> Refresh Validation
-                </Button>
-              </Card.Footer>
-            </Accordion.ItemBody>
-          </Accordion.ItemContent>
+                  {/* Low Issues */}
+                  <Tabs.Content value="low" h="18dvh" overflow="auto" px="2">
+                    <Stack gap="4">
+                      {stackValidation.issues
+                        .filter((i) => i.impact === "low")
+                        .map((issue, i) => (
+                          <Alert.Root
+                            key={i}
+                            status="neutral"
+                            colorPalette="grayBrand"
+                          >
+                            <Alert.Indicator />
+                            <Alert.Content>
+                              <Alert.Title>{issue.title}</Alert.Title>
+                              <Alert.Description>
+                                {issue.description}
+                              </Alert.Description>
+                              {issue.fix && (
+                                <Text fontSize="sm" mt="2" fontWeight="medium">
+                                  Fix: {issue.fix}
+                                </Text>
+                              )}
+                            </Alert.Content>
+                          </Alert.Root>
+                        ))}
+                      {stackValidation.issues.filter((i) => i.impact === "low")
+                        .length === 0 && (
+                        <Text color="colorPalette.onContainer">
+                          No low priority issues found.
+                        </Text>
+                      )}
+                    </Stack>
+                  </Tabs.Content>
+                </Tabs.Root>
+              </Accordion.ItemBody>
+            </Accordion.ItemContent>
+          </Card.Body>
         </Accordion.Item>
       </Accordion.Root>
     </Card.Root>

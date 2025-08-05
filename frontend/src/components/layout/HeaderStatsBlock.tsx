@@ -3,18 +3,41 @@
 
 import React, { useState, useEffect } from "react";
 import {
+  Badge,
   Container,
+  Flex,
+  Group,
   Heading,
   Highlight,
+  HStack,
+  Icon,
   SimpleGrid,
   Stack,
   Text,
 } from "@chakra-ui/react";
+
+import {
+  PiCpuFill,
+  PiMemoryFill,
+  PiHardDriveFill,
+  PiCloudArrowDownFill,
+  PiCloudArrowUpFill,
+  PiNetworkFill,
+  PiCpu,
+  PiMemory,
+  PiHardDrive,
+  PiNetwork,
+} from "react-icons/pi";
 import { useSystemStatsWebSocket } from "@/hooks/useWebSocketStats";
+import type { IconType } from "react-icons";
 
 interface StatItem {
   value: string;
+  secondaryValue?: string;
+  subIcon1?: IconType;
+  subIcon2?: IconType;
   label: string;
+  statIcon: IconType;
   color: string;
 }
 
@@ -24,8 +47,7 @@ interface HeaderStatsBlockProps {
 }
 
 export const HeaderStatsBlock: React.FC<HeaderStatsBlockProps> = ({
-  title = "En-Dash Server Management",
-  description = "Professional home server management with real-time monitoring, seamless deployments, and enterprise-grade reliability.",
+  title = "en-dash / Better Homelab Management",
 }) => {
   // NEW - Real-time system stats via WebSocket
   const { stats, isConnected, error } = useSystemStatsWebSocket(2.0, true);
@@ -49,10 +71,26 @@ export const HeaderStatsBlock: React.FC<HeaderStatsBlockProps> = ({
 
   // Local state for computed stats
   const [statItems, setStatItems] = useState<StatItem[]>([
-    { value: "0%", label: "cpu usage", color: "green" },
-    { value: "0%", label: "memory usage", color: "blue" },
-    { value: "0% used", label: "disk usage", color: "purple" },
-    { value: "0 B/s", label: "network i/o (5s average)", color: "cyan" },
+    { value: "0%", label: "cpu usage", statIcon: PiCpuFill, color: "green" },
+    {
+      value: "0%",
+      label: "memory usage",
+      statIcon: PiMemoryFill,
+      color: "blue",
+    },
+    {
+      value: "0% used",
+      label: "disk usage",
+      statIcon: PiHardDriveFill,
+      color: "purple",
+    },
+    {
+      value: "0 B/s",
+      secondaryValue: "0 B/s",
+      label: "network i/o (5s average)",
+      statIcon: PiNetworkFill,
+      color: "cyan",
+    },
   ]);
 
   // Helper function to format network rates
@@ -159,6 +197,7 @@ export const HeaderStatsBlock: React.FC<HeaderStatsBlockProps> = ({
       {
         value: stats?.cpu ? `${stats.cpu.percent_total.toFixed(1)}%` : "0%",
         label: "cpu usage",
+        statIcon: PiCpu,
         color: stats?.cpu
           ? getColorForPercentage(stats.cpu.percent_total)
           : "gray",
@@ -168,6 +207,7 @@ export const HeaderStatsBlock: React.FC<HeaderStatsBlockProps> = ({
       {
         value: stats?.memory ? `${stats.memory.percent.toFixed(1)}%` : "0%",
         label: "memory usage",
+        statIcon: PiMemory,
         color: stats?.memory
           ? getColorForPercentage(stats.memory.percent)
           : "gray",
@@ -177,6 +217,7 @@ export const HeaderStatsBlock: React.FC<HeaderStatsBlockProps> = ({
       {
         value: formatDiskUsage(stats),
         label: "disk usage",
+        statIcon: PiHardDrive,
         color: stats?.memory
           ? getColorForPercentage(stats.memory.percent)
           : "gray",
@@ -184,9 +225,11 @@ export const HeaderStatsBlock: React.FC<HeaderStatsBlockProps> = ({
 
       // Network I/O rates
       {
-        value: `Tx: ${formatNetworkRate(
-          networkRates.txRate
-        )} / Rx: ${formatNetworkRate(networkRates.rxRate)}`,
+        value: formatNetworkRate(networkRates.txRate),
+        secondaryValue: formatNetworkRate(networkRates.rxRate),
+        statIcon: PiNetwork,
+        subIcon1: PiCloudArrowUpFill,
+        subIcon2: PiCloudArrowDownFill,
         label: "network i/o (5 second average)",
         color: "cyan",
       },
@@ -196,8 +239,8 @@ export const HeaderStatsBlock: React.FC<HeaderStatsBlockProps> = ({
   }, [stats, networkRates]);
 
   return (
-    <Container py="8" maxW="dvw" float="left" bg="brand.surfaceContainerLowest">
-      <Stack gap="8">
+    <Container py="2" maxW="dvw" float="left" bg="brand.background">
+      <HStack gap="6">
         {/* Header Section - Using brand tokens */}
         <Stack gap="3" maxW="none" align="flex-start">
           <Heading
@@ -207,58 +250,63 @@ export const HeaderStatsBlock: React.FC<HeaderStatsBlockProps> = ({
             fontWeight="bold"
             color="brand.onSurface"
             textAlign="left"
+            py="4"
           >
             <Highlight query=" / " styles={{ color: "brand.primary" }}>
-              en-dash / An Elegant Homelab Control Center
+              en-dash / Homelab Management
             </Highlight>
           </Heading>
-
-          <Text
-            color="brand.onSurfaceVariant"
-            fontSize={{ base: "sm", md: "md" }}
-            lineHeight="relaxed"
-            textAlign="left"
-          >
-            {description}
-          </Text>
         </Stack>
-
-        {/* Real-time Stats Grid - Simple stat blocks */}
-        <SimpleGrid columns={{ base: 2, md: 4 }} gap="8">
+        <Flex justify="flex-end" gap="4">
+          {/* Real-time Stats Grid - Simple stat blocks */}
           {statItems.map((item) => (
-            <Stack
-              key={item.label}
-              gap="1"
-              py="4"
-              borderTopWidth="2px"
-              borderTopColor={`${item.color}.500`}
-            >
-              <Text
-                textStyle={{ base: "2xl", md: "3xl" }}
-                fontWeight="medium"
-                color={`${item.color}.500`}
-              >
-                {item.value}
-              </Text>
-              <Text color="brand.onSurfaceVariant" fontSize="sm">
-                {item.label}
-              </Text>
-            </Stack>
+            <Group attached colorPalette={item.color}>
+              <Badge size="lg" px="2" py="1">
+                <Icon size="lg">
+                  <item.statIcon />
+                </Icon>
+              </Badge>
+              <Badge size="lg" px="2" py="1" variant="outline">
+                {item.subIcon1 && (
+                  <Icon size="md">
+                    <item.subIcon1 />
+                  </Icon>
+                )}
+                <Text fontWeight="medium" color={`${item.color}.500`}>
+                  {item.value}
+                </Text>
+                {item.subIcon2 && (
+                  <>
+                    <Text fontWeight="medium" color={`${item.color}.500`}>
+                      &ensp;/&ensp;
+                    </Text>
+                    <Icon size="md">
+                      <item.subIcon2 />
+                    </Icon>
+                  </>
+                )}
+                {item.secondaryValue && (
+                  <Text fontWeight="medium" color={`${item.color}.500`}>
+                    &ensp;/&ensp;{item.secondaryValue}
+                  </Text>
+                )}
+              </Badge>
+            </Group>
           ))}
-        </SimpleGrid>
 
-        {/* Connection Status - Subtle indicator */}
-        {!isConnected && (
-          <Text
-            fontSize="xs"
-            color="brand.onSurfaceVariant"
-            textAlign="center"
-            opacity={0.7}
-          >
-            System stats disconnected
-          </Text>
-        )}
-      </Stack>
+          {/* Connection Status - Subtle indicator */}
+          {!isConnected && (
+            <Text
+              fontSize="xs"
+              color="brand.onSurfaceVariant"
+              textAlign="center"
+              opacity={0.7}
+            >
+              System stats disconnected
+            </Text>
+          )}
+        </Flex>
+      </HStack>
     </Container>
   );
 };

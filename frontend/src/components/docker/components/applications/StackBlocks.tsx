@@ -3,17 +3,25 @@
 
 import React from "react";
 import {
-  Button,
+  Badge,
   Container,
   Flex,
+  Group,
   HStack,
+  Icon,
   Stack,
   Status,
   Text,
 } from "@chakra-ui/react";
-import { LuRotateCcw, LuLayers, LuCirclePower } from "react-icons/lu";
 import type { UnifiedStack } from "@/types/unified";
 import { StackControlButtons } from "@/components/ui/small/StackControlButtons";
+import {
+  PiAppWindow,
+  PiHardDrives,
+  PiNetwork,
+  PiShippingContainer,
+  PiTerminal,
+} from "react-icons/pi";
 
 interface StackBlocksProps {
   stacks: UnifiedStack[];
@@ -52,11 +60,12 @@ const SingleStackBlock: React.FC<SingleStackBlockProps> = ({
     onToggle(isSelected ? null : stack);
   };
 
-  // Prevent event bubbling from buttons
+  /*  // Prevent event bubbling from buttons
   const handleButtonClick = (e: React.MouseEvent, action: () => void) => {
     e.stopPropagation();
     action();
   };
+*/
 
   // Determine stack status based on container stats
   const getStackStatus = () => {
@@ -94,36 +103,70 @@ const SingleStackBlock: React.FC<SingleStackBlockProps> = ({
         gap="8"
         direction={{ base: "column", md: "row" }}
       >
-        <Stack gap="3">
-          <HStack fontWeight="medium" color="brand.onSurfaceVariant">
-            <LuLayers />
-            <Text>Status:</Text>
-            <Status.Root
-              colorPalette={
-                status === "running"
-                  ? "green"
-                  : status === "partial"
-                  ? "yellow"
-                  : "red"
-              }
-            >
-              <Status.Indicator />
-            </Status.Root>
-          </HStack>
+        <HStack gap="4" alignItems="top">
+          <Stack>
+            <HStack fontWeight="medium" color="brand.onSurfaceVariant">
+              <Status.Root
+                size="lg"
+                colorPalette={
+                  status === "running"
+                    ? "green"
+                    : status === "partial"
+                    ? "yellow"
+                    : "red"
+                }
+              >
+                <Status.Indicator />
+              </Status.Root>
+              <Icon size="2xl">
+                <PiAppWindow />
+              </Icon>
+            </HStack>
+          </Stack>
 
-          <Stack gap="1">
+          <Stack gap="2">
             <Text fontSize="xl" fontWeight="semibold" color="brand.onSurface">
               {stack.name}
             </Text>
-            <Text fontSize="sm" color="brand.onSurfaceVariant">
-              {stack.stats?.containers?.running || 0} of{" "}
-              {stack.stats?.containers?.total || 0} containers running
-            </Text>
-            <Text fontSize="sm" color="brand.onSurfaceVariant">
-              Path: {stack.path}
-            </Text>
+            <HStack gap="4">
+              <Group attached colorPalette="gray">
+                <Badge variant="solid" size="lg">
+                  <PiShippingContainer />
+                </Badge>
+                <Badge fontSize="sm" size="lg" variant="subtle">
+                  {stack.stats?.containers?.running || 0} of{" "}
+                  {stack.stats?.containers?.total || 0} containers
+                </Badge>
+              </Group>
+              <Group attached colorPalette="gray">
+                <Badge variant="solid" size="lg">
+                  <PiNetwork />
+                </Badge>
+                <Badge fontSize="sm" size="lg" variant="subtle">
+                  {stack.stats?.networks?.total || 0} network(s)
+                </Badge>
+              </Group>
+              <Group attached colorPalette="gray">
+                <Badge variant="solid" size="lg">
+                  <PiHardDrives />
+                </Badge>
+                <Badge fontSize="sm" size="lg" variant="subtle">
+                  {stack.stats?.volumes?.total || 0} volume(s)
+                </Badge>
+              </Group>
+            </HStack>
+            <HStack gap="4">
+              <Group attached colorPalette="gray">
+                <Badge variant="solid" size="lg">
+                  <PiTerminal /> Path:
+                </Badge>
+                <Badge fontSize="sm" size="lg" variant="subtle">
+                  {stack.path}
+                </Badge>
+              </Group>
+            </HStack>
           </Stack>
-        </Stack>
+        </HStack>
 
         <HStack gap="2" flexShrink={0}>
           <StackControlButtons

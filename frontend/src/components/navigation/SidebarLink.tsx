@@ -27,14 +27,16 @@ export const SidebarLink: React.FC<SidebarLinkProps> = ({
       py="2"
       px="3"
       fontWeight="normal"
-      color={isActive ? "brand.primary" : "brand.onSurface"}
-      bg={isActive ? "brand.primaryContainer" : "transparent"}
+      color={isActive ? "brand.onPrimary" : "brand.onPrimary/90"}
+      bg={isActive ? "brand.PrimaryContainer" : "transparent"}
       _hover={{
-        bg: isActive ? "brand.primaryContainer" : "brand.surfaceContainer",
-        color: isActive ? "brand.onPrimaryContainer" : "brand.onSurface",
+        bg: isActive ? "brand.primaryContainer" : "brand.primaryContainer",
+        color: isActive
+          ? "brand.onPrimaryContainer"
+          : "brand.onPrimaryContainer",
       }}
       _active={{
-        bg: "brand.surfaceContainerHigh",
+        bg: "brand.primaryContainer",
       }}
       borderRadius="md"
       transition="all 0.2s"

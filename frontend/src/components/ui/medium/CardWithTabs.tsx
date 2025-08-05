@@ -16,7 +16,12 @@ export const CardWithTabs: React.FC<CardWithTabsProps> = ({ tabs }) => {
     switch (type) {
       case "text":
         return (
-          <Input defaultValue={dVal} disabled={isdisabled} variant="subtle" />
+          <Input
+            defaultValue={dVal}
+            disabled={isdisabled}
+            variant="subtle"
+            colorPalette="grayBrand"
+          />
         );
       case "textarea":
         return (
@@ -34,13 +39,8 @@ export const CardWithTabs: React.FC<CardWithTabsProps> = ({ tabs }) => {
     }
   }
   return (
-    <Card.Root variant="subtle" color="brand.onSurfaceContainer">
-      <Tabs.Root
-        defaultValue={tabs[0].value}
-        size="sm"
-        variant="line"
-        bg="brand.surfaceContainerHighest"
-      >
+    <Card.Root variant="subtle">
+      <Tabs.Root defaultValue={tabs[0].value} size="sm" variant="line">
         <Tabs.List mx="6" pt="2">
           {tabs.map((t) => (
             <Tabs.Trigger
@@ -56,23 +56,11 @@ export const CardWithTabs: React.FC<CardWithTabsProps> = ({ tabs }) => {
         {tabs.map((t) => (
           <>
             <Tabs.Content value={t.value}>
-              <Card.Header
-                color="brand.onSurfaceContainer"
-                bg="brand.surfaceContainerHighest"
-                flexShrink={0}
-                py="3"
-              >
+              <Card.Header flexShrink={0} py="3">
                 <Card.Title>{t.title}</Card.Title>
                 <Card.Description>{t.description}</Card.Description>
               </Card.Header>
-              <Card.Body
-                gap="4"
-                color="brand.onSurfaceContainerVariant"
-                flex="1"
-                overflowY="auto"
-                h="47dvh"
-                bg="brand.surfaceContainerHigh"
-              >
+              <Card.Body gap="4" flex="1" overflowY="auto" h="47dvh">
                 {t.field.map((f) => (
                   <Field.Root orientation={f.orientation}>
                     <Field.Label>{f.label}</Field.Label>
@@ -81,11 +69,7 @@ export const CardWithTabs: React.FC<CardWithTabsProps> = ({ tabs }) => {
                   </Field.Root>
                 ))}
               </Card.Body>
-              <Card.Footer
-                py="3"
-                flexShrink={0}
-                bg="brand.surfaceContainerHigh"
-              >
+              <Card.Footer py="3" flexShrink={0}>
                 {t.button.map((b) => (
                   <Button
                     width="full"

@@ -238,13 +238,15 @@ export const Sidebar: React.FC<NavigationProps> = ({
 
   return (
     <Stack
-      h="100vh"
+      h="100dvh"
       justify="space-between"
-      bg="brand.surfaceContainerLowest"
+      bg="brand.primary"
+      color="brand.onPrimary"
       borderRightWidth="1px"
       borderColor="brand.subtle"
       p="6"
       overflowY="auto"
+      maxW="10dvw"
     >
       {/* Main content */}
       <Stack gap="8">
@@ -261,7 +263,7 @@ export const Sidebar: React.FC<NavigationProps> = ({
             <Text
               fontWeight="semibold"
               fontSize="xs"
-              color="brand.contrast"
+              color="brand.onPrimary"
               textTransform="uppercase"
               letterSpacing="wider"
               px="3"
@@ -289,7 +291,7 @@ export const Sidebar: React.FC<NavigationProps> = ({
             <Text
               fontWeight="semibold"
               fontSize="xs"
-              color="brand.contrast"
+              color="brand.onPrimary"
               textTransform="uppercase"
               letterSpacing="wider"
               px="3"

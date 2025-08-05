@@ -1,9 +1,12 @@
 // frontend/src/components/navigation/Logo.tsx
 // Clean logo component using ChakraUI v3 patterns
-
+import { Heading } from "@chakra-ui/react";
 import React from "react";
-
 export const Logo = (props: React.SVGProps<SVGSVGElement>) => (
+  <Heading as="h1">en&ndash;dash/</Heading>
+);
+
+/* export const Logo = (props: React.SVGProps<SVGSVGElement>) => (
   <svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 33">
     <path
       d="M32.81,17.12v4.57h-10.01v.43c0,2.52,1.01,3.06,3.67,3.06,1.8,0,4.43-.22,5.76-.43v3.82c-1.51.22-4.03.4-6.01.4-4.25,0-8.17-1.4-8.17-6.48v-5.36c0-3.53,1.87-6.01,7.42-6.01s7.34,2.48,7.34,6.01Z"
@@ -74,4 +77,4 @@ export const Logo = (props: React.SVGProps<SVGSVGElement>) => (
       fill="#fff"
     />
   </svg>
-);
+);*/

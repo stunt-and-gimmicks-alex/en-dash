@@ -37,7 +37,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
       <Flex flex="1" minH="100vh">
         {/* Desktop Sidebar - Only visible on desktop */}
         <Box display={{ base: "none", md: "block" }}>
-          <Box w="325px" minW="325px" position="sticky" top="0" height="100vh">
+          <Box w="10dvw" minW="8dvw" position="sticky" top="0" height="100vh">
             <Sidebar currentPage={currentPage} onNavigate={onNavigate} />
           </Box>
         </Box>
@@ -48,7 +48,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
           <HeaderStatsBlock title={pageTitle} description={pageDescription} />
 
           {/* Page Content Container */}
-          <Container display="flex" flex="1" maxW="full" py="8">
+          <Container display="flex" flex="1" maxW="full" p="0">
             <Stack gap="8" direction={{ base: "column", lg: "row" }} flex="1">
               {children}
             </Stack>

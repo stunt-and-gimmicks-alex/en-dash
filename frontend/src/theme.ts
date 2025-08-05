@@ -4,99 +4,296 @@ const config = defineConfig({
   theme: {
     tokens: {
       colors: {
-        primary: {
-          50: { value: "#C5FFC9" },
-          100: { value: "#89FA9E" },
-          200: { value: "#6DDD84" },
-          300: { value: "#50C16B" },
-          400: { value: "#31A553" },
-          500: { value: "#008A3C" },
-          600: { value: "#006E2F" },
-          700: { value: "#005321" },
-          800: { value: "#003915" },
-          900: { value: "#002109" },
-          950: { value: "#001505" },
+        brandPrimary: {
+          50: { value: "#eefff4" },
+          100: { value: "#d7ffe7" },
+          200: { value: "#b1ffd1" },
+          300: { value: "#74ffaf" },
+          400: { value: "#31f784" },
+          500: { value: "#07e063" },
+          600: { value: "#00bb4f" },
+          700: { value: "#038c3e" },
+          800: { value: "#097237" },
+          900: { value: "#095e30" },
+          950: { value: "#003518" },
         },
-        secondary: {
-          50: { value: "#DDF8DB" },
-          100: { value: "#CEEACD" },
-          200: { value: "#B3CEB2" },
-          300: { value: "#98B297" },
-          400: { value: "#7E977E" },
-          500: { value: "#657D65" },
-          600: { value: "#4C644E" },
-          700: { value: "#354C37" },
-          800: { value: "#1F3522" },
-          900: { value: "#0A200E" },
-          950: { value: "#011505" },
+        brandGray: {
+          50: { value: "#f6f6f6" },
+          100: { value: "#e7e7e7" },
+          200: { value: "#d1d1d1" },
+          300: { value: "#b0b0b0" },
+          400: { value: "#888888" },
+          500: { value: "#6d6d6d" },
+          600: { value: "#5d5d5d" },
+          700: { value: "#4f4f4f" },
+          800: { value: "#454545" },
+          900: { value: "#3d3d3d" },
+          950: { value: "#0d0d0d" },
         },
-        tertiary: {
-          50: { value: "#D2F7FF" },
-          100: { value: "#AFEDF9" },
-          200: { value: "#94D0DC" },
-          300: { value: "#78B5C0" },
-          400: { value: "#5E9AA5" },
-          500: { value: "#43808B" },
-          600: { value: "#266771" },
-          700: { value: "#004F58" },
-          800: { value: "#00363D" },
-          900: { value: "#001F24" },
-          950: { value: "#001417" },
+        brandSecondary: {
+          50: { value: "#e8fffc" },
+          100: { value: "#c6fff7" },
+          200: { value: "#95fff0" },
+          300: { value: "#4bffe8" },
+          400: { value: "#00ffec" },
+          500: { value: "#00f4fb" },
+          600: { value: "#00c2d2" },
+          700: { value: "#0099a9" },
+          800: { value: "#037e8c" },
+          900: { value: "#076472" },
+          950: { value: "#00434f" },
         },
-        neutral: {
-          50: { value: "#F0F1EC" },
-          100: { value: "#E2E3DD" },
-          200: { value: "#C5C7C2" },
-          300: { value: "#AAACA7" },
-          400: { value: "#8F918D" },
-          500: { value: "#757873" },
-          600: { value: "#5D5F5B" },
-          700: { value: "#454744" },
-          800: { value: "#2E312E" },
-          900: { value: "#1A1C19" },
-          950: { value: "#0F120F" },
+        brandRed: {
+          50: { value: "#fef2f2" },
+          100: { value: "#fee2e2" },
+          200: { value: "#ffc9c9" },
+          300: { value: "#fda4a4" },
+          400: { value: "#fa6f6f" },
+          500: { value: "#f14242" },
+          600: { value: "#de2424" },
+          700: { value: "#ba1a1a" },
+          800: { value: "#9b1919" },
+          900: { value: "#801c1c" },
+          950: { value: "#460909" },
         },
-        neutralVariant: {
-          50: { value: "#ECF3E8" },
-          100: { value: "#DDE5DA" },
-          200: { value: "#C1C9BE" },
-          300: { value: "#A6ADA3" },
-          400: { value: "#8B9389" },
-          500: { value: "#727970" },
-          600: { value: "#596058" },
-          700: { value: "#414941" },
-          800: { value: "#2B322B" },
-          900: { value: "#171D17" },
-          950: { value: "#0C130C" },
+        brandYellow: {
+          50: { value: "#fefce8" },
+          100: { value: "#fff9c2" },
+          200: { value: "#fff085" },
+          300: { value: "#ffe145" },
+          400: { value: "#fccc13" },
+          500: { value: "#ecb306" },
+          600: { value: "#cc8b02" },
+          700: { value: "#a26206" },
+          800: { value: "#864d0d" },
+          900: { value: "#723f11" },
+          950: { value: "#432005" },
         },
       },
     },
     semanticTokens: {
       colors: {
-        brand: {
+        bg: {
           solid: {
             value: {
-              _light: "colors.primary.600",
-              _dark: "colors.primary.600",
+              _light: "#ffffff",
+              _dark: "#000000",
+            },
+          },
+          subtle: {
+            value: {
+              _light: "colors.brandGray.50",
+              _dark: "colors.brandGray.950",
+            },
+          },
+          muted: {
+            value: {
+              _light: "colors.brandGray.100",
+              _dark: "colors.brandGray.900",
+            },
+          },
+          emphasized: {
+            value: {
+              _light: "colors.brandGray.200",
+              _dark: "colors.brandGray.800",
+            },
+          },
+          inverted: {
+            value: {
+              _light: "#000000",
+              _dark: "#ffffff",
+            },
+          },
+          error: {
+            value: {
+              _light: "colors.brandRed.50",
+              _dark: "colors.brandRed.950",
+            },
+          },
+          warning: {
+            value: {
+              _light: "colors.brandYellow.50",
+              _dark: "colors.brandGray.950",
+            },
+          },
+          success: {
+            value: {
+              _light: "colors.brandPrimary.50",
+              _dark: "colors.brandPrimary.950",
+            },
+          },
+          info: {
+            value: {
+              _light: "colors.brandSecondary.50",
+              _dark: "colors.brandGray.950",
+            },
+          },
+        },
+        border: {
+          value: {
+            _light: "colors.brandGray.200",
+            _dark: "colors.brandGray.800",
+          },
+          muted: {
+            value: {
+              _light: "colors.brandGray.100",
+              _dark: "colors.brandGray.900",
+            },
+          },
+          subtle: {
+            value: {
+              _light: "colors.brandGray.50",
+              _dark: "colors.brandGray.950",
+            },
+          },
+          emphasized: {
+            value: {
+              _light: "colors.brandGray.300",
+              _dark: "colors.brandGray.700",
+            },
+          },
+          inverted: {
+            value: {
+              _light: "colors.brandGray.800",
+              _dark: "colors.brandGray.200",
+            },
+          },
+          error: {
+            value: {
+              _light: "colors.brandRed.500",
+              _dark: "colors.brandRed.400",
+            },
+          },
+          warning: {
+            value: {
+              _light: "colors.brandYellow.500",
+              _dark: "colors.brandGray.400",
+            },
+          },
+          success: {
+            value: {
+              _light: "colors.brandPrimary.500",
+              _dark: "colors.brandPrimary.400",
+            },
+          },
+          info: {
+            value: {
+              _light: "colors.brandSecondary.500",
+              _dark: "colors.brandGray.400",
+            },
+          },
+        },
+        fg: {
+          value: {
+            _light: "colors.brandGray.950",
+            _dark: "colors.brandGray.50",
+          },
+          branded: {
+            value: {
+              _light: "colors.brandPrimary.700",
+              _dark: "colors.brandPrimary.300",
+            },
+          },
+          muted: {
+            value: {
+              _light: "colors.brandGray.600",
+              _dark: "colors.brandGray.400",
+            },
+          },
+          subtle: {
+            value: {
+              _light: "colors.brandGray.400",
+              _dark: "colors.brandGray.500",
+            },
+          },
+          inverted: {
+            value: {
+              _light: "colors.brandGray.50",
+              _dark: "colors.brandGray.950",
+            },
+          },
+          error: {
+            value: {
+              _light: "colors.brandRed.500",
+              _dark: "colors.brandRed.400",
+            },
+          },
+          warning: {
+            value: {
+              _light: "colors.brandYellow.600",
+              _dark: "colors.brandGray.300",
+            },
+          },
+          success: {
+            value: {
+              _light: "colors.brandPrimary.600",
+              _dark: "colors.brandPrimary.300",
+            },
+          },
+          info: {
+            value: {
+              _light: "colors.brandSecondary.600",
+              _dark: "colors.brandGray.300",
+            },
+          },
+        },
+        brand: {
+          fg: {
+            value: {
+              _light: "colors.brandPrimary.700",
+              _dark: "colors.brandPrimary.300",
+            },
+          },
+          onSolid: {
+            value: {
+              _light: "colors.brandPrimary.200",
+              _dark: "colors.brandPrimary.200",
+            },
+          },
+          bg: {
+            value: {
+              _light: "colors.brandPrimary.50",
+              _dark: "colors.brandPrimary.950",
+            },
+          },
+          border: {
+            value: {
+              _light: "colors.brandPrimary.400",
+              _dark: "colors.brandPrimary.600",
+            },
+          },
+          solid: {
+            value: {
+              _light: "colors.brandPrimary.700",
+              _dark: "colors.brandPrimary.700",
             },
           },
           contrast: {
             value: { _light: "#ffffff", _dark: "#FFFFFF" },
           },
-          fg: {
-            value: { _light: "#181D18", _dark: "#E0E4DC" },
+          subtle: {
+            value: {
+              _light: "colors.brandPrimary.100",
+              _dark: "colors.brandPrimary.900",
+            },
           },
           muted: {
-            value: { _light: "#9BD4A0", _dark: "#35693F" },
-          },
-          subtle: {
-            value: { _light: "#B6F1BA", _dark: "#1C5129" },
+            value: {
+              _light: "colors.brandPrimary.200",
+              _dark: "colors.brandPrimary.800",
+            },
           },
           emphasized: {
-            value: { _light: "#35693F", _dark: "#9BD4A0" },
+            value: {
+              _light: "colors.brandPrimary.300",
+              _dark: "colors.brandPrimary.700",
+            },
           },
           focusRing: {
-            value: { _light: "#1C5129", _dark: "#B6F1BA" },
+            value: {
+              _light: "colors.brandPrimary.500",
+              _dark: "colors.brandPrimary.500",
+            },
           },
           primary: {
             value: { _light: "#35693F", _dark: "#9BD4A0" },
@@ -281,6 +478,227 @@ const config = defineConfig({
             },
             focusRing: {
               value: { _light: "#BA1A1A", _dark: "#BA1A1A" },
+            },
+          },
+        },
+        secondaryBrand: {
+          bg: {
+            value: {
+              _light: "colors.brandSecondary.950",
+              _dark: "colors.brandSecondary.50",
+            },
+          },
+          border: {
+            value: {
+              _light: "colors.brandSecondary.800",
+              _dark: "colors.brandSecondary.200",
+            },
+          },
+          fg: {
+            value: {
+              _light: "colors.brandSecondary.900",
+              _dark: "colors.brandSecondary.300",
+            },
+          },
+          solid: {
+            value: {
+              _light: "colors.brandSecondary.700",
+              _dark: "colors.brandSecondary.700",
+            },
+          },
+          contrast: {
+            value: {
+              _light: "colors.brandGray.50",
+              _dark: "colors.brandGray.50",
+            },
+          },
+          subtle: {
+            value: {
+              _light: "colors.brandSecondary.100",
+              _dark: "colors.brandSecondary.900",
+            },
+          },
+          muted: {
+            value: {
+              _light: "colors.brandSecondary.600",
+              _dark: "colors.brandSecondary.800",
+            },
+          },
+          emphasized: {
+            value: {
+              _light: "colors.brandSecondary.300",
+              _dark: "colors.brandSecondary.700",
+            },
+          },
+          focusRing: {
+            value: {
+              _light: "colors.brandSecondary.500",
+              _dark: "colors.brandSecondary.500",
+            },
+          },
+        },
+        yellowBrand: {
+          bg: {
+            value: {
+              _light: "colors.brandYellow.50",
+              _dark: "colors.brandYellow.950",
+            },
+          },
+          border: {
+            value: {
+              _light: "colors.brandYellow.200",
+              _dark: "colors.brandYellow.800",
+            },
+          },
+          fg: {
+            value: {
+              _light: "colors.brandYellow.800",
+              _dark: "colors.brandGray.300",
+            },
+          },
+          solid: {
+            value: {
+              _light: "colors.brandYellow.400",
+              _dark: "colors.brandYellow.400",
+            },
+          },
+          contrast: {
+            value: {
+              _light: "colors.brandGray.950",
+              _dark: "colors.brandGray.950",
+            },
+          },
+          subtle: {
+            value: {
+              _light: "colors.brandYellow.100",
+              _dark: "colors.brandYellow.900",
+            },
+          },
+          muted: {
+            value: {
+              _light: "colors.brandYellow.200",
+              _dark: "colors.brandYellow.800",
+            },
+          },
+          emphasized: {
+            value: {
+              _light: "colors.brandYellow.300",
+              _dark: "colors.brandYellow.700",
+            },
+          },
+          focusRing: {
+            value: {
+              _light: "colors.brandYellow.500",
+              _dark: "colors.brandYellow.500",
+            },
+          },
+        },
+        redBrand: {
+          bg: {
+            value: {
+              _light: "#colors.brandRed.50",
+              _dark: "colors.brandRed.950",
+            },
+          },
+          border: {
+            value: {
+              _light: "colors.brandRed.200",
+              _dark: "colors.brandRed.800",
+            },
+          },
+          fg: {
+            value: {
+              _light: "colors.brandRed.700",
+              _dark: "colors.brandRed.300",
+            },
+          },
+          solid: {
+            value: {
+              _light: "colors.brandRed.600",
+              _dark: "colors.brandRed.700",
+            },
+          },
+          contrast: {
+            value: { _light: "#ffffff", _dark: "#FFFFFF" },
+          },
+          subtle: {
+            value: {
+              _light: "colors.brandRed.100",
+              _dark: "colors.brandRed.900",
+            },
+          },
+          muted: {
+            value: {
+              _light: "colors.brandRed.200",
+              _dark: "colors.brandRed.800",
+            },
+          },
+          emphasized: {
+            value: {
+              _light: "colors.brandRed.300",
+              _dark: "colors.brandRed.700",
+            },
+          },
+          focusRing: {
+            value: {
+              _light: "colors.brandRed.500",
+              _dark: "colors.brandRed.500",
+            },
+          },
+        },
+        grayBrand: {
+          bg: {
+            value: {
+              _light: "colors.brandGray.50",
+              _dark: "colors.brandGray.950",
+            },
+          },
+          border: {
+            value: {
+              _light: "colors.brandGray.200",
+              _dark: "colors.brandGray.800",
+            },
+          },
+          fg: {
+            value: {
+              _light: "colors.brandGray.700",
+              _dark: "colors.brandGray.300",
+            },
+          },
+          solid: {
+            value: {
+              _light: "colors.brandGray.600",
+              _dark: "colors.brandGray.600",
+            },
+          },
+          contrast: {
+            value: {
+              _light: "colors.brandGray.950",
+              _dark: "colors.brandGray.50",
+            },
+          },
+          subtle: {
+            value: {
+              _light: "colors.brandGray.200",
+              _dark: "colors.brandGray.800",
+            },
+          },
+          muted: {
+            value: {
+              _light: "colors.brandGray.300",
+              _dark: "colors.brandGray.700",
+            },
+          },
+          emphasized: {
+            value: {
+              _light: "colors.brandGray.400",
+              _dark: "colors.brandGray.600",
+            },
+          },
+          focusRing: {
+            value: {
+              _light: "colors.brandGray.500",
+              _dark: "colors.brandGray.500",
             },
           },
         },

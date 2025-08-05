@@ -11,8 +11,8 @@ import { PAGE_CONFIG } from "@/types/navigation";
 // Page components
 import { DashboardPage } from "@/pages/DashboardPage";
 import { SystemMonitorPage } from "@/pages/SystemMonitorPage";
-import { DockerOverviewPage } from "@/pages/DockerOverviewPage";
-import { DockerStacksPage } from "@/pages/DockerStacksPage";
+import { DockerOverviewPage } from "@/components/docker/pages/DockerOverviewPage";
+import { DockerStacksPage } from "@/components/docker/pages/DockerStacksPage";
 import { StoragePage } from "@/pages/StoragePage";
 import { ProcessesPage } from "@/pages/ProcessPage";
 import { NetworkPage } from "@/pages/NetworkPage";
@@ -54,7 +54,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <Box minH="100vh" bg="brand.surfaceContainerLowest">
+    <Box minH="100dvh" bg="brand.background">
       <AppLayout
         currentPage={currentPage}
         onNavigate={handlePageChange}

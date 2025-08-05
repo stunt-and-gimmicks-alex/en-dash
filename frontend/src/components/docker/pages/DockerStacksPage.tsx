@@ -9,25 +9,25 @@ import {
   CloseButton,
   Container,
   Drawer,
-  Heading,
-  Highlight,
   HStack,
   Portal,
   Skeleton,
   Spacer,
   Stack,
+  Status,
+  StatusIndicator,
   Tabs,
   Text,
 } from "@chakra-ui/react";
-import { Plus } from "lucide-react";
 
 // NEW - Using migrated API hooks with unified stack data
 import { useStacks } from "@/hooks/useNewApi";
 import type { UnifiedStack } from "@/types/unified";
 
 // NEW - Using migrated stack components with UnifiedStack types
-import { StackBlocks } from "@/components/stacks/StackBlocks";
-import { StackDetail } from "@/components/stacks/StackDetail";
+import { StackBlocks } from "@/components/docker/components/applications/StackBlocks";
+import { StackDetail } from "@/components/docker/components/applications/StackDetail";
+import { PiPlus } from "react-icons/pi";
 
 export const DockerStacksPage: React.FC = () => {
   // NEW - Real-time unified stacks via WebSocket
@@ -124,33 +124,25 @@ export const DockerStacksPage: React.FC = () => {
 
   return (
     <>
-      <Box
-        minH="2xl"
-        bg="brand.surfaceContainerLow"
-        display="flex"
-        w="100%"
-        p="6"
-        flex="1"
-      >
+      <Box minH="2xl" display="flex" w="100%" p="4" flex="1">
         <Container fluid colorPalette="brand">
           {/* Header with connection status */}
           <HStack justify="space-between" align="center" mb="6">
-            <Stack gap="2">
-              <Text fontSize="2xl" fontWeight="bold" color="brand.onSurface">
-                Docker Stacks
+            <Stack>
+              <Text fontSize="xl" fontWeight="bold">
+                Docker Applications
               </Text>
-              <Text color="brand.onSurfaceVariant">
-                Manage Docker Compose stacks with real-time monitoring
+              <Text fontSize="sm" fontWeight="normal">
+                What are docker applications? They're what Portainer refers to
+                as "stacks": a single logical group defined in a compose file,
+                and made up of services running in containers.
               </Text>
             </Stack>
 
             {/* Connection Status Indicator */}
-            <HStack gap="2">
-              <Box
-                w="3"
-                h="3"
-                borderRadius="full"
-                bg={connected ? "green.500" : error ? "red.500" : "yellow.500"}
+            <Status.Root size="lg">
+              <StatusIndicator
+                color={connected ? "green" : error ? "red" : "yellow"}
               />
               <Text fontSize="sm" color="brand.onSurfaceVariant">
                 {connected
@@ -159,7 +151,7 @@ export const DockerStacksPage: React.FC = () => {
                   ? "Connection Error"
                   : "Connecting..."}
               </Text>
-            </HStack>
+            </Status.Root>
           </HStack>
 
           {/* Tabs for stack filtering */}
@@ -182,7 +174,7 @@ export const DockerStacksPage: React.FC = () => {
               <Spacer />
 
               {/* Actions */}
-              <HStack pos="relative" bottom="2" gap="4">
+              <HStack pos="relative" bottom="1" gap="4">
                 <HStack hideBelow="md">
                   <Text fontWeight="medium" textStyle="sm">
                     Sort By:
@@ -196,7 +188,7 @@ export const DockerStacksPage: React.FC = () => {
                   size="sm"
                   onClick={() => console.log("Create new stack")}
                 >
-                  <Plus />
+                  <PiPlus />
                   New Stack
                 </Button>
               </HStack>
@@ -204,10 +196,15 @@ export const DockerStacksPage: React.FC = () => {
 
             {/* Tab Content */}
             {stackFilter.map((filter) => (
-              <Tabs.Content key={filter.status} value={filter.status}>
+              <Tabs.Content
+                key={filter.status}
+                value={filter.status}
+                mt="0"
+                pt="0"
+              >
                 {loading ? (
                   // Loading skeleton
-                  <Stack gap="4" mt="6">
+                  <Stack gap="4" mt="2">
                     {[...Array(3)].map((_, i) => (
                       <Skeleton key={i} height="120px" />
                     ))}
@@ -262,30 +259,29 @@ export const DockerStacksPage: React.FC = () => {
           <Drawer.Positioner>
             <Drawer.Content>
               {/* Drawer Header with Close Button */}
-              <Drawer.Header
-                bg="brand.primaryContainer"
-                pb={{ sm: "2", md: "4" }}
-              >
-                <Drawer.Title h={{ sm: "2dvh", md: "4dvh" }}>
-                  <Stack>
-                    <HStack gap="6">
-                      <Heading size="4xl" textTransform="lowercase">
-                        <Highlight
-                          ignoreCase
-                          query="./stacks/"
-                          styles={{ color: "brand.onPrimaryContainer" }}
-                        >
-                          {"./stacks/" + selectedStack?.name || "Stack Details"}
-                        </Highlight>
-                      </Heading>
-                    </HStack>
-                  </Stack>
+              <Drawer.Header bg="brand.solid" pt="4" pb={{ sm: "1", md: "4" }}>
+                <Drawer.Title p="0">
+                  <HStack gap="3" p="0" color="brand.onSolid/85">
+                    <Text textStyle="lg" textTransform="lowercase">
+                      application
+                    </Text>
+                    <Text textStyle="lg" textTransform="lowercase">
+                      &gt;
+                    </Text>
+                    <Text color="brand.contrast">
+                      {selectedStack?.name || "Stack Details"}
+                    </Text>
+                  </HStack>
                 </Drawer.Title>
-                <Drawer.CloseTrigger asChild m={{ sm: "2", md: "4" }}>
+                <Drawer.CloseTrigger
+                  asChild
+                  my={{ sm: "0", md: "0" }}
+                  mx={{ sm: "1", md: "3" }}
+                >
                   <CloseButton
-                    size="lg"
+                    size="sm"
                     variant="outline"
-                    borderColor="brand.outline"
+                    color="brand.contrast"
                   />
                 </Drawer.CloseTrigger>
               </Drawer.Header>

@@ -23,7 +23,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({
   return (
     <Stack gap="3">
       {/* User Info */}
-      <HStack gap="3" p="3" bg="brand.surfaceContainer" borderRadius="md">
+      <HStack gap="3" p="3" bg="brand.secondaryContainer/10" borderRadius="md">
         <Avatar.Root size="sm" colorPalette="brand">
           <Avatar.Fallback name={userName} />
           {avatarSrc && <Avatar.Image src={avatarSrc} />}
@@ -32,12 +32,12 @@ export const UserProfile: React.FC<UserProfileProps> = ({
           <Text
             fontSize="sm"
             fontWeight="medium"
-            color="brand.onSurface"
+            color="brand.onPrimary"
             truncate
           >
             {userName}
           </Text>
-          <Text fontSize="xs" color="brand.onSurfaceVariant" truncate>
+          <Text fontSize="xs" color="brand.onSecondary" truncate>
             {userEmail}
           </Text>
         </Stack>
@@ -49,10 +49,10 @@ export const UserProfile: React.FC<UserProfileProps> = ({
           variant="ghost"
           size="sm"
           flex="1"
-          color="brand.onSurfaceVariant"
+          color="brand.onPrimary"
           _hover={{
-            bg: "brand.surfaceContainer",
-            color: "brand.onSurface",
+            bg: "brand.primaryContainer",
+            color: "brand.onPrimaryContainer",
           }}
           onClick={onSettingsClick}
         >
@@ -63,7 +63,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({
           variant="ghost"
           size="sm"
           flex="1"
-          color="brand.onSurfaceVariant"
+          color="brand.onError"
           _hover={{
             bg: "brand.errorContainer",
             color: "brand.onErrorContainer",

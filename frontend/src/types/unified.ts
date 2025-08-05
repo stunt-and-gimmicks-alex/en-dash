@@ -8,6 +8,7 @@
 // =============================================================================
 
 export interface UnifiedStack {
+  description?: string;
   name: string;
   path: string;
   compose_file: string;

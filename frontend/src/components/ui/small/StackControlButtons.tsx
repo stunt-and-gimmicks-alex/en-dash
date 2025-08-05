@@ -56,7 +56,9 @@ export const StackControlButtons: React.FC<StackControlButtonsProps> = ({
       align="stretch"
       w={width}
       h={height}
-      bg="brand.background/35"
+      bg="gray/10"
+      borderWidth="1px"
+      borderRadius="5px"
       p="1"
     >
       {/* Restart Button */}
@@ -91,7 +93,7 @@ export const StackControlButtons: React.FC<StackControlButtonsProps> = ({
           <Button
             size={buttonSize}
             color="brand.onContainer"
-            bg={{ _hover: "brand.container/75" }}
+            bg={{ _hover: "brand.primaryContainer/80" }}
             variant="ghost"
             onClick={(e) => handleButtonClick(e, onStart)}
             disabled={disabled || loading}
