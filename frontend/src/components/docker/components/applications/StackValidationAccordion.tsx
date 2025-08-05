@@ -479,9 +479,6 @@ export const StackValidationAccordion: React.FC<{ stack: UnifiedStack }> = ({
                   </Card.Title>
                 </Stack>
               </HStack>
-              <Button colorPalette="secondaryBrand" variant="outline">
-                Validate
-              </Button>
             </Card.Header>
             <Accordion.ItemIndicator />
           </Accordion.ItemTrigger>
