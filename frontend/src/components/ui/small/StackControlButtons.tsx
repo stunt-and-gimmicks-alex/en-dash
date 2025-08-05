@@ -1,7 +1,7 @@
 // Enhanced StackControlButtons with individual loading states and better UX
 import React, { useState } from "react";
-import { Button, Stack } from "@chakra-ui/react";
-import { toaster } from "@/components/ui/toaster";
+import { Button, Stack, Toast } from "@chakra-ui/react";
+import { Toaster, toaster } from "@/components/ui/toaster";
 import { PiArrowCounterClockwise, PiDownload, PiPower } from "react-icons/pi";
 
 interface StackControlButtonsProps {

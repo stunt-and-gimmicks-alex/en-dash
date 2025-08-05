@@ -3,6 +3,7 @@
 
 import React, { useState } from "react";
 import { Box } from "@chakra-ui/react";
+import { Toast, Toaster, createToaster } from "@ark-ui/react/toast";
 
 // Clean imports using centralized types
 import type { PageKey } from "@/types/navigation";
@@ -23,6 +24,7 @@ import { MonitoringPage } from "@/pages/MonitoringPage";
 
 // Layout
 import { AppLayout } from "@/components/layout/AppLayout";
+import { PiX } from "react-icons/pi";
 
 // Page configuration - cleaner than switch statements
 const PAGE_COMPONENTS: Record<PageKey, React.ComponentType> = {

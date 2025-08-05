@@ -8,6 +8,7 @@ import { MobileNavbar } from "@/components/navigation/MobileNavbar";
 import { Sidebar } from "@/components/navigation/Sidebar";
 import { HeaderStatsBlock } from "@/components/layout/HeaderStatsBlock";
 import type { NavigationProps } from "@/types/navigation";
+import { Toaster, toaster } from "@/components/ui/toaster"; // Adjust path if necessary
 
 interface AppLayoutProps extends NavigationProps {
   children: React.ReactNode;
@@ -55,6 +56,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
           </Container>
         </Stack>
       </Flex>
+      <Toaster />
     </Box>
   );
 };
