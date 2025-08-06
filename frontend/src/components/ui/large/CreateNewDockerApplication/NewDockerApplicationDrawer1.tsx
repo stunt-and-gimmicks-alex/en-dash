@@ -1,53 +1,36 @@
-// ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
-// ▓▓▒▒░░ Functionality Imports ░░▒▒▓▓
-// ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
-import { forwardRef } from "react";
-import { useNewStackStore } from "@/stores/useNewStackStore";
+// NewDockerApplicationDrawer1.tsx - Fixed basic configuration drawer
 
-// ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
-// ▓▓▒▒░░   Component Imports   ░░▒▒▓▓
-// ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+import { useState } from "react";
+import { useNewStackStore } from "@/stores/useNewStackStore";
 import {
   Button,
-  type ButtonProps,
-  CloseButton,
   Drawer,
-  IconButton,
   Stack,
+  CloseButton,
+  HStack,
+  Text,
+  IconButton,
+  Input,
+  Field,
 } from "@chakra-ui/react";
-
-// ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
-// ▓▓▒▒░░      Icon Imports     ░░▒▒▓▓
-// ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
 import {
-  LuAlignCenter,
-  LuAlignJustify,
-  LuAlignLeft,
-  LuAlignRight,
-  LuAlignVerticalDistributeCenter,
-  LuAlignVerticalDistributeEnd,
-  LuAlignVerticalDistributeStart,
-  LuArrowLeftRight,
-  LuArrowUpDown,
-  LuPlus,
-} from "react-icons/lu";
-
-// ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
-// ▓▓▒▒░░      App Imports      ░░▒▒▓▓
-// ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
-import {
-  ColorField,
-  NumberField,
-  NumberFieldWithUnit,
-  SegmentField,
   SelectField,
   TextField,
   TextAreaField,
 } from "./NewDockerApplicationDrawerFields";
 import { PropertySection } from "./NewDockerApplicationDrawerPropSection";
+import { PiPlus, PiX } from "react-icons/pi";
 
 export const NewDockDrawerStart = () => {
-  const { newStack, setNewStack, resetStack } = useNewStackStore();
+  const { newStack, setNewStack } = useNewStackStore();
+
+  // Local state for x-meta
+  const [appCategory, setAppCategory] = useState(
+    newStack.configs["x-meta"]?.category || ""
+  );
+  const [appTags, setAppTags] = useState<string[]>(
+    newStack.configs["x-meta"]?.tags || []
+  );
 
   const setStackName = (e: React.ChangeEvent<HTMLInputElement>) => {
     setNewStack((stack) => {
@@ -61,70 +44,158 @@ export const NewDockDrawerStart = () => {
     });
   };
 
-  const setStackConfig = (configs: Record<string, any>) => {
+  const handleSave = () => {
     setNewStack((stack) => {
-      stack.configs = configs;
+      stack.configs["x-meta"] = {
+        category: appCategory,
+        tags: appTags.filter((tag) => tag.trim()),
+      };
     });
   };
+
+  const addTag = () => {
+    setAppTags([...appTags, ""]);
+  };
+
+  const updateTag = (index: number, value: string) => {
+    const newTags = [...appTags];
+    newTags[index] = value;
+    setAppTags(newTags);
+  };
+
+  const removeTag = (index: number) => {
+    setAppTags(appTags.filter((_, i) => i !== index));
+  };
+
+  const applicationCategoryOptions = [
+    { value: "", label: "Select a category..." },
+    { value: "media-stack", label: "Media Stack" },
+    { value: "development", label: "Development Environment" },
+    { value: "productivity", label: "Productivity Suite" },
+    { value: "monitoring", label: "Monitoring & Observability" },
+    { value: "security", label: "Security & Privacy" },
+    { value: "networking", label: "Networking & Proxy" },
+    { value: "storage", label: "Storage & Backup" },
+    { value: "automation", label: "Automation & DevOps" },
+    { value: "communication", label: "Communication & Collaboration" },
+    { value: "gaming", label: "Gaming & Entertainment" },
+    { value: "utility", label: "Utility & Tools" },
+  ];
 
   return (
     <>
       <Drawer.Header>
-        <Drawer.Title>New Docker Application: Basic Config</Drawer.Title>
+        <Drawer.Title>New Docker Application: Basic Configuration</Drawer.Title>
       </Drawer.Header>
+
       <Drawer.Body colorPalette="secondaryBrand">
-        <Stack px="4" pt="4" pb="6">
-          <PropertySection title="Describing The App">
+        <Stack px="4" pt="4" pb="6" gap="6">
+          <PropertySection title="Application Details">
             <TextField
-              label="App Name"
+              label="Application Name"
               defaultValue={newStack.name}
-              placeholder="Enter a memorable name... like Horatio"
+              placeholder="Enter a memorable name... like 'My Web App'"
               onChange={setStackName}
             />
+
             <TextAreaField
-              label="App Name"
-              defaultValue={newStack.name}
-              placeholder="And a description thats descriptive!"
+              label="Description"
+              defaultValue={newStack.description}
+              placeholder="Describe what this application does..."
               onChange={setStackDescription}
             />
           </PropertySection>
-          <PropertySection title="Use a Pre-Configured Application">
+
+          <PropertySection title="Organization & Metadata">
             <SelectField
-              label="Template"
-              defaultValue="none"
+              label="Application Category"
+              options={applicationCategoryOptions}
+              defaultValue={appCategory}
+              onChange={(e) => setAppCategory(e.target.value)}
+            />
+
+            <Stack gap="3">
+              <HStack justify="space-between">
+                <Text fontSize="sm" color="fg.muted">
+                  Application Tags
+                </Text>
+                <Button size="xs" variant="ghost" onClick={addTag}>
+                  <PiPlus />
+                </Button>
+              </HStack>
+
+              <Stack gap="2">
+                {appTags.map((tag, index) => (
+                  <HStack key={index} gap="2">
+                    <Input
+                      size="sm"
+                      flex="1"
+                      value={tag}
+                      placeholder="Enter tag"
+                      onChange={(e) => updateTag(index, e.target.value)}
+                    />
+                    <IconButton
+                      size="sm"
+                      variant="ghost"
+                      colorPalette="red"
+                      onClick={() => removeTag(index)}
+                    >
+                      <PiX />
+                    </IconButton>
+                  </HStack>
+                ))}
+
+                {appTags.length === 0 && (
+                  <Text fontSize="xs" color="fg.muted" fontStyle="italic">
+                    No tags configured
+                  </Text>
+                )}
+              </Stack>
+            </Stack>
+          </PropertySection>
+
+          <PropertySection title="Quick Templates (Coming Soon)">
+            <SelectField
+              label="Application Template"
+              defaultValue="custom"
               disabled
               options={[
-                { label: "None", value: "none" },
-                { label: "React + NGINX App", value: "react_nginx" },
-                { label: "Plex + Arrs", value: "plex_arrs" },
+                { label: "Custom Application", value: "custom" },
+                { label: "WordPress + MySQL", value: "wordpress" },
+                { label: "React + NGINX", value: "react_nginx" },
+                { label: "Node.js API", value: "nodejs_api" },
+                { label: "Plex Media Server", value: "plex" },
               ]}
             />
-            <Button disabled variant="outline" w="full" h="1.5lh">
-              Load Config
+            <Button
+              disabled
+              variant="outline"
+              w="full"
+              size="sm"
+              colorPalette="gray"
+            >
+              Load Template (Coming Soon)
             </Button>
           </PropertySection>
         </Stack>
       </Drawer.Body>
-      <Drawer.Footer>
-        <Button>Save</Button>
+
+      <Drawer.Footer gap="3">
+        <Button variant="outline" onClick={() => window.location.reload()}>
+          Cancel
+        </Button>
+        <Button
+          colorPalette="brand"
+          disabled={!newStack.name}
+          onClick={handleSave}
+        >
+          Continue to Services
+        </Button>
       </Drawer.Footer>
+
       <Drawer.CloseTrigger asChild>
         <CloseButton size="sm" />
       </Drawer.CloseTrigger>
     </>
   );
 };
-
-const AddButton = forwardRef<HTMLButtonElement, ButtonProps>((props, ref) => {
-  return (
-    <IconButton
-      variant="ghost"
-      size="xs"
-      ref={ref}
-      colorPalette="gray"
-      {...props}
-    >
-      <LuPlus />
-    </IconButton>
-  );
-});

@@ -9,37 +9,34 @@ import { useNewStackStore } from "@/stores/useNewStackStore";
 // ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
 
 import {
-  Badge,
   Box,
   Button,
   ButtonGroup,
   Card,
-  Center,
-  CloseButton,
-  Container,
-  Drawer,
+  ClientOnly,
+  CodeBlock,
   Flex,
+  Float,
   HStack,
   Icon,
-  Input,
-  NativeSelect,
-  Portal,
-  SimpleGrid,
-  Skeleton,
-  Spacer,
+  IconButton,
   Stack,
-  Status,
-  StatusIndicator,
   Steps,
-  Tabs,
-  Text,
   useSteps,
 } from "@chakra-ui/react";
+import type { HighlighterGeneric } from "shiki";
+import { createShikiAdapter } from "@chakra-ui/react";
 
 // ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
 // ▓▓▒▒░░      Icon Imports     ░░▒▒▓▓
 // ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
-import { PiAppWindow, PiCarrot, PiLightning, PiPlus } from "react-icons/pi";
+import {
+  PiAppWindow,
+  PiCarrot,
+  PiFileCode,
+  PiLightning,
+  PiPlus,
+} from "react-icons/pi";
 
 // ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
 // ▓▓▒▒░░      App Imports      ░░▒▒▓▓
@@ -51,12 +48,85 @@ import { StackDetail } from "@/components/docker/components/applications/StackDe
 import { useNavigation } from "@/contexts/NavigationContext";
 import { NewDockerAppWizard } from "@/components/ui/large/CreateNewDockerApplication/NewDockerApplicationForm";
 import { FaHatWizard } from "react-icons/fa";
+import { useColorMode } from "@/components/ui/color-mode";
 
 // ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
 // ▓▓▒▒░░      All The Rest     ░░▒▒▓▓
 // ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
 export const NewDockerApplication: React.FC = () => {
   const { newStack, setNewStack, resetStack } = useNewStackStore();
+
+  const shikiAdapter = createShikiAdapter<HighlighterGeneric<any, any>>({
+    async load() {
+      const { createHighlighter } = await import("shiki");
+      return createHighlighter({
+        langs: ["yaml"],
+        themes: ["github-dark", "github-light"],
+      });
+    },
+  });
+
+  const file = {
+    code: `
+version: '3.7'
+services:
+  cloudflared:
+    image: visibilityspots/cloudflared
+    container_name: cloudflared
+    ports:
+      - "5054:5054/tcp"
+      - "5054:5054/udp"
+    environment:
+      - TZ=\${TIMEZONE}
+      - PORT=5054
+      - ADDRESS=0.0.0.0
+    restart: always
+    networks:
+      dns-net:
+        ipv4_address: 172.20.0.2
+
+  pihole:
+    container_name: pihole
+    image: pihole/pihole:latest
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      - "67:67/udp"
+      - "8080:80/tcp"
+      - "8443:443/tcp"
+    environment:
+      - TZ=\${TIMEZONE}
+      - PIHOLE_DNS_=172.20.0.2#5054;1.1.1.1 # referencing by name results in "Invalid IP detected in PIHOLE_DNS_: cloudflared#5054"
+      - WEBPASSWORD=\${PIHOLE_PW}
+      - REV_SERVER=true
+      - REV_SERVER_TARGET=\${PIHOLE_ROUTER_IP}
+      - REV_SERVER_DOMAIN=\${PIHOLE_NETWORK_DOMAIN}
+      - REV_SERVER_CIDR=\${PIHOLE_REVERSE_DNS}
+      - ServerIP=\${PIHOLE_HOST_IP}
+      - ServerIPv6=\${PIHOLE_HOST_IPV6}
+    #dns:
+      #- 127.0.0.1 # "Sets your container's resolve settings to localhost so it can resolve DHCP hostnames [...]" - github.com/pi-hole/docker-pi-hole
+      #- 1.1.1.1 # Backup server
+    volumes: # store your data between container upgrades
+      - "/etc/pihole/:/etc/pihole/"
+      - "/etc/dnsmasq.d/:/etc/dnsmasq.d/"
+    cap_add:
+      - NET_ADMIN # Recommended but not required (DHCP needs NET_ADMIN) https://github.com/pi-hole/docker-pi-hole#note-on-capabilities
+    depends_on:
+      - "cloudflared"
+    restart: always
+    networks:
+      - dns-net
+
+networks:
+  dns-net:
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+`,
+    language: "yaml",
+    title: "compose.yaml",
+  };
 
   const [step, setStep] = useState(1);
 
@@ -75,15 +145,24 @@ export const NewDockerApplication: React.FC = () => {
     },
   ];
 
+  const { colorMode } = useColorMode();
+
   const steps = useSteps({
     defaultStep: 0,
     count: items.length,
   });
 
   return (
-    <Box colorPalette="brand" w="full" p="6" bg="bg" justifyItems="center">
-      <Flex justify="space-evenly" w="3/5">
-        <Card.Root w="full">
+    <Box
+      colorPalette="brand"
+      w="full"
+      p="6"
+      bg="bg"
+      justifyItems="center"
+      overflow="clip"
+    >
+      <Flex justify="space-evenly" w="full" gap="6" h="90dvh">
+        <Card.Root w="1/2" borderRadius="0">
           <Card.Header
             gap="6"
             flexDirection={{ base: "column", md: "row" }}
@@ -133,6 +212,43 @@ export const NewDockerApplication: React.FC = () => {
             </ButtonGroup>
           </Card.Footer>
         </Card.Root>
+        <Box w="1/2">
+          <CodeBlock.AdapterProvider value={shikiAdapter}>
+            <ClientOnly>
+              {() => (
+                <CodeBlock.Root
+                  code={file.code}
+                  language={file.language}
+                  borderRadius="0"
+                  meta={{ colorScheme: colorMode, wordWrap: true }}
+                  h="90dvh"
+                >
+                  <CodeBlock.Header>
+                    <CodeBlock.Title>
+                      <Icon as={PiFileCode} color="brandYellow.400" size="lg" />
+                      Compose File Preview
+                    </CodeBlock.Title>
+                    <CodeBlock.Control>
+                      <Float placement="top-end" offset="5" zIndex="1">
+                        <CodeBlock.CopyTrigger asChild>
+                          <IconButton variant="ghost" size="2xs">
+                            <CodeBlock.CopyIndicator />
+                          </IconButton>
+                        </CodeBlock.CopyTrigger>
+                      </Float>
+                      <CodeBlock.CollapseTrigger />
+                    </CodeBlock.Control>
+                  </CodeBlock.Header>
+                  <CodeBlock.Content overflow="auto" maxH="87dvh">
+                    <CodeBlock.Code>
+                      <CodeBlock.CodeText />
+                    </CodeBlock.Code>
+                  </CodeBlock.Content>
+                </CodeBlock.Root>
+              )}
+            </ClientOnly>
+          </CodeBlock.AdapterProvider>
+        </Box>
       </Flex>
     </Box>
   );

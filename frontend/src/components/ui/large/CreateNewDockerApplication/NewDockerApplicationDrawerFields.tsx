@@ -58,6 +58,8 @@ export function TextField(props: TextFieldProps) {
   );
 }
 
+// Fixed TextAreaField component that properly handles controlled inputs
+
 interface TextAreaProps extends BaseFieldProps {
   placeholder?: string;
   defaultValue?: string;
@@ -77,6 +79,11 @@ export function TextAreaField(props: TextAreaProps) {
 
   const [textareaValue, setTextareaValue] = useState(defaultValue || "");
 
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setTextareaValue(e.target.value);
+    onChange?.(e);
+  };
+
   return (
     <Field.Root
       orientation="horizontal"
@@ -94,7 +101,7 @@ export function TextAreaField(props: TextAreaProps) {
         value={textareaValue}
         placeholder={placeholder}
         _placeholder={{ color: "brandSecondary.800" }}
-        onChange={onChange}
+        onChange={handleChange}
       />
     </Field.Root>
   );

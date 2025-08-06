@@ -34,6 +34,7 @@ import { NewDockerAppFormSection } from "@/components/ui/large/CreateNewDockerAp
 import { PiGhost } from "react-icons/pi";
 import { NewDockDrawerStart } from "./NewDockerApplicationDrawer1";
 import { NewDockDrawerServices } from "./NewDockerApplicationDrawerServices";
+import { AppConfigCard } from "./NewDockerAppItemCard";
 
 // ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
 // ▓▓▒▒░░      All The Rest     ░░▒▒▓▓
@@ -88,9 +89,11 @@ export const NewDockerAppWizard = () => {
                 rounded="lg"
                 padding="2"
               >
-                <Icon size="lg" color="brandGray.600">
-                  <PiGhost />
-                </Icon>
+                {(newStack.name && <AppConfigCard />) || (
+                  <Icon size="lg" color="brandGray.600">
+                    <PiGhost />
+                  </Icon>
+                )}
               </Center>
             </Card.Body>
             <Card.Footer>
