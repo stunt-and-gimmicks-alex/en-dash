@@ -1,7 +1,7 @@
 // frontend/src/pages/DockerStacksPage.tsx
 // MIGRATED - Docker Stacks page using new unified WebSocket API + ChakraUI v3
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Badge,
   Box,
@@ -28,6 +28,7 @@ import type { UnifiedStack } from "@/types/unified";
 import { StackBlocks } from "@/components/docker/components/applications/StackBlocks";
 import { StackDetail } from "@/components/docker/components/applications/StackDetail";
 import { PiPlus } from "react-icons/pi";
+import { useNavigation } from "@/contexts/NavigationContext";
 
 export const DockerStacksPage: React.FC = () => {
   // NEW - Real-time unified stacks via WebSocket
@@ -41,7 +42,24 @@ export const DockerStacksPage: React.FC = () => {
     restartStack,
   } = useStacks();
 
+  const { onNavigate } = useNavigation();
+
   const [selectedStack, setSelectedStack] = useState<UnifiedStack | null>(null);
+
+  useEffect(() => {
+    if (selectedStack && stacks.length > 0) {
+      // Find the updated version of the selected stack
+      const updatedStack = stacks.find(
+        (stack) => stack.name === selectedStack.name
+      );
+      if (updatedStack) {
+        setSelectedStack(updatedStack);
+      } else {
+        // Stack was deleted
+        setSelectedStack(null);
+      }
+    }
+  }, [stacks, selectedStack]);
 
   // Handle stack selection for detail drawer
   const handleStackToggle = (stack: UnifiedStack | null) => {
@@ -186,7 +204,7 @@ export const DockerStacksPage: React.FC = () => {
                   variant="solid"
                   colorPalette="brand"
                   size="sm"
-                  onClick={() => console.log("Create new stack")}
+                  onClick={() => onNavigate("new-docker-application")}
                 >
                   <PiPlus />
                   New Stack

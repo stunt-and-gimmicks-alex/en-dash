@@ -128,7 +128,9 @@ export const ServiceTabsContent: React.FC<ServicesContentProps> = ({
                         <Card.Title textStyle="3xl">{s.name}</Card.Title>
                       </Status.Root>
                       <Card.Description>
-                        {extractLabel("description", s.containers[0].labels)}
+                        {s.containers?.length > 0 && s.containers[0]?.labels
+                          ? extractLabel("type", s.containers[0].labels)
+                          : "No type available"}
                       </Card.Description>
                     </Stack>
                   </Card.Header>
@@ -147,14 +149,19 @@ export const ServiceTabsContent: React.FC<ServicesContentProps> = ({
                             </DataList.ItemLabel>{" "}
                             {/* TODO - Need to add a Service- and Container-defined total Networks stat to UnifiedStack */}
                             <DataList.ItemValue flex="unset">
-                              {s.containers[0].restart_policy}
+                              {s.containers?.length > 0 &&
+                              s.containers[0].restart_policy
+                                ? s.containers[0].restart_policy
+                                : "No restart policy available"}
                             </DataList.ItemValue>
                           </DataList.Item>
                           <DataList.Item>
                             <DataList.ItemLabel>Image</DataList.ItemLabel>{" "}
                             {/* TODO - Need to add a Service- and Container-defined total Volumes stat to UnifiedStack */}
                             <DataList.ItemValue flex="unset">
-                              {s.containers[0].image}
+                              {s.containers?.length > 0 && s.containers[0].image
+                                ? s.containers[0].image
+                                : "No images available"}
                             </DataList.ItemValue>
                           </DataList.Item>
                         </Flex>
@@ -166,7 +173,9 @@ export const ServiceTabsContent: React.FC<ServicesContentProps> = ({
                             Service Type:
                           </Text>
                           <Badge variant="solid" colorPalette="gray">
-                            {extractLabel("type", s.containers[0].labels)}{" "}
+                            {s.containers?.length > 0 && s.containers[0]?.labels
+                              ? extractLabel("type", s.containers[0].labels)
+                              : "No type available"}
                             {/* TODO - add custom "type" field to services to allow for logical categorization by function, e.g. "database", "proxy", etc. */}
                           </Badge>
                         </Stack>
@@ -175,7 +184,9 @@ export const ServiceTabsContent: React.FC<ServicesContentProps> = ({
                             Tags:
                           </Text>
                           <Badge variant="solid" colorPalette="yellow">
-                            {extractLabel("type", s.containers[0].labels)}{" "}
+                            {s.containers?.length > 0 && s.containers[0]?.labels
+                              ? extractLabel("tags", s.containers[0].labels)
+                              : "No tags available"}
                             {/* TODO - add custom "type" field to services to allow for logical categorization by function, e.g. "database", "proxy", etc. */}
                           </Badge>
                         </Stack>

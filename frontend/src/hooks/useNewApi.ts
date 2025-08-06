@@ -1,5 +1,6 @@
 // frontend/src/hooks/useNewApi.ts
 // Clean, modern hooks using WebSocket unified stacks + REST operations
+import { useRefresh } from "@/contexts/RefreshContext";
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { newApiService } from "@/services/newApiServices";
@@ -14,13 +15,14 @@ import type { UnifiedStack } from "@/types/unified";
  * This is the primary data source for stack information
  */
 export const useStacks = () => {
+  const { registerStacksRefresh } = useRefresh();
   const [stacks, setStacks] = useState<UnifiedStack[]>([]);
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
-  const connect = useCallback(() => {
+  const connect = useCallback(async () => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
     try {
@@ -94,6 +96,13 @@ export const useStacks = () => {
     }
   }, []);
 
+  const manualRefresh = useCallback(async () => {
+    // Force reconnect to get fresh data
+    await connect();
+  }, [connect]);
+  useEffect(() => {
+    registerStacksRefresh(manualRefresh);
+  }, [registerStacksRefresh, manualRefresh]);
   useEffect(() => {
     connect();
     return () => disconnect();

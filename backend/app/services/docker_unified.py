@@ -5,6 +5,7 @@ This service creates comprehensive, pre-processed stack objects that include
 all constituent parts (services, containers, networks, volumes) with proper
 hierarchical relationships and rollup data.
 """
+from ..services.config_aggregator import config_aggregator
 
 import yaml
 import json
@@ -25,31 +26,17 @@ class UnifiedStackService:
     def __init__(self, docker_client=None, stacks_directory="/opt/stacks"):
         self.docker_client = docker_client or docker.from_env()
         self.stacks_directory = Path(stacks_directory)
+        # NEW: Initialize config aggregator
+        self.config_aggregator = config_aggregator
     
     async def get_unified_stack(self, stack_name: str) -> Dict[str, Any]:
         """
         Get a fully unified stack object with all constituent parts processed
         """
         try:
-            stack_path = self.stacks_directory / stack_name
-            compose_file = stack_path / "compose.yaml"
+            # ... your existing code that builds the unified_stack dict ...
             
-            if not compose_file.exists():
-                compose_file = stack_path / "docker-compose.yml"
-            
-            if not compose_file.exists():
-                raise FileNotFoundError(f"No compose file found for stack {stack_name}")
-            
-            # Parse compose file
-            with open(compose_file, 'r') as f:
-                compose_content = yaml.safe_load(f)
-            
-            # Get all Docker objects for this stack
-            containers = self._get_stack_containers(stack_name)
-            docker_networks = self._get_stack_networks(stack_name)
-            docker_volumes = self._get_stack_volumes(stack_name)
-            
-            # Build unified stack object
+            # Build unified stack object (your existing code)
             unified_stack = {
                 "name": stack_name,
                 "path": str(stack_path),
@@ -58,44 +45,204 @@ class UnifiedStackService:
                 "last_modified": datetime.fromtimestamp(compose_file.stat().st_mtime).isoformat(),
                 "status": self._calculate_stack_status(containers),
                 
-                # Unified services with all details
+                # Your existing unified data
                 "services": self._build_unified_services(
                     compose_content.get('services', {}),
                     containers
                 ),
-                
-                # Unified networks with rollup data
                 "networks": self._build_unified_networks(
                     compose_content.get('networks', {}),
                     containers,
                     docker_networks
                 ),
-                
-                # Unified volumes with rollup data
                 "volumes": self._build_unified_volumes(
                     compose_content.get('volumes', {}),
                     containers,
                     docker_volumes
                 ),
-                
-                # Container summary with full details
                 "containers": self._build_container_summary(containers),
-                
-                # Stack-level rollup statistics
                 "stats": self._build_stack_stats(containers, docker_networks, docker_volumes),
-                
-                # Environment and configuration
                 "environment": self._extract_environment_info(compose_content, stack_path),
-                
-                # Health and status information
                 "health": self._build_health_summary(containers)
             }
+            
+            # NEW: Add aggregated configurations
+            try:
+                aggregated_configs = self.config_aggregator.aggregate_stack_configs(unified_stack)
+                unified_stack["aggregated_configs"] = self._convert_aggregated_configs_to_dict(aggregated_configs)
+            except Exception as e:
+                logger.error(f"Failed to aggregate configs for stack {stack_name}: {e}")
+                # Safe fallback - empty but valid structure
+                unified_stack["aggregated_configs"] = {
+                    "networks": [],
+                    "ports": [],
+                    "volumes": [],
+                    "environment": [],
+                    "labels": [],
+                }
+            
+            # NEW: Also add aggregated configs to each service
+            for service_name, service_data in unified_stack.get("services", {}).items():
+                try:
+                    service_aggregated = self.config_aggregator.aggregate_service_configs(service_data)
+                    service_data["aggregated_configs"] = self._convert_aggregated_configs_to_dict(service_aggregated)
+                except Exception as e:
+                    logger.error(f"Failed to aggregate configs for service {service_name}: {e}")
+                    # Safe fallback
+                    service_data["aggregated_configs"] = {
+                        "networks": [],
+                        "ports": [],
+                        "volumes": [],
+                        "environment": [],
+                        "labels": [],
+                    }
             
             return unified_stack
             
         except Exception as e:
             logger.error(f"Error building unified stack {stack_name}: {e}")
             raise
+    
+    def _convert_aggregated_configs_to_dict(self, aggregated_configs) -> Dict[str, Any]:
+        """Convert dataclass objects to dicts for JSON serialization"""
+        try:
+            return {
+                "networks": [self._network_config_to_dict(n) for n in aggregated_configs.networks],
+                "ports": [self._port_config_to_dict(p) for p in aggregated_configs.ports],
+                "volumes": [self._volume_config_to_dict(v) for v in aggregated_configs.volumes],
+                "environment": [self._env_config_to_dict(e) for e in aggregated_configs.environment],
+                "labels": [self._label_config_to_dict(l) for l in aggregated_configs.labels],
+            }
+        except Exception as e:
+            logger.warning(f"Error converting aggregated configs: {e}")
+            # Return safe empty structure
+            return {
+                "networks": [],
+                "ports": [],
+                "volumes": [],
+                "environment": [],
+                "labels": [],
+            }
+    
+    def _network_config_to_dict(self, network) -> Dict[str, Any]:
+        """Convert AggregatedNetworkConfig to dict with safe fallbacks"""
+        try:
+            return {
+                "name": getattr(network, 'name', 'Not set'),
+                "level": getattr(network, 'level', 'stack'),
+                "source": getattr(network, 'source', 'unknown'),
+                "details": getattr(network, 'details', {}),
+                "attached_services": getattr(network, 'attached_services', []),
+                "conflicts": getattr(network, 'conflicts', False),
+            }
+        except Exception as e:
+            logger.warning(f"Error converting network config: {e}")
+            return {
+                "name": "Not set",
+                "level": "stack",
+                "source": "unknown", 
+                "details": {},
+                "attached_services": [],
+                "conflicts": False,
+            }
+    
+    def _port_config_to_dict(self, port) -> Dict[str, Any]:
+        """Convert AggregatedPortConfig to dict with safe fallbacks"""
+        try:
+            return {
+                "host": getattr(port, 'host', 'Not set'),
+                "container": getattr(port, 'container', 'Not set'),
+                "protocol": getattr(port, 'protocol', 'tcp'),
+                "level": getattr(port, 'level', 'service'),
+                "source": getattr(port, 'source', 'unknown'),
+                "conflicts": getattr(port, 'conflicts', False),
+                "description": getattr(port, 'description', 'No description available'),
+                "details": getattr(port, 'details', {}),
+            }
+        except Exception as e:
+            logger.warning(f"Error converting port config: {e}")
+            return {
+                "host": "Not set",
+                "container": "Not set",
+                "protocol": "tcp",
+                "level": "service",
+                "source": "unknown",
+                "conflicts": False,
+                "description": "No description available",
+                "details": {},
+            }
+    
+    def _volume_config_to_dict(self, volume) -> Dict[str, Any]:
+        """Convert AggregatedVolumeConfig to dict with safe fallbacks"""
+        try:
+            return {
+                "name": getattr(volume, 'name', 'Not set'),
+                "host_path": getattr(volume, 'host_path', 'Not set'),
+                "container_path": getattr(volume, 'container_path', 'Not set'),
+                "mode": getattr(volume, 'mode', 'rw'),
+                "type": getattr(volume, 'type', 'named'),
+                "level": getattr(volume, 'level', 'service'),
+                "source": getattr(volume, 'source', 'unknown'),
+                "shared_by": getattr(volume, 'shared_by', []),
+                "details": getattr(volume, 'details', {}),
+            }
+        except Exception as e:
+            logger.warning(f"Error converting volume config: {e}")
+            return {
+                "name": "Not set",
+                "host_path": "Not set", 
+                "container_path": "Not set",
+                "mode": "rw",
+                "type": "named",
+                "level": "service",
+                "source": "unknown",
+                "shared_by": [],
+                "details": {},
+            }
+    
+    def _env_config_to_dict(self, env) -> Dict[str, Any]:
+        """Convert AggregatedEnvironmentConfig to dict with safe fallbacks"""
+        try:
+            return {
+                "key": getattr(env, 'key', 'Not set'),
+                "value": getattr(env, 'value', 'Not set'),
+                "level": getattr(env, 'level', 'service'),
+                "source": getattr(env, 'source', 'unknown'),
+                "is_secret": getattr(env, 'is_secret', False),
+                "category": getattr(env, 'category', 'custom'),
+                "description": getattr(env, 'description', 'No description available'),
+            }
+        except Exception as e:
+            logger.warning(f"Error converting env config: {e}")
+            return {
+                "key": "Not set",
+                "value": "Not set",
+                "level": "service",
+                "source": "unknown",
+                "is_secret": False,
+                "category": "custom",
+                "description": "No description available",
+            }
+    
+    def _label_config_to_dict(self, label) -> Dict[str, Any]:
+        """Convert AggregatedLabelConfig to dict with safe fallbacks"""
+        try:
+            return {
+                "key": getattr(label, 'key', 'Not set'),
+                "value": getattr(label, 'value', 'Not set'),
+                "level": getattr(label, 'level', 'stack'),
+                "source": getattr(label, 'source', 'unknown'),
+                "category": getattr(label, 'category', 'custom'),
+            }
+        except Exception as e:
+            logger.warning(f"Error converting label config: {e}")
+            return {
+                "key": "Not set",
+                "value": "Not set",
+                "level": "stack",
+                "source": "unknown",
+                "category": "custom",
+            }
     
     async def get_all_unified_stacks(self) -> List[Dict[str, Any]]:
         """

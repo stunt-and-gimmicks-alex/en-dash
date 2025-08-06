@@ -3,6 +3,258 @@
  * These match the backend unified processing exactly
  */
 
+// Enhanced aggregated configs that work with your existing unified.ts types
+// Add these to your existing frontend/src/types/unified.ts file
+
+// =============================================================================
+// AGGREGATED CONFIGURATION TYPES (Addition to existing unified.ts)
+// =============================================================================
+
+export interface AggregatedConfigs {
+  // Built from your existing UnifiedNetworks.all with source tracking
+  networks: AggregatedNetworkConfig[];
+
+  // Built from your existing ActualPort[] with conflict detection
+  ports: AggregatedPortConfig[];
+
+  // Built from your existing UnifiedVolumes.all with sharing detection
+  volumes: AggregatedVolumeConfig[];
+
+  // Aggregated environment variables with categorization
+  environment: AggregatedEnvironmentConfig[];
+
+  // Aggregated labels with categorization
+  labels: AggregatedLabelConfig[];
+}
+
+export interface AggregatedNetworkConfig {
+  name: string;
+  level: "stack" | "service" | "container";
+  source: string; // stack name, service name, or container name
+  // Reuse your existing types
+  details: UnifiedNetworkItem;
+  attachedServices: string[];
+  conflicts: boolean; // if multiple services try to create same network
+}
+
+export interface AggregatedPortConfig {
+  host: string;
+  container: string;
+  protocol: "tcp" | "udp";
+  level: "service" | "container";
+  source: string; // service name or container name
+  conflicts: boolean; // if multiple services use same host port
+  description: string;
+  // Enhanced from your existing ActualPort
+  details: ActualPort & {
+    compose_defined?: boolean;
+    runtime_only?: boolean;
+  };
+}
+
+export interface AggregatedVolumeConfig {
+  name: string;
+  hostPath: string;
+  containerPath: string;
+  mode: "rw" | "ro";
+  type: "named" | "bind" | "tmpfs";
+  level: "stack" | "service" | "container";
+  source: string;
+  sharedBy: string[]; // which services share this volume
+  // Enhanced from your existing types
+  details: UnifiedVolumeItem & {
+    compose_defined?: boolean;
+    runtime_only?: boolean;
+  };
+}
+
+export interface AggregatedEnvironmentConfig {
+  key: string;
+  value: string;
+  level: "service" | "container";
+  source: string;
+  isSecret: boolean;
+  category: "database" | "auth" | "config" | "system" | "custom";
+  description: string;
+}
+
+export interface AggregatedLabelConfig {
+  key: string;
+  value: string;
+  level: "stack" | "service" | "container";
+  source: string;
+  category: "system" | "custom" | "compose" | "extension";
+}
+
+// =============================================================================
+// ENHANCED UNIFIED TYPES (Additions to existing interfaces)
+// =============================================================================
+
+// Add aggregatedConfigs to your existing UnifiedStack interface
+export interface EnhancedUnifiedStack extends UnifiedStack {
+  // All your existing fields remain the same
+  aggregatedConfigs: AggregatedConfigs;
+}
+
+// Add aggregatedConfigs to your existing UnifiedService interface
+export interface EnhancedUnifiedService extends UnifiedService {
+  // All your existing fields remain the same
+  aggregatedConfigs: AggregatedConfigs;
+}
+
+// =============================================================================
+// SAFE DEFAULT FACTORIES (For error handling)
+// =============================================================================
+
+export const createSafeAggregatedConfigs = (): AggregatedConfigs => ({
+  networks: [],
+  ports: [],
+  volumes: [],
+  environment: [],
+  labels: [],
+});
+
+export const createSafeNetworkConfig = (
+  overrides: Partial<AggregatedNetworkConfig> = {}
+): AggregatedNetworkConfig => ({
+  name: "Not set",
+  level: "stack",
+  source: "unknown",
+  details: {
+    network: "Not set",
+    sources: [],
+    details: {},
+    status: "defined",
+  },
+  attachedServices: [],
+  conflicts: false,
+  ...overrides,
+});
+
+export const createSafePortConfig = (
+  overrides: Partial<AggregatedPortConfig> = {}
+): AggregatedPortConfig => ({
+  host: "Not set",
+  container: "Not set",
+  protocol: "tcp",
+  level: "service",
+  source: "unknown",
+  conflicts: false,
+  description: "No description available",
+  details: {
+    container: "unknown",
+    container_port: "Not set",
+    host_port: "Not set",
+    host_ip: "Not set",
+    compose_defined: false,
+    runtime_only: true,
+  },
+  ...overrides,
+});
+
+export const createSafeVolumeConfig = (
+  overrides: Partial<AggregatedVolumeConfig> = {}
+): AggregatedVolumeConfig => ({
+  name: "Not set",
+  hostPath: "Not set",
+  containerPath: "Not set",
+  mode: "rw",
+  type: "named",
+  level: "service",
+  source: "unknown",
+  sharedBy: [],
+  details: {
+    volume: "Not set",
+    sources: [],
+    details: {},
+    status: "defined",
+    compose_defined: false,
+    runtime_only: true,
+  },
+  ...overrides,
+});
+
+export const createSafeEnvironmentConfig = (
+  overrides: Partial<AggregatedEnvironmentConfig> = {}
+): AggregatedEnvironmentConfig => ({
+  key: "Not set",
+  value: "Not set",
+  level: "service",
+  source: "unknown",
+  isSecret: false,
+  category: "custom",
+  description: "No description available",
+  ...overrides,
+});
+
+export const createSafeLabelConfig = (
+  overrides: Partial<AggregatedLabelConfig> = {}
+): AggregatedLabelConfig => ({
+  key: "Not set",
+  value: "Not set",
+  level: "stack",
+  source: "unknown",
+  category: "custom",
+  ...overrides,
+});
+
+// =============================================================================
+// HELPER FUNCTIONS FOR REACT COMPONENTS
+// =============================================================================
+
+/**
+ * Get all ports with conflicts highlighted
+ */
+export const getPortsWithConflicts = (
+  configs: AggregatedConfigs
+): {
+  conflicted: AggregatedPortConfig[];
+  safe: AggregatedPortConfig[];
+} => {
+  return {
+    conflicted: configs.ports.filter((p) => p.conflicts),
+    safe: configs.ports.filter((p) => !p.conflicts),
+  };
+};
+
+/**
+ * Get shared volumes
+ */
+export const getSharedVolumes = (
+  configs: AggregatedConfigs
+): AggregatedVolumeConfig[] => {
+  return configs.volumes.filter((v) => v.sharedBy.length > 1);
+};
+
+/**
+ * Get secret environment variables
+ */
+export const getSecretEnvironmentVars = (
+  configs: AggregatedConfigs
+): AggregatedEnvironmentConfig[] => {
+  return configs.environment.filter((e) => e.isSecret);
+};
+
+/**
+ * Get configs by level (stack, service, container)
+ */
+export const getConfigsByLevel = <T extends { level: string }>(
+  configs: T[],
+  level: "stack" | "service" | "container"
+): T[] => {
+  return configs.filter((config) => config.level === level);
+};
+
+/**
+ * Get configs by source (service name, container name, etc.)
+ */
+export const getConfigsBySource = <T extends { source: string }>(
+  configs: T[],
+  source: string
+): T[] => {
+  return configs.filter((config) => config.source === source);
+};
+
 // =============================================================================
 // UNIFIED STACK TYPES
 // =============================================================================

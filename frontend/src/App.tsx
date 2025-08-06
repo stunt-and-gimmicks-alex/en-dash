@@ -1,19 +1,23 @@
 // frontend/src/App.tsx
-// Clean App component using centralized navigation types
+// Clean App component using navigation and refresh contexts
 
 import React, { useState } from "react";
 import { Box } from "@chakra-ui/react";
-import { Toast, Toaster, createToaster } from "@ark-ui/react/toast";
 
 // Clean imports using centralized types
 import type { PageKey } from "@/types/navigation";
 import { PAGE_CONFIG } from "@/types/navigation";
+
+// Contexts
+import { NavigationProvider } from "@/contexts/NavigationContext";
+import { RefreshProvider } from "@/contexts/RefreshContext";
 
 // Page components
 import { DashboardPage } from "@/pages/DashboardPage";
 import { SystemMonitorPage } from "@/pages/SystemMonitorPage";
 import { DockerOverviewPage } from "@/components/docker/pages/DockerOverviewPage";
 import { DockerStacksPage } from "@/components/docker/pages/DockerStacksPage";
+import { NewDockerApplication } from "@/components/docker/pages/CreateNewDockerApplicationPage";
 import { StoragePage } from "@/pages/StoragePage";
 import { ProcessesPage } from "@/pages/ProcessPage";
 import { NetworkPage } from "@/pages/NetworkPage";
@@ -24,7 +28,6 @@ import { MonitoringPage } from "@/pages/MonitoringPage";
 
 // Layout
 import { AppLayout } from "@/components/layout/AppLayout";
-import { PiX } from "react-icons/pi";
 
 // Page configuration - cleaner than switch statements
 const PAGE_COMPONENTS: Record<PageKey, React.ComponentType> = {
@@ -32,6 +35,7 @@ const PAGE_COMPONENTS: Record<PageKey, React.ComponentType> = {
   "system-monitor": SystemMonitorPage,
   "docker-overview": DockerOverviewPage,
   "docker-stacks": DockerStacksPage,
+  "new-docker-application": NewDockerApplication,
   storage: StoragePage,
   processes: ProcessesPage,
   network: NetworkPage,
@@ -56,17 +60,24 @@ const App: React.FC = () => {
   };
 
   return (
-    <Box minH="100dvh" bg="brand.background">
-      <AppLayout
+    <RefreshProvider>
+      <NavigationProvider
         currentPage={currentPage}
         onNavigate={handlePageChange}
-        pageTitle={pageConfig.title}
-        pageDescription={pageConfig.description}
       >
-        {/* Clean page rendering - no more switch statements! */}
-        <PageComponent />
-      </AppLayout>
-    </Box>
+        <Box minH="100dvh" bg="brand.background">
+          <AppLayout
+            currentPage={currentPage}
+            onNavigate={handlePageChange}
+            pageTitle={pageConfig.title}
+            pageDescription={pageConfig.description}
+          >
+            {/* Clean page rendering - no prop drilling needed! */}
+            <PageComponent />
+          </AppLayout>
+        </Box>
+      </NavigationProvider>
+    </RefreshProvider>
   );
 };
 

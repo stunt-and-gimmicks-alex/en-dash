@@ -2,7 +2,7 @@
 // Services and containers overview pane for stack details
 
 import React from "react";
-import { Container, Flex, Heading, Stack, Tabs } from "@chakra-ui/react";
+import { Tabs } from "@chakra-ui/react";
 import type { UnifiedService } from "@/types/unified";
 import { ServiceTabsTrigger } from "./ServicetTabsTrigger";
 import { ServiceTabsContent } from "./ServiceTabsContent";

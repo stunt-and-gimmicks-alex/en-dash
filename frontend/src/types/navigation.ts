@@ -10,6 +10,7 @@ export type PageKey =
   | "security"
   | "docker-overview" // Real overview page (stats, summary)
   | "docker-stacks" // NEW - Stacks management page
+  | "new-docker-application" // Creates a new docker stack, which I'm calling an "application" because I'm difficult
   | "databases-overview"
   | "web-services-overview"
   | "monitoring-overview";
@@ -59,6 +60,10 @@ export const PAGE_CONFIG: Record<
     title: "Docker Stacks",
     description:
       "Professional Docker Compose stack management with real-time monitoring and deployments.",
+  },
+  "new-docker-application": {
+    title: "Create New Docker Application",
+    description: "Create a new Docker application.",
   },
   storage: {
     title: "Storage Management",

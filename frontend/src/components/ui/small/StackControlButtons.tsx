@@ -1,8 +1,9 @@
-// Enhanced StackControlButtons with individual loading states and better UX
+// Enhanced StackControlButtons with refresh context integration
 import React, { useState } from "react";
-import { Button, Stack, Toast } from "@chakra-ui/react";
-import { Toaster, toaster } from "@/components/ui/toaster";
+import { Button, Stack } from "@chakra-ui/react";
 import { PiArrowCounterClockwise, PiDownload, PiPower } from "react-icons/pi";
+import { toaster } from "@/components/ui/toaster";
+import { useRefresh } from "@/contexts/RefreshContext";
 
 interface StackControlButtonsProps {
   status: "running" | "stopped" | "partial" | "empty" | "error";
@@ -49,6 +50,9 @@ export const StackControlButtons: React.FC<StackControlButtonsProps> = ({
     updating: false,
   });
 
+  // Get refresh functions from context
+  const { refreshStacks, isRefreshing } = useRefresh();
+
   // Show toast helper using toaster utility
   const showToast = (
     type: "success" | "error",
@@ -64,7 +68,7 @@ export const StackControlButtons: React.FC<StackControlButtonsProps> = ({
     });
   };
 
-  // Prevent event bubbling and handle operation with loading state
+  // Enhanced operation handler with refresh context
   const handleOperation = async (
     e: React.MouseEvent,
     operation: keyof OperationState,
@@ -86,6 +90,10 @@ export const StackControlButtons: React.FC<StackControlButtonsProps> = ({
           "Success",
           `${stackName} ${operationName} successfully`
         );
+
+        // NEW - Trigger refresh after successful operation
+        // This ensures the UI updates immediately even if WebSocket is slow
+        await refreshStacks();
       } else {
         throw new Error(
           `Failed to ${operationName.toLowerCase()} ${stackName}`
@@ -104,93 +112,88 @@ export const StackControlButtons: React.FC<StackControlButtonsProps> = ({
   };
 
   const isRunning = status === "running" || status === "partial";
-  const anyOperationInProgress = Object.values(operationState).some(Boolean);
+  const anyOperationInProgress =
+    Object.values(operationState).some(Boolean) || isRefreshing;
 
   return (
-    <>
-      <Stack
-        direction={orientation === "horizontal" ? "row" : "column"}
-        gap={gap}
-        justify="space-evenly"
-        align="stretch"
-        w={width}
-        h={height}
-        bg="gray/10"
-        borderWidth="1px"
-        borderRadius="5px"
-        p="1"
-      >
-        {/* Restart Button */}
+    <Stack
+      direction={orientation === "horizontal" ? "row" : "column"}
+      gap={gap}
+      justify="space-evenly"
+      align="stretch"
+      w={width}
+      h={height}
+      bg="gray/10"
+      borderWidth="1px"
+      borderRadius="5px"
+      p="1"
+    >
+      {/* Restart Button */}
+      <Stack gap="0.5" flex="1">
+        <Button
+          variant="ghost"
+          colorPalette="grayBrand"
+          size={isRunning ? buttonSize : "sm"}
+          onClick={(e) =>
+            handleOperation(e, "restarting", onRestart, "Restarted")
+          }
+          disabled={!isRunning || disabled || anyOperationInProgress}
+          loading={operationState.restarting}
+          loadingText="Restarting..."
+        >
+          <PiArrowCounterClockwise />
+          Restart
+        </Button>
+      </Stack>
+
+      {/* Start/Stop Button */}
+      <Stack gap="0.5" flex="1">
+        {isRunning ? (
+          <Button
+            variant="ghost"
+            colorPalette="redBrand"
+            size={buttonSize}
+            onClick={(e) => handleOperation(e, "stopping", onStop, "Stopped")}
+            disabled={disabled || anyOperationInProgress}
+            loading={operationState.stopping}
+            loadingText="Stopping..."
+          >
+            <PiPower />
+            Stop
+          </Button>
+        ) : (
+          <Button
+            variant="ghost"
+            colorPalette="brand"
+            size={buttonSize}
+            onClick={(e) => handleOperation(e, "starting", onStart, "Started")}
+            disabled={disabled || anyOperationInProgress}
+            loading={operationState.starting}
+            loadingText="Starting..."
+          >
+            <PiPower />
+            Start
+          </Button>
+        )}
+      </Stack>
+
+      {/* Update Button */}
+      {showUpdate && onUpdate && (
         <Stack gap="0.5" flex="1">
           <Button
             variant="ghost"
             colorPalette="grayBrand"
-            size={isRunning ? buttonSize : "sm"}
-            onClick={(e) =>
-              handleOperation(e, "restarting", onRestart, "Restarted")
-            }
-            disabled={!isRunning || disabled || anyOperationInProgress}
-            loading={operationState.restarting}
-            loadingText="Restarting..."
+            size={buttonSize}
+            onClick={(e) => handleOperation(e, "updating", onUpdate, "Updated")}
+            disabled={disabled || anyOperationInProgress}
+            loading={operationState.updating}
+            loadingText="Updating..."
           >
-            <PiArrowCounterClockwise />
-            Restart
+            <PiDownload />
+            Update
           </Button>
         </Stack>
-
-        {/* Start/Stop Button */}
-        <Stack gap="0.5" flex="1">
-          {isRunning ? (
-            <Button
-              variant="ghost"
-              colorPalette="redBrand"
-              size={buttonSize}
-              onClick={(e) => handleOperation(e, "stopping", onStop, "Stopped")}
-              disabled={disabled || anyOperationInProgress}
-              loading={operationState.stopping}
-              loadingText="Stopping..."
-            >
-              <PiPower />
-              Stop
-            </Button>
-          ) : (
-            <Button
-              variant="ghost"
-              colorPalette="brand"
-              size={buttonSize}
-              onClick={(e) =>
-                handleOperation(e, "starting", onStart, "Started")
-              }
-              disabled={disabled || anyOperationInProgress}
-              loading={operationState.starting}
-              loadingText="Starting..."
-            >
-              <PiPower />
-              Start
-            </Button>
-          )}
-        </Stack>
-
-        {/* Update Button */}
-        {showUpdate && onUpdate && (
-          <Stack gap="0.5" flex="1">
-            <Button
-              variant="ghost"
-              colorPalette="grayBrand"
-              size={buttonSize}
-              onClick={(e) =>
-                handleOperation(e, "updating", onUpdate, "Updated")
-              }
-              disabled={disabled || anyOperationInProgress}
-              loading={operationState.updating}
-              loadingText="Updating..."
-            >
-              <PiDownload />
-              Update
-            </Button>
-          </Stack>
-        )}
-      </Stack>
-    </>
+      )}
+    </Stack>
   );
 };

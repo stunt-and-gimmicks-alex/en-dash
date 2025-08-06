@@ -353,7 +353,7 @@ class NewApiService {
 
   // Docker stats summary (REST fallback)
   async getDockerStats() {
-    return this.client.get("/docker/stats");
+    return this.client.get("/stats");
   }
 
   // Main method: Get real-time unified stacks
