@@ -1,4 +1,4 @@
-// NewDockerApplicationDrawer1.tsx - Fixed basic configuration drawer
+// NewDockerApplicationDrawer1.tsx - Wired basic configuration drawer
 
 import { useState } from "react";
 import { useNewStackStore } from "@/stores/useNewStackStore";
@@ -21,7 +21,13 @@ import {
 import { PropertySection } from "./NewDockerApplicationDrawerPropSection";
 import { PiPlus, PiX } from "react-icons/pi";
 
-export const NewDockDrawerStart = () => {
+interface BasicConfigDrawerProps {
+  onClose?: () => void;
+}
+
+export const NewDockDrawerStart = ({
+  onClose,
+}: BasicConfigDrawerProps = {}) => {
   const { newStack, setNewStack } = useNewStackStore();
 
   // Local state for x-meta
@@ -46,11 +52,20 @@ export const NewDockDrawerStart = () => {
 
   const handleSave = () => {
     setNewStack((stack) => {
+      if (!stack.configs) stack.configs = {};
       stack.configs["x-meta"] = {
         category: appCategory,
         tags: appTags.filter((tag) => tag.trim()),
       };
     });
+
+    // Close drawer and trigger re-render
+    onClose?.();
+  };
+
+  const handleCancel = () => {
+    // Just close the drawer without saving
+    onClose?.();
   };
 
   const addTag = () => {
@@ -181,7 +196,7 @@ export const NewDockDrawerStart = () => {
       </Drawer.Body>
 
       <Drawer.Footer gap="3">
-        <Button variant="outline" onClick={() => window.location.reload()}>
+        <Button variant="outline" onClick={handleCancel}>
           Cancel
         </Button>
         <Button
@@ -189,7 +204,7 @@ export const NewDockDrawerStart = () => {
           disabled={!newStack.name}
           onClick={handleSave}
         >
-          Continue to Services
+          Save Configuration
         </Button>
       </Drawer.Footer>
 
