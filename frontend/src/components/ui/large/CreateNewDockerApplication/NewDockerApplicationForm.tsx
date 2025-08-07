@@ -89,7 +89,9 @@ export const NewDockerAppWizard = () => {
                 rounded="lg"
                 padding="2"
               >
-                {(newStack.name && <AppConfigCard />) || (
+                {(newStack.name && (
+                  <AppConfigCard labels={newStack.name} />
+                )) || (
                   <Icon size="lg" color="brandGray.600">
                     <PiGhost />
                   </Icon>

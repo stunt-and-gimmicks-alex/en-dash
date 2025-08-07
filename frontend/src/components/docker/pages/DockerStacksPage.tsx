@@ -1,5 +1,6 @@
 // frontend/src/pages/DockerStacksPage.tsx
 // MIGRATED - Docker Stacks page using new unified WebSocket API + ChakraUI v3
+"use client";
 
 import React, { useState, useMemo, useEffect } from "react";
 import {

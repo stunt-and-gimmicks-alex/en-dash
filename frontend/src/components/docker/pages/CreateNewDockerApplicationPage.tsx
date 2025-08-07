@@ -159,9 +159,10 @@ networks:
       p="6"
       bg="bg"
       justifyItems="center"
+      maxH="95dvh"
       overflow="clip"
     >
-      <Flex justify="space-evenly" w="full" gap="6" h="90dvh">
+      <Flex justify="space-evenly" w="full" gap="6">
         <Card.Root w="1/2" borderRadius="0">
           <Card.Header
             gap="6"
@@ -212,42 +213,47 @@ networks:
             </ButtonGroup>
           </Card.Footer>
         </Card.Root>
-        <Box w="1/2">
-          <CodeBlock.AdapterProvider value={shikiAdapter}>
-            <ClientOnly>
-              {() => (
-                <CodeBlock.Root
-                  code={file.code}
-                  language={file.language}
-                  borderRadius="0"
-                  meta={{ colorScheme: colorMode, wordWrap: true }}
-                  h="90dvh"
-                >
-                  <CodeBlock.Header>
-                    <CodeBlock.Title>
-                      <Icon as={PiFileCode} color="brandYellow.400" size="lg" />
-                      Compose File Preview
-                    </CodeBlock.Title>
-                    <CodeBlock.Control>
-                      <Float placement="top-end" offset="5" zIndex="1">
-                        <CodeBlock.CopyTrigger asChild>
-                          <IconButton variant="ghost" size="2xs">
-                            <CodeBlock.CopyIndicator />
-                          </IconButton>
-                        </CodeBlock.CopyTrigger>
-                      </Float>
-                      <CodeBlock.CollapseTrigger />
-                    </CodeBlock.Control>
-                  </CodeBlock.Header>
-                  <CodeBlock.Content overflow="auto" maxH="87dvh">
-                    <CodeBlock.Code>
-                      <CodeBlock.CodeText />
-                    </CodeBlock.Code>
-                  </CodeBlock.Content>
-                </CodeBlock.Root>
-              )}
-            </ClientOnly>
-          </CodeBlock.AdapterProvider>
+        <Box w="1/2" display="inline-block">
+          <Float placement="middle-top" maxW="43dvw">
+            <CodeBlock.AdapterProvider value={shikiAdapter}>
+              <ClientOnly>
+                {() => (
+                  <CodeBlock.Root
+                    code={file.code}
+                    language={file.language}
+                    borderRadius="0"
+                    meta={{ colorScheme: colorMode, wordWrap: true }}
+                  >
+                    <CodeBlock.Header>
+                      <CodeBlock.Title>
+                        <Icon
+                          as={PiFileCode}
+                          color="brandYellow.400"
+                          size="lg"
+                        />
+                        Compose File Preview
+                      </CodeBlock.Title>
+                      <CodeBlock.Control>
+                        <Float placement="top-end" offset="5" zIndex="1">
+                          <CodeBlock.CopyTrigger asChild>
+                            <IconButton variant="ghost" size="2xs">
+                              <CodeBlock.CopyIndicator />
+                            </IconButton>
+                          </CodeBlock.CopyTrigger>
+                        </Float>
+                        <CodeBlock.CollapseTrigger />
+                      </CodeBlock.Control>
+                    </CodeBlock.Header>
+                    <CodeBlock.Content overflow="auto" maxH="87dvh">
+                      <CodeBlock.Code>
+                        <CodeBlock.CodeText />
+                      </CodeBlock.Code>
+                    </CodeBlock.Content>
+                  </CodeBlock.Root>
+                )}
+              </ClientOnly>
+            </CodeBlock.AdapterProvider>
+          </Float>
         </Box>
       </Flex>
     </Box>
