@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { newApiService } from "@/services/newApiServices";
 import type {
   ChartData,
@@ -174,5 +174,70 @@ export const useCombinedStats = (hours: number = 6) => {
     disk: diskChart,
     loading,
     timeframe: hours,
+  };
+};
+
+// =============================================================================
+// IMPROVED LIVE SYSTEM STATS
+// =============================================================================
+
+export const useLiveSystemStats = () => {
+  const [currentStats, setCurrentStats] = useState<SystemStat | null>(null);
+  const [connected, setConnected] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+
+  const connect = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) return;
+
+    try {
+      setError(null);
+
+      const ws = newApiService.systemStats.createLiveStatsConnection(
+        (stats) => {
+          console.log("📊 Live system stats received:", stats);
+          setCurrentStats(stats);
+          setError(null);
+        },
+        (error) => {
+          console.error("❌ Live system stats error:", error);
+          setError(error);
+        }
+      );
+
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        setConnected(true);
+        console.log("✅ Live system stats connected");
+      };
+
+      ws.onclose = () => {
+        setConnected(false);
+        console.log("❌ Live system stats disconnected");
+      };
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to connect");
+    }
+  }, []);
+
+  const disconnect = useCallback(() => {
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+    setConnected(false);
+  }, []);
+
+  useEffect(() => {
+    connect();
+    return () => disconnect();
+  }, [connect, disconnect]);
+
+  return {
+    currentStats,
+    connected,
+    error,
+    refresh: connect,
   };
 };

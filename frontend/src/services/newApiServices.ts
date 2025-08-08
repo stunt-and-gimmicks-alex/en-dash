@@ -439,7 +439,7 @@ class NewApiService {
 }
 
 // =============================================================================
-// SYSTEM STATS SERVICE (Historical Data)
+// SYSTEM STATS SERVICE
 // =============================================================================
 
 class SystemStatsService {
@@ -495,6 +495,36 @@ class SystemStatsService {
         return acc;
       }, {} as Record<string, any>),
     };
+  }
+
+  createLiveStatsConnection(
+    onData: (stats: SystemStat) => void,
+    onError?: (error: string) => void
+  ): WebSocket {
+    const ws = new WebSocket(`${WS_BASE}/system/stats/live`);
+
+    ws.onopen = () => {
+      console.log("🔗 Live system stats connected");
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        if (message.type === "system_stats") {
+          onData(message.data);
+        } else if (message.type === "error") {
+          onError?.(message.message || "System stats error");
+        }
+      } catch (error) {
+        onError?.("Failed to parse system stats message");
+      }
+    };
+
+    ws.onerror = () => {
+      onError?.("System stats WebSocket error");
+    };
+
+    return ws;
   }
 }
 

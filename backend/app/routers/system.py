@@ -466,68 +466,162 @@ async def get_service_logs(service_name: str, lines: int = 100):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving logs: {str(e)}")
 
-# =============================================================================
-# HISTORICAL SYSTEM STATISTICS (from SurrealDB)
-# =============================================================================
-
-@router.get("/stats/historical")
-async def get_historical_system_stats(hours: int = 24):
-    """Get historical system statistics from SurrealDB"""
-    try:
-        stats = await surreal_service.get_system_stats(hours_back=hours)
-        return {
-            "timeframe_hours": hours,
-            "data_points": len(stats),
-            "stats": stats
-        }
-    except Exception as e:
-        logger.error(f"Error retrieving historical stats: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/stats/chart-data")
-async def get_chart_data(metric: str = "cpu_percent", hours: int = 6):
-    """Get formatted data for charts"""
-    try:
-        stats = await surreal_service.get_system_stats(hours_back=hours)
+class SystemStatsConnectionManager:
+    """Manages WebSocket connections for live system stats via SurrealDB"""
+    
+    def __init__(self):
+        self.active_connections: Set[WebSocket] = set()
+        self.live_query_id: Optional[str] = None
         
-        # Format data for charts (timestamp + value pairs)
-        chart_data = []
-        for stat in reversed(stats):  # Reverse to get chronological order
-            if metric in stat:
-                chart_data.append({
-                    "timestamp": stat.get("timestamp"),
-                    "value": stat.get(metric),
-                    "time": stat.get("timestamp")  # For recharts compatibility
-                })
+    async def connect(self, websocket: WebSocket):
+        """Accept new WebSocket connection and setup live system stats query"""
+        logger.info("🔌 System stats WebSocket connection starting...")
+        await websocket.accept()
+        logger.info("🔗 System stats WebSocket accepted")
         
-        return {
-            "metric": metric,
-            "timeframe_hours": hours,
-            "data": chart_data
-        }
-    except Exception as e:
-        logger.error(f"Error retrieving chart data: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/stats/metrics")
-async def get_available_metrics():
-    """Get list of available metrics for charting"""
-    try:
-        # Get a recent stat to see what metrics are available
-        recent_stats = await surreal_service.get_system_stats(hours_back=1)
+        self.active_connections.add(websocket)
+        logger.info(f"✅ System stats connections: {len(self.active_connections)}")
         
-        if recent_stats:
-            # Extract metric names (exclude metadata fields)
-            sample_stat = recent_stats[0]
-            metrics = [
-                key for key in sample_stat.keys() 
-                if key not in ['timestamp', 'collected_at', 'id'] 
-                and isinstance(sample_stat[key], (int, float))
-            ]
-            return {"metrics": metrics}
-        else:
-            return {"metrics": []}
+        # Send immediate current stats
+        try:
+            recent_stats = await surreal_service.get_system_stats(hours_back=1)
+            if recent_stats:
+                latest_stat = recent_stats[0]  # Most recent
+                await self.send_personal_message({
+                    "type": "system_stats",
+                    "data": latest_stat,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "immediate": True
+                }, websocket)
+                logger.info("✅ Immediate system stats sent")
+        except Exception as e:
+            logger.error(f"❌ Failed to send immediate system stats: {e}")
+        
+        # Start live query if first connection
+        if len(self.active_connections) == 1:
+            await self._start_live_stats_query()
+    
+    async def disconnect(self, websocket: WebSocket):
+        """Remove connection and cleanup live query if needed"""
+        self.active_connections.discard(websocket)
+        logger.info(f"System stats WebSocket disconnected. Remaining: {len(self.active_connections)}")
+        
+        # Stop live query if no connections
+        if len(self.active_connections) == 0:
+            await self._stop_live_stats_query()
+    
+    async def _start_live_stats_query(self):
+        """Start live query for system_stats changes"""
+        try:
+            logger.info("🚀 Starting system stats live query...")
             
-    except Exception as e:
-        logger.error(f"Error getting available metrics: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+            self.live_query_id = await surreal_service.create_live_query(
+                "LIVE SELECT * FROM system_stats",
+                self._handle_stats_update
+            )
+            
+            logger.info(f"📡 System stats live query started: {self.live_query_id}")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to start system stats live query: {e}")
+    
+    async def _stop_live_stats_query(self):
+        """Stop the system stats live query"""
+        if self.live_query_id:
+            try:
+                await surreal_service.kill_live_query(self.live_query_id)
+                self.live_query_id = None
+                logger.info("🛑 System stats live query stopped")
+            except Exception as e:
+                logger.error(f"❌ Failed to stop system stats live query: {e}")
+    
+    async def _handle_stats_update(self, update_data: Any):
+        """Handle new system stats from live query"""
+        try:
+            logger.info("📊 New system stats received via live query")
+            
+            # Get the latest stat record
+            recent_stats = await surreal_service.get_system_stats(hours_back=1)
+            if recent_stats:
+                latest_stat = recent_stats[0]
+                
+                # Broadcast to all connected clients
+                await self.broadcast({
+                    "type": "system_stats",
+                    "data": latest_stat,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "trigger": "live_query",
+                    "connection_count": len(self.active_connections)
+                })
+                
+                logger.info("✅ System stats live update broadcasted")
+            
+        except Exception as e:
+            logger.error(f"❌ Error handling system stats live update: {e}")
+    
+    async def send_personal_message(self, message: dict, websocket: WebSocket):
+        """Send message to specific connection"""
+        try:
+            await websocket.send_text(json.dumps(message))
+        except Exception as e:
+            logger.error(f"Error sending system stats message: {e}")
+            await self.disconnect(websocket)
+    
+    async def broadcast(self, message: dict):
+        """Broadcast message to all connections"""
+        if not self.active_connections:
+            return
+            
+        disconnected = set()
+        for connection in self.active_connections.copy():
+            try:
+                await connection.send_text(json.dumps(message))
+            except Exception as e:
+                logger.error(f"Error broadcasting system stats: {e}")
+                disconnected.add(connection)
+        
+        # Clean up disconnected connections
+        for conn in disconnected:
+            self.active_connections.discard(conn)
+
+# Create manager instance
+system_stats_manager = SystemStatsConnectionManager()
+
+# Add WebSocket endpoint to websocket_system.py
+@router.websocket("/stats/live")
+async def websocket_live_system_stats(websocket: WebSocket):
+    """
+    WebSocket endpoint for real-time system statistics via SurrealDB live queries
+    
+    Sends immediate current stats on connection, then pushes updates only when 
+    new stats are collected (every 30 seconds via background collector).
+    """
+    await system_stats_manager.connect(websocket)
+    
+    try:
+        while True:
+            # Listen for client messages (config, etc.)
+            try:
+                data = await asyncio.wait_for(websocket.receive_text(), timeout=1.0)
+                message = json.loads(data)
+                
+                if message.get("type") == "ping":
+                    await system_stats_manager.send_personal_message({
+                        "type": "pong",
+                        "timestamp": datetime.now(timezone.utc).isoformat()
+                    }, websocket)
+                
+            except asyncio.TimeoutError:
+                # No message - continue (allows live queries to work)
+                continue
+            except WebSocketDisconnect:
+                break
+            except json.JSONDecodeError:
+                logger.warning("Invalid JSON from system stats client")
+            except Exception as e:
+                logger.error(f"Error in system stats WebSocket: {e}")
+                
+    except WebSocketDisconnect:
+        pass
+    finally:
+        await system_stats_manager.disconnect(websocket)
