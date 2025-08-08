@@ -436,3 +436,23 @@ export const getImpactColor = (impact: string): string => {
       return "gray";
   }
 };
+
+/*  TODO:
+
+  const validateCompose = (composeData) => {
+  const warnings = [];
+  
+  Object.entries(composeData.services).forEach(([serviceName, config]) => {
+    if (config.container_name) {
+      warnings.push({
+        service: serviceName,
+        issue: "container_name prevents scaling",
+        suggestion: "Remove container_name to enable scaling",
+        severity: "warning"
+      });
+    }
+  });
+  
+  return warnings;
+}
+  */

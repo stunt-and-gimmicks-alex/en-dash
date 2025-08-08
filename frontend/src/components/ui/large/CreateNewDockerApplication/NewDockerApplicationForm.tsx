@@ -23,7 +23,7 @@ import { NewDockDrawerServices } from "./NewDockerApplicationDrawerServices";
 import { AppConfigCard } from "./NewDockerAppItemCard";
 
 export const NewDockerAppWizard = () => {
-  const { newStack } = useNewStackStore();
+  const { newStack, setNewStack } = useNewStackStore();
   const [open, setOpen] = useState(false);
   const [drawerStep, setDrawer] = useState("1");
 
@@ -31,6 +31,8 @@ export const NewDockerAppWizard = () => {
   const hasBasicInfo = !!newStack.name;
   const hasServices =
     newStack.services && Object.keys(newStack.services).length > 0;
+  const hasNetworks =
+    newStack.networks && Object.keys(newStack.networks).length > 0;
 
   const handleOpenDrawer = (step: string) => {
     setDrawer(step);
@@ -102,7 +104,18 @@ export const NewDockerAppWizard = () => {
 
             <Card.Body gap="4" px="6" pt="1">
               {hasBasicInfo ? (
-                <AppConfigCard labels={newStack.name} />
+                <AppConfigCard
+                  labels={newStack.name}
+                  onEdit={() => handleOpenDrawer("1")} // Opens basic config drawer
+                  onDelete={() => {
+                    // Clear the basic config
+                    setNewStack((stack) => {
+                      stack.name = "";
+                      stack.description = "";
+                      // Maybe clear other basic fields too
+                    });
+                  }}
+                />
               ) : (
                 <Center
                   userSelect="none"
@@ -170,7 +183,23 @@ export const NewDockerAppWizard = () => {
 
             <Card.Body gap="4" px="6" pt="1">
               {hasServices ? (
-                newStack.services.map((s) => <AppConfigCard labels={s.name} />)
+                Object.entries(newStack.services).map(
+                  ([serviceId, service]) => (
+                    <AppConfigCard
+                      key={serviceId}
+                      labels={service.name}
+                      onEdit={() => {
+                        // Handle edit - maybe set serviceId and open drawer
+                      }}
+                      onDelete={() => {
+                        // Handle delete - remove from store
+                        setNewStack((stack) => {
+                          delete stack.services[serviceId];
+                        });
+                      }}
+                    />
+                  )
+                )
               ) : (
                 <Center
                   userSelect="none"
@@ -241,15 +270,38 @@ export const NewDockerAppWizard = () => {
                 rounded="lg"
                 padding="2"
               >
-                <Icon size="lg" color="brandGray.600">
-                  <PiGhost />
-                </Icon>
+                {hasNetworks ? (
+                  Object.entries(newStack.networks).map(
+                    ([networkId, network]) => (
+                      <AppConfigCard
+                        key={networkId}
+                        labels={network.name || networkId}
+                        onEdit={() => handleOpenDrawer("3")} // Opens network drawer
+                        onDelete={() => {
+                          // Remove network from store
+                          setNewStack((stack) => {
+                            delete stack.networks[networkId];
+                          });
+                        }}
+                      />
+                    )
+                  )
+                ) : (
+                  <Icon size="lg" color="brandGray.600">
+                    <PiGhost />
+                  </Icon>
+                )}
               </Center>
             </Card.Body>
 
             <Card.Footer>
-              <Button w="full" disabled variant="ghost">
-                Configure Networks
+              <Button
+                w="full"
+                disabled={!hasServices} // Networks depend on having services
+                variant="ghost"
+                onClick={() => handleOpenDrawer("3")}
+              >
+                {hasNetworks ? "Edit Networks" : "Configure Networks"}
               </Button>
             </Card.Footer>
           </Card.Root>

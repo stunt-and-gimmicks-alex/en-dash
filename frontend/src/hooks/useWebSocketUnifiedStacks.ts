@@ -41,7 +41,20 @@ interface UseWebSocketUnifiedStacksResult {
   ping: () => void;
 }
 
-const WS_URL = "ws://localhost:8001/api/docker/ws/unified-stacks";
+const getWsBaseUrl = () => {
+  if (typeof window !== "undefined") {
+    const { hostname, protocol } = window.location;
+    const wsProtocol = protocol === "https:" ? "wss:" : "ws:";
+    if (hostname !== "localhost" && hostname !== "127.0.0.1") {
+      return `${wsProtocol}//${hostname}:8001/api`;
+    }
+  }
+  return "ws://localhost:8001/api";
+};
+
+const WS_BASE = getWsBaseUrl();
+
+const WS_URL = WS_BASE + "/docker/ws/unified-stacks";
 
 export const useWebSocketUnifiedStacks = (
   options: UseWebSocketUnifiedStacksOptions = {}
