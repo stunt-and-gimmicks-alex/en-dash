@@ -40,13 +40,24 @@ class UnifiedStackConnectionManager:
         
     async def connect(self, websocket: WebSocket):
         """Accept new WebSocket connection"""
+        logger.info("🔌 About to accept WebSocket connection...")
         await websocket.accept()
+        logger.info("🔗 WebSocket accepted successfully")
+        
         self.active_connections.add(websocket)
-        logger.info(f"Unified stacks WebSocket connected. Total connections: {len(self.active_connections)}")
+        logger.info(f"✅ Added to connections. Total connections: {len(self.active_connections)}")
         
         # Start unified stack broadcasting if this is the first connection
         if len(self.active_connections) == 1:
-            self.unified_task = asyncio.create_task(self._broadcast_unified_stacks())
+            logger.info("🚀 First connection detected - starting broadcasting task...")
+            try:
+                self.unified_task = asyncio.create_task(self._broadcast_unified_stacks())
+                logger.info("📡 Broadcasting task created successfully!")
+            except Exception as e:
+                logger.error(f"❌ Failed to create broadcasting task: {e}")
+        else:
+            logger.info(f"📊 Additional connection (broadcasting already running for {len(self.active_connections)} connections)")
+
     
     async def disconnect(self, websocket: WebSocket):
         """Remove WebSocket connection"""
@@ -85,18 +96,41 @@ class UnifiedStackConnectionManager:
     
     async def _broadcast_unified_stacks(self):
         """Continuously broadcast unified stack data"""
-        logger.info("Started unified stacks broadcasting")
+        print("🎯 BROADCAST TASK STARTED!")
+        print(f"📊 Active connections: {len(self.active_connections)}")
         
         try:
             while self.active_connections:
+                print("🔄 Broadcasting iteration starting...")
                 try:
-                    # Get all unified stacks with complete processing
-                    unified_stacks = await self._get_unified_stacks()
+                    # Try SurrealDB fast path first
+                    stacks_from_db = await surreal_service.get_unified_stacks()
                     
-                    # Broadcast complete unified stack data
+                    if stacks_from_db:
+                        logger.info(f"⚡ Fast path: Using {len(stacks_from_db)} stacks from SurrealDB")
+                        unified_stacks_data = {
+                            "available": True,
+                            "stacks": stacks_from_db,
+                            "total_stacks": len(stacks_from_db),
+                            "processing_time": datetime.now(timezone.utc).isoformat(),
+                            "source": "surrealdb"
+                        }
+                    else:
+                        # Fallback to comprehensive discovery
+                        logger.warning("📡 SurrealDB empty, falling back to comprehensive discovery")
+                        unified_stacks = await unified_stack_service.get_all_unified_stacks()
+                        unified_stacks_data = {
+                            "available": True,
+                            "stacks": unified_stacks,
+                            "total_stacks": len(unified_stacks),
+                            "processing_time": datetime.now(timezone.utc).isoformat(),
+                            "source": "comprehensive"
+                        }
+                    
+                    # Broadcast the data
                     await self.broadcast({
                         "type": "unified_stacks",
-                        "data": unified_stacks,
+                        "data": unified_stacks_data,
                         "timestamp": datetime.now(timezone.utc).isoformat(),
                         "connection_count": len(self.active_connections)
                     })
@@ -105,7 +139,10 @@ class UnifiedStackConnectionManager:
                     await asyncio.sleep(self.update_interval)
                     
                 except Exception as e:
-                    logger.error(f"Error in unified stacks broadcast: {e}")
+                    print(f"❌ BROADCAST ERROR: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    
                     # Send error message to clients
                     await self.broadcast({
                         "type": "error",
@@ -113,7 +150,7 @@ class UnifiedStackConnectionManager:
                         "timestamp": datetime.now(timezone.utc).isoformat()
                     })
                     await asyncio.sleep(5)  # Wait longer on error
-                    
+                            
         except asyncio.CancelledError:
             logger.info("Unified stacks broadcasting cancelled")
         except Exception as e:
