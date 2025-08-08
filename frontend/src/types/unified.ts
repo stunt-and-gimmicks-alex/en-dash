@@ -681,6 +681,11 @@ export interface SystemStat {
   disk_percent: number;
   disk_used_gb: number;
   disk_total_gb: number;
+  // ADD NETWORK I/O FIELDS
+  network_bytes_sent: number;
+  network_bytes_recv: number;
+  network_packets_sent: number;
+  network_packets_recv: number;
   id?: string;
 }
 

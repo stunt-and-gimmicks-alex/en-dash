@@ -63,14 +63,17 @@ class BackgroundCollector:
                 await asyncio.sleep(5)
 
     async def _collect_system_stats(self):
-        """Collect comprehensive system statistics"""
+        """Collect comprehensive system statistics including network I/O"""
         try:
             # CPU stats
             cpu_percent = psutil.cpu_percent(interval=1)
             memory = psutil.virtual_memory()
             disk_root = psutil.disk_usage('/')
             
-            # Build stats object
+            # Network I/O stats
+            network_io = psutil.net_io_counters()
+            
+            # Build comprehensive stats object
             stats = {
                 "cpu_percent": cpu_percent,
                 "memory_percent": memory.percent,
@@ -79,11 +82,16 @@ class BackgroundCollector:
                 "disk_percent": round((disk_root.used / disk_root.total) * 100, 2),
                 "disk_used_gb": round(disk_root.used / (1024**3), 2),
                 "disk_total_gb": round(disk_root.total / (1024**3), 2),
+                # ADD NETWORK I/O DATA
+                "network_bytes_sent": network_io.bytes_sent,
+                "network_bytes_recv": network_io.bytes_recv,
+                "network_packets_sent": network_io.packets_sent,
+                "network_packets_recv": network_io.packets_recv,
             }
             
             # Store in SurrealDB
             await surreal_service.store_system_stats(stats)
-            logger.info("📈 Collected and stored system stats")
+            logger.info("📈 Collected and stored system stats with network I/O")
             
         except Exception as e:
             logger.error(f"❌ Failed to collect system stats: {e}")

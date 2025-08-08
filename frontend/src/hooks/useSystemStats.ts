@@ -8,6 +8,19 @@ import type {
   MetricsResponse,
 } from "@/types/unified";
 
+const getWsBaseUrl = () => {
+  if (typeof window !== "undefined") {
+    const { hostname, protocol } = window.location;
+    const wsProtocol = protocol === "https:" ? "wss:" : "ws:";
+    if (hostname !== "localhost" && hostname !== "127.0.0.1") {
+      return `${wsProtocol}//${hostname}:8001/api`;
+    }
+  }
+  return "ws://localhost:8001/api";
+};
+
+const WS_BASE = getWsBaseUrl();
+
 // =============================================================================
 // HISTORICAL STATS HOOKS
 // =============================================================================
@@ -177,67 +190,169 @@ export const useCombinedStats = (hours: number = 6) => {
   };
 };
 
-// =============================================================================
-// IMPROVED LIVE SYSTEM STATS
-// =============================================================================
-
 export const useLiveSystemStats = () => {
   const [currentStats, setCurrentStats] = useState<SystemStat | null>(null);
   const [connected, setConnected] = useState(false);
+  const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+
   const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectAttempts = useRef(0);
+  const maxReconnectAttempts = 5;
 
   const connect = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) return;
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      return; // Already connected
+    }
 
     try {
+      setConnecting(true);
       setError(null);
 
-      const ws = newApiService.systemStats.createLiveStatsConnection(
-        (stats) => {
-          console.log("📊 Live system stats received:", stats);
-          setCurrentStats(stats);
-          setError(null);
-        },
-        (error) => {
-          console.error("❌ Live system stats error:", error);
-          setError(error);
-        }
-      );
+      // Connect to your livequery system stats endpoint
+      const wsUrl = `${WS_BASE}/system/stats/live`;
+      console.log("🔗 Connecting to livequery system stats:", wsUrl);
 
+      const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
+        console.log("✅ Connected to livequery system stats");
         setConnected(true);
-        console.log("✅ Live system stats connected");
+        setConnecting(false);
+        setError(null);
+        reconnectAttempts.current = 0;
+
+        // Send ping to confirm connection
+        ws.send(JSON.stringify({ type: "ping" }));
       };
 
-      ws.onclose = () => {
+      ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          console.log("📊 Received livequery system stats:", message);
+
+          switch (message.type) {
+            case "system_stats":
+              // Handle both immediate and live query updates
+              setCurrentStats(message.data);
+              setLastUpdated(message.timestamp);
+              setError(null);
+
+              if (message.immediate) {
+                console.log("⚡ Immediate system stats loaded");
+              } else if (message.trigger === "live_query") {
+                console.log("📡 Live query update received");
+              }
+              break;
+
+            case "pong":
+              console.log("🏓 Pong received from system stats");
+              break;
+
+            case "error":
+              console.error("❌ System stats error:", message.message);
+              setError(message.message || "Unknown error");
+              break;
+
+            default:
+              console.log("🔔 Unknown message type:", message.type);
+          }
+        } catch (parseError) {
+          console.error("❌ Failed to parse system stats message:", parseError);
+          setError("Failed to parse message");
+        }
+      };
+
+      ws.onclose = (event) => {
+        console.log(
+          "🔌 System stats WebSocket closed:",
+          event.code,
+          event.reason
+        );
         setConnected(false);
-        console.log("❌ Live system stats disconnected");
+        setConnecting(false);
+
+        // Auto-reconnect with exponential backoff
+        if (reconnectAttempts.current < maxReconnectAttempts) {
+          const delay = Math.min(
+            1000 * Math.pow(2, reconnectAttempts.current),
+            30000
+          );
+          console.log(
+            `🔄 Reconnecting system stats in ${delay}ms (attempt ${
+              reconnectAttempts.current + 1
+            }/${maxReconnectAttempts})`
+          );
+
+          reconnectTimeoutRef.current = setTimeout(() => {
+            reconnectAttempts.current++;
+            connect();
+          }, delay);
+        } else {
+          setError("Max reconnection attempts reached");
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error("❌ System stats WebSocket error:", error);
+        setError("WebSocket connection error");
+        setConnecting(false);
       };
     } catch (err) {
+      console.error("❌ Failed to create system stats WebSocket:", err);
       setError(err instanceof Error ? err.message : "Failed to connect");
+      setConnecting(false);
     }
   }, []);
 
   const disconnect = useCallback(() => {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+
     if (wsRef.current) {
-      wsRef.current.close();
+      wsRef.current.close(1000, "User disconnected");
       wsRef.current = null;
     }
+
     setConnected(false);
+    setConnecting(false);
+    reconnectAttempts.current = 0;
   }, []);
 
+  const ping = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: "ping" }));
+    }
+  }, []);
+
+  // Auto-connect on mount
   useEffect(() => {
     connect();
     return () => disconnect();
   }, [connect, disconnect]);
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+    };
+  }, []);
+
   return {
     currentStats,
     connected,
+    connecting,
     error,
+    lastUpdated,
     refresh: connect,
+    disconnect,
+    ping,
   };
 };

@@ -1,5 +1,5 @@
-// frontend/src/components/HeaderStatsBlock.tsx
-// MIGRATED - Simple stat blocks using WebSocket real-time data + ChakraUI v3 patterns
+// frontend/src/components/layout/HeaderStatsBlock.tsx
+// UPDATED - Modern system stats using SurrealDB livequeries
 
 import React, { useState, useEffect } from "react";
 import {
@@ -11,24 +11,19 @@ import {
   Highlight,
   HStack,
   Icon,
-  SimpleGrid,
   Stack,
   Text,
 } from "@chakra-ui/react";
 
 import {
-  PiCpuFill,
-  PiMemoryFill,
-  PiHardDriveFill,
-  PiCloudArrowDownFill,
-  PiCloudArrowUpFill,
-  PiNetworkFill,
   PiCpu,
   PiMemory,
   PiHardDrive,
   PiNetwork,
+  PiCloudArrowDownFill,
+  PiCloudArrowUpFill,
 } from "react-icons/pi";
-import { useSystemStatsWebSocket } from "@/hooks/useWebSocketStats";
+import { useLiveSystemStats } from "@/hooks/useSystemStats";
 import type { IconType } from "react-icons";
 
 interface StatItem {
@@ -49,8 +44,8 @@ interface HeaderStatsBlockProps {
 export const HeaderStatsBlock: React.FC<HeaderStatsBlockProps> = ({
   title = "en-dash / Better Homelab Management",
 }) => {
-  // NEW - Real-time system stats via WebSocket
-  const { stats, isConnected, error } = useSystemStatsWebSocket(2.0, true);
+  // ✨ NEW - Modern livequery system stats
+  const { currentStats, connected, error } = useLiveSystemStats();
 
   // State for tracking network rates with trailing average
   const [networkHistory, setNetworkHistory] = useState<
@@ -66,29 +61,26 @@ export const HeaderStatsBlock: React.FC<HeaderStatsBlockProps> = ({
     rxRate: number;
   }>({ txRate: 0, rxRate: 0 });
 
-  // Keep 5 seconds of history (at 2s intervals = ~3 data points for averaging)
-  const NETWORK_HISTORY_DURATION = 5000; // 5 seconds in milliseconds
+  // Keep history for rate calculation (30 second collection interval)
+  const NETWORK_HISTORY_DURATION = 90000; // 90 seconds to capture 3 data points
 
   // Local state for computed stats
   const [statItems, setStatItems] = useState<StatItem[]>([
-    { value: "0%", label: "cpu usage", statIcon: PiCpuFill, color: "green" },
-    {
-      value: "0%",
-      label: "memory usage",
-      statIcon: PiMemoryFill,
-      color: "blue",
-    },
+    { value: "0%", label: "cpu usage", statIcon: PiCpu, color: "green" },
+    { value: "0%", label: "memory usage", statIcon: PiMemory, color: "blue" },
     {
       value: "0% used",
       label: "disk usage",
-      statIcon: PiHardDriveFill,
+      statIcon: PiHardDrive,
       color: "purple",
     },
     {
       value: "0 B/s",
       secondaryValue: "0 B/s",
-      label: "network i/o (5s average)",
-      statIcon: PiNetworkFill,
+      label: "network i/o",
+      statIcon: PiNetwork,
+      subIcon1: PiCloudArrowUpFill,
+      subIcon2: PiCloudArrowDownFill,
       color: "cyan",
     },
   ]);
@@ -109,19 +101,16 @@ export const HeaderStatsBlock: React.FC<HeaderStatsBlockProps> = ({
 
   // Helper function to format disk usage with size info
   const formatDiskUsage = (stats: any): string => {
-    if (!stats?.disk_io) return "0% used";
+    if (!stats) return "0% used";
 
-    // Note: We need disk space stats, not disk I/O stats
-    // This is a placeholder - you may need to add disk space to your WebSocket stats
-    // For now, using memory as a stand-in until disk space stats are available
-    if (stats.memory) {
-      const usedGB = (stats.memory.used / 1024 ** 3).toFixed(1);
-      const totalGB = (stats.memory.total / 1024 ** 3).toFixed(1);
-      const percent = stats.memory.percent.toFixed(1);
-      return `${percent}% used (${usedGB} GB of ${totalGB} GB)`;
-    }
+    // Use the livequery data format
+    const percent = stats.disk_percent || 0;
+    const usedGB = stats.disk_used_gb || 0;
+    const totalGB = stats.disk_total_gb || 0;
 
-    return "0% used";
+    return `${percent.toFixed(1)}% used (${usedGB.toFixed(
+      1
+    )} GB of ${totalGB.toFixed(1)} GB)`;
   };
 
   // Helper function to get color based on percentage
@@ -132,41 +121,43 @@ export const HeaderStatsBlock: React.FC<HeaderStatsBlockProps> = ({
     return "green";
   };
 
-  // Calculate network rates using trailing 5-second average
+  // Calculate network rates from livequery data
   useEffect(() => {
-    if (stats?.network_io) {
+    if (
+      currentStats &&
+      "network_bytes_sent" in currentStats &&
+      "network_bytes_recv" in currentStats
+    ) {
       const currentTime = Date.now();
-      const currentStats = {
-        bytes_sent: stats.network_io.bytes_sent,
-        bytes_recv: stats.network_io.bytes_recv,
+      const currentNetworkStats = {
+        bytes_sent: currentStats.network_bytes_sent,
+        bytes_recv: currentStats.network_bytes_recv,
         timestamp: currentTime,
       };
 
       // Add current stats to history
       setNetworkHistory((prev) => {
-        const newHistory = [...prev, currentStats];
+        const newHistory = [...prev, currentNetworkStats];
 
-        // Remove entries older than 5 seconds
+        // Remove entries older than tracking duration
         const cutoffTime = currentTime - NETWORK_HISTORY_DURATION;
         const filteredHistory = newHistory.filter(
           (entry) => entry.timestamp > cutoffTime
         );
 
-        // Calculate average rates if we have enough data points
+        // Calculate rates if we have enough data points (at least 2)
         if (filteredHistory.length >= 2) {
           const oldest = filteredHistory[0];
           const newest = filteredHistory[filteredHistory.length - 1];
-
           const timeDiff = (newest.timestamp - oldest.timestamp) / 1000; // seconds
 
           if (timeDiff > 0) {
             const txRate = (newest.bytes_sent - oldest.bytes_sent) / timeDiff;
             const rxRate = (newest.bytes_recv - oldest.bytes_recv) / timeDiff;
 
-            // Update rates with trailing average
+            // Update rates with smoothing to avoid sudden jumps
             setNetworkRates((prevRates) => {
-              // Smooth the rates with a simple moving average
-              const smoothingFactor = 0.3; // Lower = smoother, higher = more responsive
+              const smoothingFactor = 0.4; // More responsive for slower updates
               return {
                 txRate: Math.max(
                   0,
@@ -186,62 +177,56 @@ export const HeaderStatsBlock: React.FC<HeaderStatsBlockProps> = ({
         return filteredHistory;
       });
     }
-  }, [stats?.network_io]);
+  }, [currentStats]);
 
-  // Update stat items when new data arrives
+  // Update stat items when new livequery data arrives
   useEffect(() => {
-    if (!stats) return;
+    if (!currentStats) return;
 
     const newStatItems: StatItem[] = [
-      // CPU Usage from WebSocket
+      // CPU Usage from livequery
       {
-        value: stats?.cpu ? `${stats.cpu.percent_total.toFixed(1)}%` : "0%",
+        value: `${(currentStats.cpu_percent || 0).toFixed(1)}%`,
         label: "cpu usage",
         statIcon: PiCpu,
-        color: stats?.cpu
-          ? getColorForPercentage(stats.cpu.percent_total)
-          : "gray",
+        color: getColorForPercentage(currentStats.cpu_percent || 0),
       },
 
-      // Memory Usage from WebSocket
+      // Memory Usage from livequery
       {
-        value: stats?.memory ? `${stats.memory.percent.toFixed(1)}%` : "0%",
+        value: `${(currentStats.memory_percent || 0).toFixed(1)}%`,
         label: "memory usage",
         statIcon: PiMemory,
-        color: stats?.memory
-          ? getColorForPercentage(stats.memory.percent)
-          : "gray",
+        color: getColorForPercentage(currentStats.memory_percent || 0),
       },
 
-      // Disk Usage (placeholder using memory stats until disk space is available)
+      // Disk Usage from livequery
       {
-        value: formatDiskUsage(stats),
+        value: formatDiskUsage(currentStats),
         label: "disk usage",
         statIcon: PiHardDrive,
-        color: stats?.memory
-          ? getColorForPercentage(stats.memory.percent)
-          : "gray",
+        color: getColorForPercentage(currentStats.disk_percent || 0),
       },
 
-      // Network I/O rates
+      // Network I/O rates - now with real data!
       {
         value: formatNetworkRate(networkRates.txRate),
         secondaryValue: formatNetworkRate(networkRates.rxRate),
         statIcon: PiNetwork,
         subIcon1: PiCloudArrowUpFill,
         subIcon2: PiCloudArrowDownFill,
-        label: "network i/o (5 second average)",
+        label: "network i/o",
         color: "cyan",
       },
     ];
 
     setStatItems(newStatItems);
-  }, [stats, networkRates]);
+  }, [currentStats, networkRates]);
 
   return (
     <Container py="2" maxW="dvw" float="left" bg="brand.background">
       <HStack gap="6">
-        {/* Header Section - Using brand tokens */}
+        {/* Header Section */}
         <Stack gap="3" maxW="none" align="flex-start">
           <Heading
             as="h2"
@@ -253,14 +238,15 @@ export const HeaderStatsBlock: React.FC<HeaderStatsBlockProps> = ({
             py="4"
           >
             <Highlight query=" / " styles={{ color: "brand.primary" }}>
-              en-dash / Homelab Management
+              {title}
             </Highlight>
           </Heading>
         </Stack>
+
         <Flex justify="flex-end" gap="4">
-          {/* Real-time Stats Grid - Simple stat blocks */}
-          {statItems.map((item) => (
-            <Group attached colorPalette={item.color}>
+          {/* Real-time Stats Grid - Modern stat blocks */}
+          {statItems.map((item, index) => (
+            <Group key={index} attached colorPalette={item.color}>
               <Badge size="lg" px="2" py="1">
                 <Icon size="lg">
                   <item.statIcon />
@@ -287,7 +273,7 @@ export const HeaderStatsBlock: React.FC<HeaderStatsBlockProps> = ({
                 )}
                 {item.secondaryValue && (
                   <Text fontWeight="medium" color={`${item.color}.500`}>
-                    &ensp;/&ensp;{item.secondaryValue}
+                    &ensp;{item.secondaryValue}
                   </Text>
                 )}
               </Badge>
@@ -295,14 +281,24 @@ export const HeaderStatsBlock: React.FC<HeaderStatsBlockProps> = ({
           ))}
 
           {/* Connection Status - Subtle indicator */}
-          {!isConnected && (
+          {!connected && (
             <Text
               fontSize="xs"
               color="brand.onSurfaceVariant"
               textAlign="center"
               opacity={0.7}
             >
-              System stats disconnected
+              {error ? `Error: ${error}` : "System stats disconnected"}
+            </Text>
+          )}
+          {connected && currentStats && (
+            <Text
+              fontSize="xs"
+              color="brand.primary"
+              textAlign="center"
+              opacity={0.7}
+            >
+              Live • {new Date(currentStats.collected_at).toLocaleTimeString()}
             </Text>
           )}
         </Flex>

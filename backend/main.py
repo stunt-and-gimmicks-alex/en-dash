@@ -14,17 +14,12 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
-# Import your existing working routers
+# Import your existing working routers (CLEANED UP)
 from app.routers import docker, system, auth
-# Import new WebSocket routers
-from app.routers import websocket_system, websocket_docker
-# Import your existing working routers + the missing unified router
-from app.routers import docker, system, auth
-from app.routers import docker_unified  # <-- ADD THIS LINE
-from app.routers import websocket_system, websocket_docker
+from app.routers import docker_unified  # Modern livequeries implementation
 from app.services.background_collector import background_collector
 
-# Simplified configuration - just fix the immediate issue
+# Simplified configuration
 class Settings:
     """Simplified settings class to get server running"""
     PROJECT_NAME = "En-Dash"
@@ -38,8 +33,8 @@ class Settings:
         "http://localhost:3000",  # Alternative dev port
         "http://127.0.0.1:5173",
         "http://127.0.0.1:3000",
-        "http://192.168.1.69:5173",  # ADD THIS LINE - your actual frontend URL
-        "http://192.168.1.69:3000",  # ADD THIS LINE - alternative port
+        "http://192.168.1.69:5173",  # Your actual frontend URL
+        "http://192.168.1.69:3000",  # Alternative port
     ]
     
     # Docker settings
@@ -68,7 +63,7 @@ app = FastAPI(
     redoc_url="/api/redoc" if settings.DEBUG else None,
 )
 
-# CORS Middleware - fixed and simplified
+# CORS Middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
@@ -90,15 +85,11 @@ async def global_exception_handler(request: Request, exc: Exception):
         }
     )
 
-# Include your existing working routers
+# Include your existing working routers (CLEANED UP - NO LEGACY WEBSOCKET)
 app.include_router(docker.router, prefix="/api/docker", tags=["docker"])
-app.include_router(docker_unified.router, prefix="/api/docker", tags=["docker-unified"])  # <-- ADD THIS LINE
+app.include_router(docker_unified.router, prefix="/api/docker", tags=["docker-unified"])
 app.include_router(system.router, prefix="/api/system", tags=["system"])
 app.include_router(auth.router, prefix="/api/auth", tags=["authentication"])
-
-# Include new WebSocket routers
-app.include_router(websocket_system.router, prefix="/api", tags=["websocket-system"])
-app.include_router(websocket_docker.router, prefix="/api", tags=["websocket-docker"])
 
 # Basic health endpoint
 @app.get("/api/health")
@@ -132,17 +123,7 @@ static_dir = Path("static")
 if static_dir.exists():
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
-# Development server entry point
-if __name__ == "__main__":
-    logger.info("🚀 Starting En-Dash API server...")
-    uvicorn.run(
-        "main:app",
-        host=settings.HOST,
-        port=settings.PORT,
-        reload=settings.DEBUG,
-        log_level="debug" if settings.DEBUG else "info",
-    )
-
+# Startup and shutdown events
 @app.on_event("startup")
 async def startup_event():
     """Start background services"""
@@ -154,3 +135,14 @@ async def shutdown_event():
     """Stop background services"""
     await background_collector.stop()
     logger.info("🛑 En-Dash API stopped")
+
+# Development server entry point
+if __name__ == "__main__":
+    logger.info("🚀 Starting En-Dash API server...")
+    uvicorn.run(
+        "main:app",
+        host=settings.HOST,
+        port=settings.PORT,
+        reload=settings.DEBUG,
+        log_level="debug" if settings.DEBUG else "info",
+    )

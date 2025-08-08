@@ -1,12 +1,13 @@
 from surrealdb import Surreal
 from datetime import datetime, timezone, timedelta
-import time
 import asyncio
 import logging
 from ..core.config import settings
 import json
 from surrealdb.data import RecordID, Table
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Optional
+import queue
+import threading
 
 logger = logging.getLogger(__name__)
 
@@ -15,47 +16,42 @@ def serialize_surrealdb_objects(obj: Any) -> Any:
     Recursively convert SurrealDB objects to JSON-serializable types
     """
     if isinstance(obj, RecordID):
-        # Convert RecordID to string representation
         return str(obj)
-    
     elif isinstance(obj, Table):
-        # Convert Table to string representation  
         return str(obj)
-    
     elif isinstance(obj, dict):
-        # Recursively process dictionary values
         return {key: serialize_surrealdb_objects(value) for key, value in obj.items()}
-    
     elif isinstance(obj, list):
-        # Recursively process list items
         return [serialize_surrealdb_objects(item) for item in obj]
-    
     elif isinstance(obj, tuple):
-        # Convert tuples to lists and recursively process
         return [serialize_surrealdb_objects(item) for item in obj]
-    
     elif isinstance(obj, datetime):
-        # Convert datetime to ISO string
         return obj.isoformat()
-    
     else:
-        # Return as-is for basic types (str, int, float, bool, None)
         return obj
 
 class SurrealDBService:
     def __init__(self):
         self.db = None
         self.connected = False
-        self.live_queries: Dict[str, str] = {}  # Track active live queries
+        self.live_queries: Dict[str, Dict] = {}  # Track active live queries with callbacks
         
     async def connect(self):
         try:
-            # Correct API for surrealdb.py v1.0.6
+            # Create async connection
             self.db = Surreal(settings.SURREALDB_URL)
             
-            # Set namespace and database (synchronous methods)
-            self.db.use(settings.SURREALDB_NS, settings.SURREALDB_DB)
-            logger.info(f"✅ Using namespace: {settings.SURREALDB_NS}, database: {settings.SURREALDB_DB}")
+            # Connect to SurrealDB
+            await self.db.connect()
+            
+            # Authenticate
+            await self.db.signin({
+                "user": settings.SURREALDB_USER, 
+                "pass": settings.SURREALDB_PASS
+            })
+            
+            # Use namespace and database
+            await self.db.use(settings.SURREALDB_NS, settings.SURREALDB_DB)
             
             self.connected = True
             logger.info(f"✅ Connected to SurrealDB at {settings.SURREALDB_URL}")
@@ -63,9 +59,9 @@ class SurrealDBService:
         except Exception as e:
             logger.error(f"❌ Failed to connect to SurrealDB: {e}")
             self.connected = False
-            
-    async def store_unified_stacks(self, stacks_data):
-        """Store pre-computed unified stack data"""
+
+    async def store_unified_stacks(self, stacks_data: List[Dict[str, Any]]):
+        """Store unified stacks data in SurrealDB"""
         if not self.connected:
             await self.connect()
             
@@ -73,76 +69,37 @@ class SurrealDBService:
             return
             
         try:
-            # Clear old data
-            self.db.query("DELETE unified_stack")
+            # Clear existing data first
+            await self.db.delete("unified_stack")
             
-            # Store each stack with complete data
+            # Store new data
             for stack in stacks_data:
-                self.db.create("unified_stack", stack)
-                
-            logger.info(f"📊 Stored {len(stacks_data)} unified stacks in SurrealDB")
+                stack_with_timestamp = {
+                    **stack,
+                    "updated_at": datetime.now(timezone.utc).isoformat()
+                }
+                await self.db.create("unified_stack", stack_with_timestamp)
+            
+            logger.debug(f"📊 Stored {len(stacks_data)} unified stacks in SurrealDB")
             
         except Exception as e:
-            logger.error(f"❌ Failed to store stacks in SurrealDB: {e}")
-            
+            logger.error(f"❌ Failed to store unified stacks in SurrealDB: {e}")
+
     async def get_unified_stacks(self):
-        """Get pre-computed unified stacks - PROPERLY extracts from SurrealDB format"""
+        """Get all unified stacks from SurrealDB"""
         if not self.connected:
             await self.connect()
             
         if not self.connected:
-            logger.warning("❌ SurrealDB not connected, returning empty list")
             return []
             
         try:
-            # Use query method instead of select to get consistent format
-            result = self.db.query("SELECT * FROM unified_stack")
-            
-            logger.info(f"🔍 SurrealDB raw result type: {type(result)}")
-            
-            # Extract the actual stack data from SurrealDB's nested response
-            if isinstance(result, dict) and "result" in result:
-                # Handle the nested structure: {"result": [{"result": null}, {"result": [...stacks...]}]}
-                nested_results = result["result"]
-                if isinstance(nested_results, list) and len(nested_results) > 1:
-                    # The actual data is typically in the second result object
-                    stacks_data = nested_results[1].get("result", [])
-                    if isinstance(stacks_data, list):
-                        logger.info(f"⚡ Fast path: Retrieved {len(stacks_data)} stacks from SurrealDB")
-                        # SERIALIZE SURREALDB OBJECTS BEFORE RETURNING
-                        return serialize_surrealdb_objects(stacks_data)
-                        
-            # Fallback: try direct list format
-            elif isinstance(result, list):
-                logger.info(f"⚡ Fast path: Retrieved {len(result)} stacks from SurrealDB (direct list)")
-                # SERIALIZE SURREALDB OBJECTS BEFORE RETURNING
-                return serialize_surrealdb_objects(result)
-            
-            # If we get here, unexpected format
-            logger.warning(f"🔍 Unexpected SurrealDB result format: {type(result)}")
-            logger.warning(f"🔍 Result preview: {str(result)[:200]}...")
-            return []
-            
+            result = await self.db.select("unified_stack")
+            return serialize_surrealdb_objects(result) if result else []
         except Exception as e:
-            logger.error(f"❌ Failed to get stacks from SurrealDB: {e}")
+            logger.error(f"❌ Failed to get unified stacks from SurrealDB: {e}")
             return []
-            
-    async def query_unified_stacks_raw(self):
-        """Debug method to see raw SurrealDB response"""
-        if not self.connected:
-            await self.connect()
-            
-        if not self.connected:
-            return None
-            
-        try:
-            result = self.db.query("SELECT * FROM unified_stack")
-            logger.info(f"🔍 Raw SurrealDB query result type: {type(result)}")
-            logger.info(f"🔍 Raw SurrealDB query result: {str(result)[:1000]}")
-            return result
-        except Exception as e:
-            logger.error(f"❌ Failed raw query: {e}")
-            return None
+
     async def store_system_stats(self, stats_data: dict):
         """Store system statistics with timestamp"""
         if not self.connected:
@@ -160,36 +117,12 @@ class SurrealDBService:
             }
             
             # Store the stats record
-            self.db.create("system_stats", stats_with_timestamp)
+            await self.db.create("system_stats", stats_with_timestamp)
             
             logger.debug(f"📈 Stored system stats in SurrealDB")
             
         except Exception as e:
             logger.error(f"❌ Failed to store system stats in SurrealDB: {e}")
-
-    async def store_system_stats(self, stats_data: dict):
-      """Store system statistics with timestamp"""
-      if not self.connected:
-          await self.connect()
-          
-      if not self.connected:
-          return
-          
-      try:
-          # Add timestamp to the stats
-          stats_with_timestamp = {
-              **stats_data,
-              "timestamp": datetime.now(timezone.utc).isoformat(),
-              "collected_at": datetime.now(timezone.utc).isoformat()
-          }
-          
-          # Store the stats record
-          self.db.create("system_stats", stats_with_timestamp)
-          
-          logger.debug(f"📈 Stored system stats in SurrealDB")
-          
-      except Exception as e:
-          logger.error(f"❌ Failed to store system stats in SurrealDB: {e}")
 
     async def get_system_stats(self, hours_back: int = 24):
         """Get system statistics from the last N hours"""
@@ -203,7 +136,10 @@ class SurrealDBService:
             # Calculate time threshold
             time_threshold = datetime.now(timezone.utc) - timedelta(hours=hours_back)
             
-            result = self.db.query(f"SELECT * FROM system_stats WHERE timestamp > '{time_threshold.isoformat()}' ORDER BY timestamp DESC")
+            # Use proper async query
+            result = await self.db.query(
+                f"SELECT * FROM system_stats WHERE timestamp > '{time_threshold.isoformat()}' ORDER BY timestamp DESC"
+            )
             
             # Handle SurrealDB response format
             if isinstance(result, list) and len(result) > 0:
@@ -216,7 +152,8 @@ class SurrealDBService:
         except Exception as e:
             logger.error(f"❌ Failed to get system stats from SurrealDB: {e}")
             return []
-    async def create_live_query(self, query: str, callback: Callable[[Any], None]) -> str:
+
+    async def create_live_query(self, table_name: str, callback: Callable[[Any, Any], None]) -> str:
         """Create a live query that triggers callback on data changes"""
         if not self.connected:
             await self.connect()
@@ -225,57 +162,130 @@ class SurrealDBService:
             raise Exception("Cannot create live query: SurrealDB not connected")
             
         try:
-            # Create live query
-            result = self.db.live(query)
+            # Extract table name from LIVE query if needed
+            if table_name.startswith("LIVE SELECT"):
+                # Parse "LIVE SELECT * FROM table_name" -> "table_name"
+                parts = table_name.split()
+                if len(parts) >= 4 and parts[3].lower() == "from":
+                    table_name = parts[4]
+                else:
+                    raise Exception(f"Cannot parse table name from query: {table_name}")
             
-            if isinstance(result, dict) and "result" in result:
-                live_id = result["result"]
-                self.live_queries[live_id] = query
-                
-                # Start listening for changes
-                asyncio.create_task(self._listen_live_query(live_id, callback))
-                
-                logger.info(f"📡 Created live query: {live_id}")
-                return live_id
-            else:
-                raise Exception(f"Failed to create live query: {result}")
+            # Create live query using current API: db.live(table, diff=False)
+            live_query_uuid = await self.db.live(table_name, diff=False)
+            
+            # Get the subscription queue
+            subscription = await self.db.subscribe_live(live_query_uuid)
+            
+            # Store the live query info
+            self.live_queries[live_query_uuid] = {
+                "table": table_name,
+                "callback": callback,
+                "subscription": subscription,
+                "task": None
+            }
+            
+            # Start listening task
+            listen_task = asyncio.create_task(
+                self._listen_to_live_query(live_query_uuid, subscription, callback)
+            )
+            self.live_queries[live_query_uuid]["task"] = listen_task
+            
+            logger.info(f"📡 Created live query for table '{table_name}': {live_query_uuid}")
+            return live_query_uuid
                 
         except Exception as e:
             logger.error(f"❌ Failed to create live query: {e}")
             raise
-    
-    async def _listen_live_query(self, live_id: str, callback: Callable[[Any], None]):
-        """Listen for live query updates"""
+
+    async def _listen_to_live_query(self, live_id: str, subscription, callback: Callable[[Any, Any], None]):
+        """Listen for live query updates using subscription queue"""
         try:
+            logger.info(f"📡 Starting live query listener for {live_id}")
+            
             while live_id in self.live_queries:
-                # Check for live query updates
-                updates = self.db.live_notifications(live_id)
+                try:
+                    # Get notification from queue (non-blocking)
+                    # The subscription should be a queue-like object
+                    if hasattr(subscription, 'get'):
+                        try:
+                            # Try to get with timeout to avoid blocking forever
+                            notification = subscription.get(timeout=1.0)
+                            
+                            # Process the notification
+                            if notification:
+                                # Call the callback with action and result
+                                # SurrealDB notifications typically have action and result fields
+                                action = getattr(notification, 'action', 'update')
+                                result = getattr(notification, 'result', notification)
+                                
+                                # Run callback in a separate task to avoid blocking
+                                asyncio.create_task(self._safe_callback(callback, action, result))
+                                
+                        except queue.Empty:
+                            # No notification available, continue
+                            pass
+                    else:
+                        # If subscription doesn't have get method, try different approach
+                        await asyncio.sleep(0.1)
                 
-                if updates:
-                    for update in updates:
-                        # Process the update and call callback
-                        processed_data = serialize_surrealdb_objects(update)
-                        callback(processed_data)
-                
-                # Small delay to prevent busy waiting
-                await asyncio.sleep(0.1)
-                
+                except Exception as e:
+                    logger.error(f"❌ Error in live query listener {live_id}: {e}")
+                    await asyncio.sleep(1)  # Wait before retrying
+                    
+        except asyncio.CancelledError:
+            logger.info(f"📡 Live query listener {live_id} cancelled")
         except Exception as e:
-            logger.error(f"❌ Live query listener error: {e}")
+            logger.error(f"❌ Fatal error in live query listener {live_id}: {e}")
         finally:
             # Clean up
             if live_id in self.live_queries:
                 del self.live_queries[live_id]
-    
+
+    async def _safe_callback(self, callback: Callable[[Any, Any], None], action: Any, result: Any):
+        """Safely execute callback with error handling"""
+        try:
+            if asyncio.iscoroutinefunction(callback):
+                await callback(action, result)
+            else:
+                callback(action, result)
+        except Exception as e:
+            logger.error(f"❌ Error in live query callback: {e}")
+
     async def kill_live_query(self, live_id: str):
         """Stop a live query"""
         try:
-            self.db.kill(live_id)
+            # Cancel the listening task
             if live_id in self.live_queries:
+                task = self.live_queries[live_id].get("task")
+                if task:
+                    task.cancel()
+                
+                # Remove from tracking
                 del self.live_queries[live_id]
+            
+            # Kill the live query on SurrealDB
+            await self.db.kill(live_id)
+            
             logger.info(f"🛑 Killed live query: {live_id}")
         except Exception as e:
             logger.error(f"❌ Failed to kill live query: {e}")
-            
+
+    async def disconnect(self):
+        """Disconnect from SurrealDB"""
+        if self.db:
+            try:
+                # Kill all active live queries
+                for live_id in list(self.live_queries.keys()):
+                    await self.kill_live_query(live_id)
+                
+                # Close connection
+                await self.db.close()
+                
+                self.connected = False
+                logger.info("📡 Disconnected from SurrealDB")
+            except Exception as e:
+                logger.error(f"❌ Error disconnecting from SurrealDB: {e}")
+
 # Global instance
 surreal_service = SurrealDBService()

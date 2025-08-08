@@ -18,13 +18,13 @@ class Settings(BaseSettings):
         extra="ignore"
     )
 
-    # SurrealDB Settings  
-    SURREALDB_URL: str = Field(default="http://localhost:18000/rpc")
-    SURREALDB_USER: str = Field(default="endash_admin")  # Changed from "endash"
+    # SurrealDB Settings - UPDATED FOR WEBSOCKET  
+    SURREALDB_URL: str = Field(default="ws://localhost:18000/rpc")  # CHANGED: ws:// instead of http://
+    SURREALDB_USER: str = Field(default="endash_admin")
     SURREALDB_PASS: str = Field(default="Zi/QNOQanuLM5VX4PFX/bRWovkzKS203")
     SURREALDB_NS: str = Field(default="endash")
     SURREALDB_DB: str = Field(default="homelab")
-    USE_SURREALDB: bool = Field(default=True)  # Enable it now!
+    USE_SURREALDB: bool = Field(default=True)
 
     # Application Settings
     PROJECT_NAME: str = "En-Dash"

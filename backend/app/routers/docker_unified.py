@@ -13,6 +13,7 @@ from typing import Dict, Any, Set
 from datetime import datetime, timezone
 from pathlib import Path
 import yaml
+import websocket
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException, BackgroundTasks
 import docker
@@ -110,6 +111,7 @@ class UnifiedStackConnectionManager:
         self.active_connections: Set[WebSocket] = set()
         self.live_query_id: Optional[str] = None
         self.unified_task: Optional[asyncio.Task] = None
+        self.update_interval: float = 3.0  # <-- ADD THIS LINE - Default 3 seconds
         
     async def connect(self, websocket: WebSocket):
         """Accept new WebSocket connection and setup live query"""
@@ -118,24 +120,22 @@ class UnifiedStackConnectionManager:
         logger.info("🔗 WebSocket accepted successfully")
         
         self.active_connections.add(websocket)
-        logger.info(f"✅ Added to connections. Total connections: {len(self.active_connections)}")
+        logger.info(f"✅ Added to connections. Total: {len(self.active_connections)}")
         
-        # Send immediate data to new client
+        # Send immediate current data
         try:
-            logger.info("📡 Sending immediate data to new client...")
-            immediate_data = await self._get_unified_stacks_data()
+            unified_stacks_data = await self._get_unified_stacks_data()
             await self.send_personal_message({
                 "type": "unified_stacks",
-                "data": immediate_data,
+                "data": unified_stacks_data,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
-                "connection_count": len(self.active_connections),
                 "immediate": True
             }, websocket)
-            logger.info("✅ Immediate data sent to new client")
+            logger.info("✅ Immediate stacks data sent")
         except Exception as e:
             logger.error(f"❌ Failed to send immediate data: {e}")
         
-        # Start live query if this is the first connection
+        # Start live query if first connection
         if len(self.active_connections) == 1:
             await self._start_live_query()
     
