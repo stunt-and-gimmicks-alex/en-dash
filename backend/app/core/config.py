@@ -17,7 +17,15 @@ class Settings(BaseSettings):
         case_sensitive=True,
         extra="ignore"
     )
-    
+
+    # SurrealDB Settings  
+    SURREALDB_URL: str = Field(default="http://localhost:18000/rpc")
+    SURREALDB_USER: str = Field(default="endash_admin")  # Changed from "endash"
+    SURREALDB_PASS: str = Field(default="Zi/QNOQanuLM5VX4PFX/bRWovkzKS203")
+    SURREALDB_NS: str = Field(default="endash")
+    SURREALDB_DB: str = Field(default="homelab")
+    USE_SURREALDB: bool = Field(default=True)  # Enable it now!
+
     # Application Settings
     PROJECT_NAME: str = "En-Dash"
     ENVIRONMENT: str = Field(default="development")

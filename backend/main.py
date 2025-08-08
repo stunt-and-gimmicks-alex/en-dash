@@ -22,6 +22,7 @@ from app.routers import websocket_system, websocket_docker
 from app.routers import docker, system, auth
 from app.routers import docker_unified  # <-- ADD THIS LINE
 from app.routers import websocket_system, websocket_docker
+from app.services.background_collector import background_collector
 
 # Simplified configuration - just fix the immediate issue
 class Settings:
@@ -139,3 +140,15 @@ if __name__ == "__main__":
         reload=settings.DEBUG,
         log_level="debug" if settings.DEBUG else "info",
     )
+
+@app.on_event("startup")
+async def startup_event():
+    """Start background services"""
+    await background_collector.start()
+    logger.info("🚀 En-Dash API started with background SurrealDB collection")
+
+@app.on_event("shutdown") 
+async def shutdown_event():
+    """Stop background services"""
+    await background_collector.stop()
+    logger.info("🛑 En-Dash API stopped")

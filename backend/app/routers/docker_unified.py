@@ -17,6 +17,8 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 import docker
 
 from ..services.docker_unified import unified_stack_service
+from ..services.surreal_service import surreal_service
+from ..services.background_collector import background_collector
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -116,17 +118,35 @@ class UnifiedStackConnectionManager:
             logger.info("Unified stacks broadcasting cancelled")
         except Exception as e:
             logger.error(f"Fatal error in unified stacks broadcasting: {e}")
-    
-    async def _get_unified_stacks(self):
-        """
-        Get all unified stacks using comprehensive discovery
-        
-        This replaces the old directory-only scanning with the new comprehensive
-        discovery that includes:
-        1. Stacks from /opt/stacks directory
-        2. External compose projects  
-        3. Orphaned containers → _ORPHAN_{name} pseudo-stacks
-        """
+
+    # Update the existing _get_unified_stacks_data method
+    async def _get_unified_stacks_data(self) -> Dict[str, Any]:
+        """Fast unified stacks from SurrealDB cache"""
+        try:
+            # Try SurrealDB first (fast path)
+            stacks = await surreal_service.get_unified_stacks()
+            
+            if stacks:
+                logger.info(f"⚡ Fast path: Retrieved {len(stacks)} stacks from SurrealDB")
+                return {
+                    "available": True,
+                    "stacks": stacks,
+                    "total_stacks": len(stacks),
+                    "processing_time": datetime.now(timezone.utc).isoformat(),
+                    "source": "surrealdb"  # For debugging
+                }
+            else:
+                # Fallback to slow path
+                logger.warning("📡 SurrealDB empty, falling back to Docker API")
+                return await self._get_unified_stacks_data_legacy()
+                
+        except Exception as e:
+            logger.error(f"❌ SurrealDB query failed: {e}")
+            # Fallback to slow path
+            return await self._get_unified_stacks_data_legacy()
+
+    async def _get_unified_stacks_data_legacy(self) -> Dict[str, Any]:
+        """Original slow method - moved here as fallback"""
         if not docker_client:
             return {
                 "available": False,

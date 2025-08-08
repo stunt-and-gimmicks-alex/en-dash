@@ -622,3 +622,4 @@ async def debug_containers():
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error debugging containers: {str(e)}")
+
