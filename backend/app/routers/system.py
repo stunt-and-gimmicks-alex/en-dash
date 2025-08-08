@@ -14,6 +14,7 @@ from ..models.system_models import (
     SystemStats, Process, Service, DiskUsage, NetworkInterface,
     SystemInfo, FileSystemItem
 )
+from ..services.surreal_service import surreal_service
 
 router = APIRouter()
 
@@ -464,3 +465,69 @@ async def get_service_logs(service_name: str, lines: int = 100):
         raise HTTPException(status_code=500, detail=f"Error retrieving logs: {e.stderr}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving logs: {str(e)}")
+
+# =============================================================================
+# HISTORICAL SYSTEM STATISTICS (from SurrealDB)
+# =============================================================================
+
+@router.get("/stats/historical")
+async def get_historical_system_stats(hours: int = 24):
+    """Get historical system statistics from SurrealDB"""
+    try:
+        stats = await surreal_service.get_system_stats(hours_back=hours)
+        return {
+            "timeframe_hours": hours,
+            "data_points": len(stats),
+            "stats": stats
+        }
+    except Exception as e:
+        logger.error(f"Error retrieving historical stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/stats/chart-data")
+async def get_chart_data(metric: str = "cpu_percent", hours: int = 6):
+    """Get formatted data for charts"""
+    try:
+        stats = await surreal_service.get_system_stats(hours_back=hours)
+        
+        # Format data for charts (timestamp + value pairs)
+        chart_data = []
+        for stat in reversed(stats):  # Reverse to get chronological order
+            if metric in stat:
+                chart_data.append({
+                    "timestamp": stat.get("timestamp"),
+                    "value": stat.get(metric),
+                    "time": stat.get("timestamp")  # For recharts compatibility
+                })
+        
+        return {
+            "metric": metric,
+            "timeframe_hours": hours,
+            "data": chart_data
+        }
+    except Exception as e:
+        logger.error(f"Error retrieving chart data: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/stats/metrics")
+async def get_available_metrics():
+    """Get list of available metrics for charting"""
+    try:
+        # Get a recent stat to see what metrics are available
+        recent_stats = await surreal_service.get_system_stats(hours_back=1)
+        
+        if recent_stats:
+            # Extract metric names (exclude metadata fields)
+            sample_stat = recent_stats[0]
+            metrics = [
+                key for key in sample_stat.keys() 
+                if key not in ['timestamp', 'collected_at', 'id'] 
+                and isinstance(sample_stat[key], (int, float))
+            ]
+            return {"metrics": metrics}
+        else:
+            return {"metrics": []}
+            
+    except Exception as e:
+        logger.error(f"Error getting available metrics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

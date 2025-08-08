@@ -345,6 +345,9 @@ async def start_stack(stack_name: str, background_tasks: BackgroundTasks):
 @router.post("/stacks/{stack_name}/stop")
 async def stop_stack(stack_name: str, background_tasks: BackgroundTasks):
     """Stop a Docker Compose stack"""
+    print(f"🛑 STOP STACK CALLED: stack_name='{stack_name}'")
+    print(f"🛑 Type: {type(stack_name)}")
+    print(f"🛑 Repr: {repr(stack_name)}")
     return await _execute_stack_command(stack_name, "down", "stopped")
 
 @router.post("/stacks/{stack_name}/restart")

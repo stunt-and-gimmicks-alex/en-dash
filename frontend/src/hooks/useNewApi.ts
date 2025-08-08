@@ -77,10 +77,27 @@ export const useStacks = () => {
   }, []);
 
   const stopStack = useCallback(async (stackName: string) => {
+    console.log("🛑 stopStack called with:", stackName);
+    console.log("🛑 stackName type:", typeof stackName);
+    console.log("🛑 stackName value:", JSON.stringify(stackName));
+
     try {
-      await newApiService.stacks.stopStack(stackName);
+      console.log("🛑 About to call newApiService.stacks.stopStack...");
+      const result = await newApiService.stacks.stopStack(stackName);
+      console.log("🛑 Stop stack result:", result);
+      console.log("✅ Stack stopped successfully");
       return true;
     } catch (err) {
+      console.error("❌ Stop stack error:", err);
+      console.error("❌ Error type:", typeof err);
+      console.error(
+        "❌ Error message:",
+        err instanceof Error ? err.message : String(err)
+      );
+      console.error(
+        "❌ Error stack:",
+        err instanceof Error ? err.stack : "No stack trace"
+      );
       setError(err instanceof Error ? err.message : "Failed to stop stack");
       return false;
     }

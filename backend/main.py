@@ -38,6 +38,8 @@ class Settings:
         "http://localhost:3000",  # Alternative dev port
         "http://127.0.0.1:5173",
         "http://127.0.0.1:3000",
+        "http://192.168.1.69:5173",  # ADD THIS LINE - your actual frontend URL
+        "http://192.168.1.69:3000",  # ADD THIS LINE - alternative port
     ]
     
     # Docker settings

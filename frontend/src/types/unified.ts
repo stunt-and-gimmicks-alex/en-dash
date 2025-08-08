@@ -666,3 +666,47 @@ export interface VolumeListProps {
   volumes: UnifiedVolumeItem[]; // Direct use from stack.volumes.all
   showSources?: boolean;
 }
+
+// =============================================================================
+// SYSTEM STATS TYPES
+// =============================================================================
+
+export interface SystemStat {
+  timestamp: string;
+  collected_at: string;
+  cpu_percent: number;
+  memory_percent: number;
+  memory_used_gb: number;
+  memory_total_gb: number;
+  disk_percent: number;
+  disk_used_gb: number;
+  disk_total_gb: number;
+  id?: string;
+}
+
+export interface ChartDataPoint {
+  timestamp: string;
+  value: number;
+  time: string; // For recharts compatibility
+}
+
+export interface ChartData {
+  metric: string;
+  timeframe_hours: number;
+  data: ChartDataPoint[];
+}
+
+export interface DashboardData {
+  timeframe_hours: number;
+  metrics: Record<string, ChartData | { error: string; data: [] }>;
+}
+
+export interface HistoricalStatsResponse {
+  timeframe_hours: number;
+  data_points: number;
+  stats: SystemStat[];
+}
+
+export interface MetricsResponse {
+  metrics: string[];
+}

@@ -8,17 +8,19 @@ pre-processed and normalized for direct frontend consumption.
 import asyncio
 import json
 import logging
+import subprocess
 from typing import Dict, Any, Set
 from datetime import datetime, timezone
 from pathlib import Path
 import yaml
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException, BackgroundTasks
 import docker
 
 from ..services.docker_unified import unified_stack_service
 from ..services.surreal_service import surreal_service
 from ..services.background_collector import background_collector
+from ..core.config import settings
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -30,16 +32,87 @@ except Exception as e:
     logger.warning(f"Could not connect to Docker daemon: {e}")
     docker_client = None
 
+@router.post("/stacks/{stack_name}/start")
+async def start_stack(stack_name: str, background_tasks: BackgroundTasks):
+    """Start a Docker Compose stack"""
+    return await _execute_stack_command(stack_name, "up -d", "started")
+
+@router.post("/stacks/{stack_name}/stop")
+async def stop_stack(stack_name: str, background_tasks: BackgroundTasks):
+    """Stop a Docker Compose stack"""
+    return await _execute_stack_command(stack_name, "down", "stopped")
+
+@router.post("/stacks/{stack_name}/restart")
+async def restart_stack(stack_name: str, background_tasks: BackgroundTasks):
+    """Restart a Docker Compose stack"""
+    return await _execute_stack_command(stack_name, "restart", "restarted")
+
+@router.post("/stacks/{stack_name}/pull")
+async def pull_stack(stack_name: str, background_tasks: BackgroundTasks):
+    """Pull latest images for a Docker Compose stack"""
+    return await _execute_stack_command(stack_name, "pull", "pulled")
+
+async def _execute_stack_command(stack_name: str, command: str, action: str) -> Dict[str, Any]:
+    """Execute a docker compose command on a stack"""
+    stacks_dir = Path(settings.STACKS_DIRECTORY)
+    stack_path = stacks_dir / stack_name
+    
+    if not stack_path.exists():
+        raise HTTPException(status_code=404, detail=f"Stack '{stack_name}' not found")
+    
+    # Find compose file
+    compose_files = ['docker-compose.yml', 'compose.yaml', 'docker-compose.yaml', 'compose.yml']
+    compose_file = None
+    for filename in compose_files:
+        if (stack_path / filename).exists():
+            compose_file = filename
+            break
+    
+    if not compose_file:
+        raise HTTPException(status_code=400, detail=f"No compose file found in stack '{stack_name}'")
+    
+    try:
+        result = subprocess.run(
+            ["docker", "compose", "-f", compose_file] + command.split(),
+            cwd=stack_path,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=300  # 5 minutes
+        )
+        
+        logger.info(f"Stack {stack_name} {action} successfully")
+        
+        return {
+            "message": f"Stack {stack_name} {action} successfully",
+            "stack_name": stack_name,
+            "action": action,
+            "output": result.stdout,
+            "success": True
+        }
+        
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=408, detail=f"Stack {action} operation timed out")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to {action} stack {stack_name}: {e.stderr}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to {action} stack: {e.stderr}"
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error {action} stack {stack_name}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}") 
+
 class UnifiedStackConnectionManager:
-    """Manages WebSocket connections for unified stack data streaming"""
+    """Manages WebSocket connections with SurrealDB live queries"""
     
     def __init__(self):
         self.active_connections: Set[WebSocket] = set()
-        self.unified_task: asyncio.Task = None
-        self.update_interval = 3.0  # seconds - unified processing is more expensive
+        self.live_query_id: Optional[str] = None
+        self.unified_task: Optional[asyncio.Task] = None
         
     async def connect(self, websocket: WebSocket):
-        """Accept new WebSocket connection"""
+        """Accept new WebSocket connection and setup live query"""
         logger.info("🔌 About to accept WebSocket connection...")
         await websocket.accept()
         logger.info("🔗 WebSocket accepted successfully")
@@ -47,27 +120,88 @@ class UnifiedStackConnectionManager:
         self.active_connections.add(websocket)
         logger.info(f"✅ Added to connections. Total connections: {len(self.active_connections)}")
         
-        # Start unified stack broadcasting if this is the first connection
+        # Send immediate data to new client
+        try:
+            logger.info("📡 Sending immediate data to new client...")
+            immediate_data = await self._get_unified_stacks_data()
+            await self.send_personal_message({
+                "type": "unified_stacks",
+                "data": immediate_data,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "connection_count": len(self.active_connections),
+                "immediate": True
+            }, websocket)
+            logger.info("✅ Immediate data sent to new client")
+        except Exception as e:
+            logger.error(f"❌ Failed to send immediate data: {e}")
+        
+        # Start live query if this is the first connection
         if len(self.active_connections) == 1:
-            logger.info("🚀 First connection detected - starting broadcasting task...")
-            try:
-                self.unified_task = asyncio.create_task(self._broadcast_unified_stacks())
-                logger.info("📡 Broadcasting task created successfully!")
-            except Exception as e:
-                logger.error(f"❌ Failed to create broadcasting task: {e}")
-        else:
-            logger.info(f"📊 Additional connection (broadcasting already running for {len(self.active_connections)} connections)")
-
+            await self._start_live_query()
     
     async def disconnect(self, websocket: WebSocket):
-        """Remove WebSocket connection"""
+        """Remove WebSocket connection and cleanup live query if needed"""
         self.active_connections.discard(websocket)
         logger.info(f"Unified stacks WebSocket disconnected. Total connections: {len(self.active_connections)}")
         
-        # Stop broadcasting if no connections remain
-        if len(self.active_connections) == 0 and self.unified_task:
-            self.unified_task.cancel()
-            self.unified_task = None
+        # Stop live query if no connections remain
+        if len(self.active_connections) == 0:
+            await self._stop_live_query()
+    
+    async def _start_live_query(self):
+        """Start SurrealDB live query for unified_stack changes"""
+        try:
+            logger.info("🚀 Starting SurrealDB live query...")
+            
+            # Create live query for unified_stack table
+            self.live_query_id = await surreal_service.create_live_query(
+                "LIVE SELECT * FROM unified_stack",
+                self._handle_live_update
+            )
+            
+            logger.info(f"📡 Live query started: {self.live_query_id}")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to start live query: {e}")
+            # Fallback to polling if live query fails
+            await self._start_polling_fallback()
+    
+    async def _stop_live_query(self):
+        """Stop the SurrealDB live query"""
+        if self.live_query_id:
+            try:
+                await surreal_service.kill_live_query(self.live_query_id)
+                self.live_query_id = None
+                logger.info("🛑 Live query stopped")
+            except Exception as e:
+                logger.error(f"❌ Failed to stop live query: {e}")
+    
+    async def _handle_live_update(self, update_data: Any):
+        """Handle live query updates from SurrealDB"""
+        try:
+            logger.info("📡 Received live update from SurrealDB")
+            
+            # Get fresh data (the live query tells us something changed)
+            unified_stacks_data = await self._get_unified_stacks_data()
+            
+            # Broadcast to all connected clients
+            await self.broadcast({
+                "type": "unified_stacks",
+                "data": unified_stacks_data,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "connection_count": len(self.active_connections),
+                "trigger": "live_query"  # Indicate this was triggered by live query
+            })
+            
+            logger.info("✅ Live update broadcasted to clients")
+            
+        except Exception as e:
+            logger.error(f"❌ Error handling live update: {e}")
+    
+    async def _start_polling_fallback(self):
+        """Fallback to polling if live queries don't work"""
+        logger.warning("📡 Starting polling fallback...")
+        self.unified_task = asyncio.create_task(self._broadcast_unified_stacks())
     
     async def send_personal_message(self, message: dict, websocket: WebSocket):
         """Send message to specific connection"""
@@ -228,22 +362,14 @@ async def websocket_unified_stacks(websocket: WebSocket):
     """
     WebSocket endpoint for real-time unified stack data
     
-    Streams comprehensive, pre-processed stack objects including:
-    - All services with container details  
-    - Unified networks (compose + services + containers + docker)
-    - Unified volumes (compose + services + containers + docker)
-    - Container summaries with live stats
-    - Health information
-    - Environment and configuration details
-    
-    Data is normalized and ready for direct frontend consumption.
+    BETTER VERSION: Uses separate task for message handling
     """
     await unified_manager.connect(websocket)
     
-    try:
-        while True:
-            # Listen for client messages (configuration, etc.)
-            try:
+    async def handle_messages():
+        """Handle incoming messages in separate task"""
+        try:
+            while True:
                 data = await websocket.receive_text()
                 message = json.loads(data)
                 
@@ -263,17 +389,24 @@ async def websocket_unified_stacks(websocket: WebSocket):
                         "type": "pong",
                         "timestamp": datetime.now(timezone.utc).isoformat()
                     }, websocket)
-                
-            except WebSocketDisconnect:
-                break
-            except json.JSONDecodeError:
-                logger.warning("Received invalid JSON from client")
-            except Exception as e:
-                logger.error(f"Error handling client message: {e}")
-                
+                    
+        except WebSocketDisconnect:
+            pass
+        except json.JSONDecodeError:
+            logger.warning("Received invalid JSON from client")
+        except Exception as e:
+            logger.error(f"Error handling client message: {e}")
+    
+    # Start message handling task
+    message_task = asyncio.create_task(handle_messages())
+    
+    try:
+        # Wait for disconnect
+        await message_task
     except WebSocketDisconnect:
         pass
     finally:
+        message_task.cancel()
         await unified_manager.disconnect(websocket)
 
 # =============================================================================
