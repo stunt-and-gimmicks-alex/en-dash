@@ -111,6 +111,7 @@ class SurrealDBService:
             await self.connect()
             
         if not self.connected:
+            logger.error("❌ Cannot store system stats - SurrealDB not connected")
             return
             
         try:
@@ -121,13 +122,18 @@ class SurrealDBService:
                 "collected_at": datetime.now(timezone.utc).isoformat()
             }
             
-            # Store the stats record
-            await self.db.create("system_stats", stats_with_timestamp)
+            logger.error(f"🔥 DEBUG: About to store system stats: {stats_with_timestamp}")  # Force ERROR level
             
+            # Store the stats record
+            result = await self.db.create("system_stats", stats_with_timestamp)
+            
+            logger.error(f"🔥 DEBUG: Store result: {result}")  # Force ERROR level
             logger.debug(f"📈 Stored system stats in SurrealDB")
             
         except Exception as e:
             logger.error(f"❌ Failed to store system stats in SurrealDB: {e}")
+            import traceback
+            traceback.print_exc()
 
     async def get_system_stats(self, hours_back: int = 24):
         """Get system statistics from the last N hours"""
@@ -135,6 +141,7 @@ class SurrealDBService:
             await self.connect()
             
         if not self.connected:
+            logger.error("❌ Cannot get system stats - SurrealDB not connected")
             return []
             
         try:
@@ -142,20 +149,27 @@ class SurrealDBService:
             time_threshold = datetime.now(timezone.utc) - timedelta(hours=hours_back)
             
             # Use proper async query
-            result = await self.db.query(
-                f"SELECT * FROM system_stats WHERE timestamp > '{time_threshold.isoformat()}' ORDER BY timestamp DESC"
-            )
+            query = f"SELECT * FROM system_stats WHERE timestamp > '{time_threshold.isoformat()}' ORDER BY timestamp DESC"
+            logger.error(f"🔥 DEBUG: Query: {query}")  # Force ERROR level
+            
+            result = await self.db.query(query)
+            
+            logger.error(f"🔥 DEBUG: Raw query result: {result}")  # Force ERROR level
             
             # Handle SurrealDB response format
             if isinstance(result, list) and len(result) > 0:
                 stats_data = result[0].get("result", [])
                 if isinstance(stats_data, list):
+                    logger.error(f"🔥 DEBUG: Processed stats count: {len(stats_data)}")  # Force ERROR level
                     return serialize_surrealdb_objects(stats_data)
                     
+            logger.error("🔥 DEBUG: No stats found or wrong format")  # Force ERROR level
             return []
-            
+        
         except Exception as e:
             logger.error(f"❌ Failed to get system stats from SurrealDB: {e}")
+            import traceback
+            traceback.print_exc()
             return []
 
     async def create_live_query(self, table_name: str, callback: Callable[[Any, Any], None]) -> str:

@@ -211,15 +211,15 @@ export const useLiveSystemStats = () => {
       setConnecting(true);
       setError(null);
 
-      // Connect to your livequery system stats endpoint
-      const wsUrl = `${WS_BASE}/system/stats/live`;
-      console.log("🔗 Connecting to livequery system stats:", wsUrl);
+      // Use the EXISTING unified WebSocket endpoint
+      const wsUrl = `${WS_BASE}/docker/ws/unified-stacks`; // CHANGED: Use unified endpoint
+      console.log("🔗 Connecting to unified WebSocket:", wsUrl);
 
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
-        console.log("✅ Connected to livequery system stats");
+        console.log("✅ Connected to unified WebSocket");
         setConnected(true);
         setConnecting(false);
         setError(null);
@@ -232,11 +232,10 @@ export const useLiveSystemStats = () => {
       ws.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
-          console.log("📊 Received livequery system stats:", message);
+          console.log("📊 Received from unified WebSocket:", message);
 
           switch (message.type) {
-            case "system_stats":
-              // Handle both immediate and live query updates
+            case "system_stats": // HANDLE SYSTEM STATS
               setCurrentStats(message.data);
               setLastUpdated(message.timestamp);
               setError(null);
@@ -244,24 +243,30 @@ export const useLiveSystemStats = () => {
               if (message.immediate) {
                 console.log("⚡ Immediate system stats loaded");
               } else if (message.trigger === "live_query") {
-                console.log("📡 Live query update received");
+                console.log("📡 System stats live query update received");
               }
               break;
 
+            case "unified_stacks": // IGNORE STACK DATA (handled by other hooks)
+              console.log(
+                "📦 Stack data received (ignored by system stats hook)"
+              );
+              break;
+
             case "pong":
-              console.log("🏓 Pong received from system stats");
+              console.log("🏓 Pong received from unified WebSocket");
               break;
 
             case "error":
-              console.error("❌ System stats error:", message.message);
-              setError(message.message || "Unknown error");
+              console.error("❌ WebSocket error:", message.message);
+              setError(message.message || "WebSocket error");
               break;
 
             default:
-              console.log("🔔 Unknown message type:", message.type);
+              console.log("🔍 Unknown message type:", message.type);
           }
-        } catch (parseError) {
-          console.error("❌ Failed to parse system stats message:", parseError);
+        } catch (error) {
+          console.error("❌ Failed to parse WebSocket message:", error);
           setError("Failed to parse message");
         }
       };
@@ -301,9 +306,9 @@ export const useLiveSystemStats = () => {
         setError("WebSocket connection error");
         setConnecting(false);
       };
-    } catch (err) {
-      console.error("❌ Failed to create system stats WebSocket:", err);
-      setError(err instanceof Error ? err.message : "Failed to connect");
+    } catch (error) {
+      console.error("❌ Failed to create WebSocket connection:", error);
+      setError("Failed to connect");
       setConnecting(false);
     }
   }, []);

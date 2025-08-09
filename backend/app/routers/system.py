@@ -706,6 +706,26 @@ async def websocket_system_stats_live(websocket: WebSocket):
             logger.warning("Received invalid JSON from system stats client")
         except Exception as e:
             logger.error(f"Error handling system stats client message: {e}")
+
+@router.get("/stats/debug")
+async def debug_system_stats():
+    """Debug endpoint to check SurrealDB system stats"""
+    try:
+        # Get recent stats from SurrealDB
+        recent_stats = await surreal_service.get_system_stats(hours_back=1)
+        
+        return {
+            "surrealdb_connected": surreal_service.connected,
+            "stats_count": len(recent_stats) if recent_stats else 0,
+            "latest_stats": recent_stats[:3] if recent_stats else [],  # First 3 records
+            "surrealdb_url": "ws://localhost:18000/rpc"
+        }
+    except Exception as e:
+        return {
+            "error": str(e),
+            "surrealdb_connected": False,
+            "stats_count": 0
+        }
     
     # Start message handling task
     message_task = asyncio.create_task(handle_messages())

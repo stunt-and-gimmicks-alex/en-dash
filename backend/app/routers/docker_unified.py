@@ -105,16 +105,17 @@ async def _execute_stack_command(stack_name: str, command: str, action: str) -> 
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}") 
 
 class UnifiedStackConnectionManager:
-    """Manages WebSocket connections with SurrealDB live queries"""
+    """Manages WebSocket connections with SurrealDB live queries for BOTH stacks and system stats"""
     
     def __init__(self):
         self.active_connections: Set[WebSocket] = set()
         self.live_query_id: Optional[str] = None
+        self.system_stats_live_query_id: Optional[str] = None  # ADD: Track system stats live query
         self.unified_task: Optional[asyncio.Task] = None
-        self.update_interval: float = 3.0  # <-- ADD THIS LINE - Default 3 seconds
+        self.update_interval: float = 3.0
         
     async def connect(self, websocket: WebSocket):
-        """Accept new WebSocket connection and setup live query"""
+        """Accept new WebSocket connection and setup live queries for both stacks and stats"""
         logger.info("🔌 About to accept WebSocket connection...")
         await websocket.accept()
         logger.info("🔗 WebSocket accepted successfully")
@@ -122,7 +123,7 @@ class UnifiedStackConnectionManager:
         self.active_connections.add(websocket)
         logger.info(f"✅ Added to connections. Total: {len(self.active_connections)}")
         
-        # Send immediate current data
+        # Send immediate current data (both stacks and stats)
         try:
             unified_stacks_data = await self._get_unified_stacks_data()
             await self.send_personal_message({
@@ -132,21 +133,87 @@ class UnifiedStackConnectionManager:
                 "immediate": True
             }, websocket)
             logger.info("✅ Immediate stacks data sent")
+            
+            # SEND IMMEDIATE SYSTEM STATS TOO
+            recent_stats = await surreal_service.get_system_stats(hours_back=1)
+            if recent_stats:
+                latest_stat = recent_stats[0]
+                await self.send_personal_message({
+                    "type": "system_stats",
+                    "data": latest_stat,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "immediate": True
+                }, websocket)
+                logger.info("✅ Immediate system stats sent")
+                
         except Exception as e:
             logger.error(f"❌ Failed to send immediate data: {e}")
         
-        # Start live query if first connection
+        # Start live queries if first connection
         if len(self.active_connections) == 1:
             await self._start_live_query()
+            await self._start_system_stats_live_query()  # ADD: Start system stats live query
     
     async def disconnect(self, websocket: WebSocket):
-        """Remove WebSocket connection and cleanup live query if needed"""
+        """Remove WebSocket connection and cleanup live queries if needed"""
         self.active_connections.discard(websocket)
-        logger.info(f"Unified stacks WebSocket disconnected. Total connections: {len(self.active_connections)}")
+        logger.info(f"WebSocket disconnected. Total connections: {len(self.active_connections)}")
         
-        # Stop live query if no connections remain
+        # Stop live queries if no connections remain
         if len(self.active_connections) == 0:
             await self._stop_live_query()
+            await self._stop_system_stats_live_query()  # ADD: Stop system stats live query
+
+    # ADD: System stats live query methods
+    async def _start_system_stats_live_query(self):
+        """Start SurrealDB live query for system_stats changes"""
+        try:
+            logger.info("🚀 Starting system stats live query...")
+            
+            self.system_stats_live_query_id = await surreal_service.create_live_query(
+                "system_stats",
+                self._handle_system_stats_live_update
+            )
+            
+            logger.info(f"📡 System stats live query started: {self.system_stats_live_query_id}")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to start system stats live query: {e}")
+
+    async def _stop_system_stats_live_query(self):
+        """Stop the system stats live query"""
+        if self.system_stats_live_query_id:
+            try:
+                await surreal_service.kill_live_query(self.system_stats_live_query_id)
+                self.system_stats_live_query_id = None
+                logger.info("🛑 System stats live query stopped")
+            except Exception as e:
+                logger.error(f"❌ Failed to stop system stats live query: {e}")
+
+    async def _handle_system_stats_live_update(self, update_data: Any):
+        """Handle system stats live query updates from SurrealDB"""
+        try:
+            logger.info("📊 Received system stats live update from SurrealDB")
+            
+            # Get fresh system stats data
+            recent_stats = await surreal_service.get_system_stats(hours_back=1)
+            if recent_stats:
+                latest_stat = recent_stats[0]
+                
+                # Broadcast to all connected clients
+                await self.broadcast({
+                    "type": "system_stats",
+                    "data": latest_stat,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "connection_count": len(self.active_connections),
+                    "trigger": "live_query"
+                })
+                
+                logger.info("✅ System stats live update broadcasted to clients")
+            
+        except Exception as e:
+            logger.error(f"❌ Error handling system stats live update: {e}")
+
     
     async def _start_live_query(self):
         """Start SurrealDB live query for unified_stack changes"""
