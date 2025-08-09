@@ -85,7 +85,6 @@ class SurrealDBService:
                 }
                 await self.db.create("unified_stack", stack_with_timestamp)
             
-            logger.debug(f"📊 Stored {len(stacks_data)} unified stacks in SurrealDB")
             
         except Exception as e:
             logger.error(f"❌ Failed to store unified stacks in SurrealDB: {e}")
@@ -122,13 +121,10 @@ class SurrealDBService:
                 "collected_at": datetime.now(timezone.utc).isoformat()
             }
             
-            logger.error(f"🔥 DEBUG: About to store system stats: {stats_with_timestamp}")  # Force ERROR level
             
             # Store the stats record
             result = await self.db.create("system_stats", stats_with_timestamp)
             
-            logger.error(f"🔥 DEBUG: Store result: {result}")  # Force ERROR level
-            logger.debug(f"📈 Stored system stats in SurrealDB")
             
         except Exception as e:
             logger.error(f"❌ Failed to store system stats in SurrealDB: {e}")
@@ -150,25 +146,17 @@ class SurrealDBService:
             
             # Use corrected query format
             query = f"SELECT * FROM system_stats ORDER BY timestamp DESC LIMIT 10"
-            logger.error(f"🔥 DEBUG: Query: {query}")
             
             result = await self.db.query(query)
-            logger.error(f"🔥 DEBUG: Raw query result type: {type(result)}")
-            logger.error(f"🔥 DEBUG: Raw query result length: {len(result) if isinstance(result, list) else 'not a list'}")
             
             # Handle SurrealDB response format - FIXED
             if isinstance(result, list) and len(result) > 0:
                 # The result is already a list of stats records, not wrapped!
                 stats_data = result
-                logger.error(f"🔥 DEBUG: Using result directly as stats_data")
-                logger.error(f"🔥 DEBUG: Stats data type: {type(stats_data)}")
-                logger.error(f"🔥 DEBUG: Stats data length: {len(stats_data)}")
                 
                 if isinstance(stats_data, list) and len(stats_data) > 0:
-                    logger.error(f"🔥 DEBUG: Returning {len(stats_data)} stats")
                     return serialize_surrealdb_objects(stats_data)
                     
-            logger.error("🔥 DEBUG: No stats found or wrong format")
             return []
             
         except Exception as e:
@@ -225,34 +213,27 @@ class SurrealDBService:
     async def _listen_to_live_query(self, live_id: str, subscription, callback: Callable[[Any, Any], None]):
         """Listen for live query updates using subscription queue"""
         try:
-            logger.error(f"🔥 DEBUG: Starting live query listener for {live_id}")
             
             while live_id in self.live_queries:
                 try:
                     # Handle async generator properly
                     if hasattr(subscription, '__aiter__'):  # It's an async generator
-                        logger.error(f"🔥 DEBUG: Using async generator for {live_id}")
                         try:
                             # Get next notification from async generator
                             notification = await anext(subscription)
-                            logger.error(f"🔥 DEBUG: Got notification from async generator: {notification}")
                             
                             if notification:
                                 # Call the callback - use single parameter signature like docker unified
-                                logger.error(f"🔥 DEBUG: Calling callback with notification: {notification}")
                                 asyncio.create_task(self._safe_callback(callback, notification, None))
                                 
                         except StopAsyncIteration:
-                            logger.error(f"🔥 DEBUG: Async generator ended for {live_id}")
                             break
                         except Exception as e:
-                            logger.error(f"🔥 DEBUG: Error getting from async generator: {e}")
                             await asyncio.sleep(1)
                             
                     elif hasattr(subscription, 'get'):  # It's a queue
                         try:
                             notification = subscription.get(timeout=1.0)
-                            logger.error(f"🔥 DEBUG: Got notification from queue: {notification}")
                             
                             if notification:
                                 action = getattr(notification, 'action', 'update')
@@ -262,7 +243,6 @@ class SurrealDBService:
                         except queue.Empty:
                             pass
                     else:
-                        logger.error(f"🔥 DEBUG: Unknown subscription type: {type(subscription)}")
                         await asyncio.sleep(0.1)
                     
                 except Exception as e:

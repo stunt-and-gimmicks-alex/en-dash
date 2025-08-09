@@ -125,7 +125,10 @@ class UnifiedStackConnectionManager:
         
         # Send immediate current data (both stacks and stats)
         try:
+            logger.error(f"🔥 DEBUG: About to send immediate stacks data")
             unified_stacks_data = await self._get_unified_stacks_data()
+            logger.error(f"🔥 DEBUG: Stacks data: {len(unified_stacks_data.get('stacks', []))} stacks")
+            
             await self.send_personal_message({
                 "type": "unified_stacks",
                 "data": unified_stacks_data,
@@ -134,8 +137,10 @@ class UnifiedStackConnectionManager:
             }, websocket)
             logger.info("✅ Immediate stacks data sent")
             
-            # SEND IMMEDIATE SYSTEM STATS TOO
-            recent_stats = await surreal_service.get_system_stats(hours_back=1)
+            logger.error(f"🔥 DEBUG: About to send immediate system stats")
+            recent_stats = true
+            logger.error(f"🔥 DEBUG: System stats: {len(recent_stats) if recent_stats else 0} records")
+            
             if recent_stats:
                 latest_stat = recent_stats[0]
                 await self.send_personal_message({
@@ -145,9 +150,13 @@ class UnifiedStackConnectionManager:
                     "immediate": True
                 }, websocket)
                 logger.info("✅ Immediate system stats sent")
+            else:
+                logger.warning("⚠️ No system stats found for immediate send")
                 
         except Exception as e:
             logger.error(f"❌ Failed to send immediate data: {e}")
+            import traceback
+            traceback.print_exc()
         
         # Start live queries if first connection
         if len(self.active_connections) == 1:

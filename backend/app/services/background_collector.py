@@ -40,14 +40,12 @@ class BackgroundCollector:
         while self.running:
             try:
                 if not settings.USE_SURREALDB:
-                    logger.debug("SurrealDB disabled, skipping Docker collection")
                     await asyncio.sleep(30)
                     continue
                     
                 # Collect Docker data
                 stacks = await unified_stack_service.get_all_unified_stacks()
                 await surreal_service.store_unified_stacks(stacks)
-                logger.info("📊 Updated unified stacks in SurrealDB (triggers live query)")
                 
                 # Wait 30 seconds before next collection
                 await asyncio.sleep(30)
@@ -105,7 +103,6 @@ class BackgroundCollector:
             
             # Store in SurrealDB
             await surreal_service.store_system_stats(stats)
-            logger.debug("📈 Collected and stored system stats with network I/O")  # CHANGED: debug level to reduce spam
             
         except Exception as e:
             logger.error(f"❌ Failed to collect system stats: {e}")
