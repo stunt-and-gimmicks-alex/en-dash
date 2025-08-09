@@ -3,7 +3,9 @@
 import { Heading } from "@chakra-ui/react";
 import React from "react";
 export const Logo = (props: React.SVGProps<SVGSVGElement>) => (
-  <Heading as="h1">en&ndash;dash/</Heading>
+  <Heading as="h1" fontWeight="black">
+    en&ndash;dash/
+  </Heading>
 );
 
 /* export const Logo = (props: React.SVGProps<SVGSVGElement>) => (

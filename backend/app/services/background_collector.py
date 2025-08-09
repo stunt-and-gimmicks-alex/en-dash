@@ -11,62 +11,76 @@ logger = logging.getLogger(__name__)
 class BackgroundCollector:
     def __init__(self):
         self.running = False
-        self.task = None
+        self.docker_task = None
+        self.stats_task = None  # ADD: Separate task for system stats
         
     async def start(self):
-        """Start background collection"""
+        """Start background collection with separate tasks"""
         if self.running:
             return
             
         self.running = True
-        self.task = asyncio.create_task(self._collection_loop())
+        # Start both collection loops
+        self.docker_task = asyncio.create_task(self._docker_collection_loop())
+        self.stats_task = asyncio.create_task(self._stats_collection_loop())
         logger.info("🔄 Started background Docker → SurrealDB collection")
         
     async def stop(self):
         """Stop background collection"""
         self.running = False
-        if self.task:
-            self.task.cancel()
-            
-    async def _collection_loop(self):
-        """Collect Docker data AND system stats with optimized intervals"""
+        if self.docker_task:
+            self.docker_task.cancel()
+        if self.stats_task:
+            self.stats_task.cancel()
+
+    async def _docker_collection_loop(self):
+        """Collect Docker data every 30 seconds"""
         from ..core.config import settings
-        
-        docker_interval = 30   # Docker data every 30 seconds (less frequent since we have live queries)
-        stats_interval = 30    # System stats every 30 seconds
-        last_stats_time = 0
         
         while self.running:
             try:
-                current_time = time.time()
-                
                 if not settings.USE_SURREALDB:
-                    logger.debug("SurrealDB disabled, skipping collection")
+                    logger.debug("SurrealDB disabled, skipping Docker collection")
                     await asyncio.sleep(30)
                     continue
                     
-                # Collect Docker data (less frequent now that we have live queries)
+                # Collect Docker data
                 stacks = await unified_stack_service.get_all_unified_stacks()
                 await surreal_service.store_unified_stacks(stacks)
                 logger.info("📊 Updated unified stacks in SurrealDB (triggers live query)")
                 
-                # Collect system stats (every 30 seconds)
-                if current_time - last_stats_time >= stats_interval:
-                    await self._collect_system_stats()
-                    last_stats_time = current_time
-                
-                # Wait before next Docker collection (can be longer now)
-                await asyncio.sleep(docker_interval)
+                # Wait 30 seconds before next collection
+                await asyncio.sleep(30)
                 
             except Exception as e:
-                logger.error(f"❌ Background collection error: {e}")
+                logger.error(f"❌ Docker collection error: {e}")
                 await asyncio.sleep(5)
+
+    async def _stats_collection_loop(self):
+        """Collect system stats every 1 second"""
+        from ..core.config import settings
+        
+        while self.running:
+            try:
+                if not settings.USE_SURREALDB:
+                    await asyncio.sleep(1)
+                    continue
+                    
+                # Collect system stats
+                await self._collect_system_stats()
+                
+                # Wait 1 second before next collection
+                await asyncio.sleep(1)
+                
+            except Exception as e:
+                logger.error(f"❌ System stats collection error: {e}")
+                await asyncio.sleep(1)  # Shorter retry for stats
 
     async def _collect_system_stats(self):
         """Collect comprehensive system statistics including network I/O"""
         try:
             # CPU stats
-            cpu_percent = psutil.cpu_percent(interval=1)
+            cpu_percent = psutil.cpu_percent(interval=None)  # CHANGED: Don't block for 1 second
             memory = psutil.virtual_memory()
             disk_root = psutil.disk_usage('/')
             
@@ -82,7 +96,7 @@ class BackgroundCollector:
                 "disk_percent": round((disk_root.used / disk_root.total) * 100, 2),
                 "disk_used_gb": round(disk_root.used / (1024**3), 2),
                 "disk_total_gb": round(disk_root.total / (1024**3), 2),
-                # ADD NETWORK I/O DATA
+                # Network I/O data
                 "network_bytes_sent": network_io.bytes_sent,
                 "network_bytes_recv": network_io.bytes_recv,
                 "network_packets_sent": network_io.packets_sent,
@@ -91,7 +105,7 @@ class BackgroundCollector:
             
             # Store in SurrealDB
             await surreal_service.store_system_stats(stats)
-            logger.info("📈 Collected and stored system stats with network I/O")
+            logger.debug("📈 Collected and stored system stats with network I/O")  # CHANGED: debug level to reduce spam
             
         except Exception as e:
             logger.error(f"❌ Failed to collect system stats: {e}")

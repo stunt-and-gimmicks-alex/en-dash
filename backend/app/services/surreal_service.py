@@ -145,27 +145,32 @@ class SurrealDBService:
             return []
             
         try:
-            # Calculate time threshold
+            # Calculate time threshold - use simpler format
             time_threshold = datetime.now(timezone.utc) - timedelta(hours=hours_back)
             
-            # Use proper async query
-            query = f"SELECT * FROM system_stats WHERE timestamp > '{time_threshold.isoformat()}' ORDER BY timestamp DESC"
-            logger.error(f"🔥 DEBUG: Query: {query}")  # Force ERROR level
+            # Use corrected query format
+            query = f"SELECT * FROM system_stats ORDER BY timestamp DESC LIMIT 10"
+            logger.error(f"🔥 DEBUG: Query: {query}")
             
             result = await self.db.query(query)
+            logger.error(f"🔥 DEBUG: Raw query result type: {type(result)}")
+            logger.error(f"🔥 DEBUG: Raw query result length: {len(result) if isinstance(result, list) else 'not a list'}")
             
-            logger.error(f"🔥 DEBUG: Raw query result: {result}")  # Force ERROR level
-            
-            # Handle SurrealDB response format
+            # Handle SurrealDB response format - FIXED
             if isinstance(result, list) and len(result) > 0:
-                stats_data = result[0].get("result", [])
-                if isinstance(stats_data, list):
-                    logger.error(f"🔥 DEBUG: Processed stats count: {len(stats_data)}")  # Force ERROR level
+                # The result is already a list of stats records, not wrapped!
+                stats_data = result
+                logger.error(f"🔥 DEBUG: Using result directly as stats_data")
+                logger.error(f"🔥 DEBUG: Stats data type: {type(stats_data)}")
+                logger.error(f"🔥 DEBUG: Stats data length: {len(stats_data)}")
+                
+                if isinstance(stats_data, list) and len(stats_data) > 0:
+                    logger.error(f"🔥 DEBUG: Returning {len(stats_data)} stats")
                     return serialize_surrealdb_objects(stats_data)
                     
-            logger.error("🔥 DEBUG: No stats found or wrong format")  # Force ERROR level
+            logger.error("🔥 DEBUG: No stats found or wrong format")
             return []
-        
+            
         except Exception as e:
             logger.error(f"❌ Failed to get system stats from SurrealDB: {e}")
             import traceback
@@ -220,40 +225,50 @@ class SurrealDBService:
     async def _listen_to_live_query(self, live_id: str, subscription, callback: Callable[[Any, Any], None]):
         """Listen for live query updates using subscription queue"""
         try:
-            logger.info(f"📡 Starting live query listener for {live_id}")
+            logger.error(f"🔥 DEBUG: Starting live query listener for {live_id}")
             
             while live_id in self.live_queries:
                 try:
-                    # Get notification from queue (non-blocking)
-                    # The subscription should be a queue-like object
-                    if hasattr(subscription, 'get'):
+                    # Handle async generator properly
+                    if hasattr(subscription, '__aiter__'):  # It's an async generator
+                        logger.error(f"🔥 DEBUG: Using async generator for {live_id}")
                         try:
-                            # Try to get with timeout to avoid blocking forever
-                            notification = subscription.get(timeout=1.0)
+                            # Get next notification from async generator
+                            notification = await anext(subscription)
+                            logger.error(f"🔥 DEBUG: Got notification from async generator: {notification}")
                             
-                            # Process the notification
                             if notification:
-                                # Call the callback with action and result
-                                # SurrealDB notifications typically have action and result fields
+                                # Call the callback - use single parameter signature like docker unified
+                                logger.error(f"🔥 DEBUG: Calling callback with notification: {notification}")
+                                asyncio.create_task(self._safe_callback(callback, notification, None))
+                                
+                        except StopAsyncIteration:
+                            logger.error(f"🔥 DEBUG: Async generator ended for {live_id}")
+                            break
+                        except Exception as e:
+                            logger.error(f"🔥 DEBUG: Error getting from async generator: {e}")
+                            await asyncio.sleep(1)
+                            
+                    elif hasattr(subscription, 'get'):  # It's a queue
+                        try:
+                            notification = subscription.get(timeout=1.0)
+                            logger.error(f"🔥 DEBUG: Got notification from queue: {notification}")
+                            
+                            if notification:
                                 action = getattr(notification, 'action', 'update')
                                 result = getattr(notification, 'result', notification)
-                                
-                                # Run callback in a separate task to avoid blocking
                                 asyncio.create_task(self._safe_callback(callback, action, result))
                                 
                         except queue.Empty:
-                            # No notification available, continue
                             pass
                     else:
-                        # If subscription doesn't have get method, try different approach
+                        logger.error(f"🔥 DEBUG: Unknown subscription type: {type(subscription)}")
                         await asyncio.sleep(0.1)
-                
+                    
                 except Exception as e:
                     logger.error(f"❌ Error in live query listener {live_id}: {e}")
-                    await asyncio.sleep(1)  # Wait before retrying
+                    await asyncio.sleep(1)
                     
-        except asyncio.CancelledError:
-            logger.info(f"📡 Live query listener {live_id} cancelled")
         except Exception as e:
             logger.error(f"❌ Fatal error in live query listener {live_id}: {e}")
         finally:
@@ -261,13 +276,19 @@ class SurrealDBService:
             if live_id in self.live_queries:
                 del self.live_queries[live_id]
 
-    async def _safe_callback(self, callback: Callable[[Any, Any], None], action: Any, result: Any):
+    async def _safe_callback(self, callback: Callable, param1: Any, param2: Any):
         """Safely execute callback with error handling"""
         try:
             if asyncio.iscoroutinefunction(callback):
-                await callback(action, result)
+                if param2 is None:  # Single parameter callback (like docker unified)
+                    await callback(param1)
+                else:  # Two parameter callback (legacy)
+                    await callback(param1, param2)
             else:
-                callback(action, result)
+                if param2 is None:
+                    callback(param1)
+                else:
+                    callback(param1, param2)
         except Exception as e:
             logger.error(f"❌ Error in live query callback: {e}")
 

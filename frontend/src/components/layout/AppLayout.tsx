@@ -24,7 +24,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   pageDescription,
 }) => {
   return (
-    <Box minH="100vh" bg="brand.surfaceContainerLowest">
+    <Box minH="100vh" bg="grayBrand.bg">
       {/* Color Mode Toggle - Fixed position */}
       <Box position="fixed" bottom="4" right="4" zIndex="1000">
         <ColorModeButton />

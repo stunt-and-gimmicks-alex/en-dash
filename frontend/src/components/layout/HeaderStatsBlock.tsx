@@ -3,15 +3,19 @@
 
 import React, { useState, useEffect } from "react";
 import {
+  AbsoluteCenter,
   Badge,
   Container,
   Flex,
   Group,
   Heading,
-  Highlight,
   HStack,
   Icon,
+  Progress,
+  ProgressCircle,
   Stack,
+  Status,
+  StatusIndicator,
   Text,
 } from "@chakra-ui/react";
 
@@ -28,11 +32,11 @@ import type { IconType } from "react-icons";
 
 interface StatItem {
   value: string;
-  secondaryValue?: string;
-  subIcon1?: IconType;
-  subIcon2?: IconType;
+  value2: string;
   label: string;
+  label2?: string;
   statIcon: IconType;
+  statIcon2?: IconType;
   color: string;
 }
 
@@ -66,21 +70,32 @@ export const HeaderStatsBlock: React.FC<HeaderStatsBlockProps> = ({
 
   // Local state for computed stats
   const [statItems, setStatItems] = useState<StatItem[]>([
-    { value: "0%", label: "cpu usage", statIcon: PiCpu, color: "green" },
-    { value: "0%", label: "memory usage", statIcon: PiMemory, color: "blue" },
+    {
+      value: "0%",
+      value2: "0",
+      label: "cpu usage",
+      statIcon: PiCpu,
+      color: "green",
+    },
+    {
+      value: "0%",
+      value2: "0",
+      label: "memory usage",
+      statIcon: PiMemory,
+      color: "blue",
+    },
     {
       value: "0% used",
+      value2: "0",
       label: "disk usage",
       statIcon: PiHardDrive,
       color: "purple",
     },
     {
       value: "0 B/s",
-      secondaryValue: "0 B/s",
+      value2: "0 B/s",
       label: "network i/o",
       statIcon: PiNetwork,
-      subIcon1: PiCloudArrowUpFill,
-      subIcon2: PiCloudArrowDownFill,
       color: "cyan",
     },
   ]);
@@ -187,6 +202,7 @@ export const HeaderStatsBlock: React.FC<HeaderStatsBlockProps> = ({
       // CPU Usage from livequery
       {
         value: `${(currentStats.cpu_percent || 0).toFixed(1)}%`,
+        value2: "0",
         label: "cpu usage",
         statIcon: PiCpu,
         color: getColorForPercentage(currentStats.cpu_percent || 0),
@@ -195,6 +211,7 @@ export const HeaderStatsBlock: React.FC<HeaderStatsBlockProps> = ({
       // Memory Usage from livequery
       {
         value: `${(currentStats.memory_percent || 0).toFixed(1)}%`,
+        value2: "0",
         label: "memory usage",
         statIcon: PiMemory,
         color: getColorForPercentage(currentStats.memory_percent || 0),
@@ -202,7 +219,8 @@ export const HeaderStatsBlock: React.FC<HeaderStatsBlockProps> = ({
 
       // Disk Usage from livequery
       {
-        value: formatDiskUsage(currentStats),
+        value: `${(currentStats.disk_percent || 0).toFixed(1)}%`,
+        value2: "0",
         label: "disk usage",
         statIcon: PiHardDrive,
         color: getColorForPercentage(currentStats.disk_percent || 0),
@@ -211,11 +229,11 @@ export const HeaderStatsBlock: React.FC<HeaderStatsBlockProps> = ({
       // Network I/O rates - now with real data!
       {
         value: formatNetworkRate(networkRates.txRate),
-        secondaryValue: formatNetworkRate(networkRates.rxRate),
-        statIcon: PiNetwork,
-        subIcon1: PiCloudArrowUpFill,
-        subIcon2: PiCloudArrowDownFill,
-        label: "network i/o",
+        value2: formatNetworkRate(networkRates.rxRate),
+        statIcon: PiCloudArrowUpFill,
+        statIcon2: PiCloudArrowDownFill,
+        label: "Tx",
+        label2: "Rx",
         color: "cyan",
       },
     ];
@@ -224,10 +242,10 @@ export const HeaderStatsBlock: React.FC<HeaderStatsBlockProps> = ({
   }, [currentStats, networkRates]);
 
   return (
-    <Container py="2" maxW="dvw" float="left" bg="brand.background">
-      <HStack gap="6">
+    <Container py="2" maxW="dvw" bg="brand.bg/25">
+      <Flex direction="row" gap="6">
         {/* Header Section */}
-        <Stack gap="3" maxW="none" align="flex-start">
+        <Stack gap="3" maxW="none" w="1/2" align="flex-start">
           <Heading
             as="h2"
             fontSize={{ base: "2xl", md: "3xl" }}
@@ -237,72 +255,144 @@ export const HeaderStatsBlock: React.FC<HeaderStatsBlockProps> = ({
             textAlign="left"
             py="4"
           >
-            <Highlight query=" / " styles={{ color: "brand.primary" }}>
-              {title}
-            </Highlight>
+            {title}
           </Heading>
         </Stack>
 
-        <Flex justify="flex-end" gap="4">
+        <Flex justify="flex-end" gap="4" align="center" w="1/2">
           {/* Real-time Stats Grid - Modern stat blocks */}
-          {statItems.map((item, index) => (
-            <Group key={index} attached colorPalette={item.color}>
-              <Badge size="lg" px="2" py="1">
-                <Icon size="lg">
-                  <item.statIcon />
-                </Icon>
-              </Badge>
-              <Badge size="lg" px="2" py="1" variant="outline">
-                {item.subIcon1 && (
-                  <Icon size="md">
-                    <item.subIcon1 />
-                  </Icon>
-                )}
-                <Text fontWeight="medium" color={`${item.color}.500`}>
-                  {item.value}
-                </Text>
-                {item.subIcon2 && (
-                  <>
-                    <Text fontWeight="medium" color={`${item.color}.500`}>
-                      &ensp;/&ensp;
-                    </Text>
-                    <Icon size="md">
-                      <item.subIcon2 />
-                    </Icon>
-                  </>
-                )}
-                {item.secondaryValue && (
-                  <Text fontWeight="medium" color={`${item.color}.500`}>
-                    &ensp;{item.secondaryValue}
-                  </Text>
-                )}
-              </Badge>
-            </Group>
-          ))}
+          {statItems.map((item, index) =>
+            item.label === "Tx" ? (
+              <Group
+                key={index}
+                orientation="vertical"
+                w="10dvw"
+                minW="255px"
+                fontFamily="mono"
+                pl="5"
+              >
+                <Stack gap="0">
+                  <Heading size="xs">Network Activity</Heading>
+                  <Progress.Root
+                    value={parseInt(item.value, 10)}
+                    max={1000}
+                    size="md"
+                    colorPalette="secondaryBrand"
+                  >
+                    <HStack gap="2" textStyle="xs">
+                      <Progress.Label>
+                        <Icon size="md">
+                          <item.statIcon />
+                        </Icon>
+                      </Progress.Label>
+                      <Progress.Track w="5dvw" minW="100px">
+                        <Progress.Range />
+                      </Progress.Track>
+                      <Progress.ValueText textStyle="xs" w="4dvw" minW="100px">
+                        {item.value}
+                      </Progress.ValueText>
+                    </HStack>
+                  </Progress.Root>
 
+                  <Progress.Root
+                    value={parseInt(item.value2, 10)}
+                    max={1000}
+                    size="md"
+                    colorPalette="yellowBrand"
+                  >
+                    <HStack textStyle="xs">
+                      <Progress.Label>
+                        {item.statIcon2 && (
+                          <Icon size="md">
+                            <item.statIcon2 />
+                          </Icon>
+                        )}
+                      </Progress.Label>
+                      <Progress.Track w="5dvw" minW="100px">
+                        <Progress.Range />
+                      </Progress.Track>
+                      <Progress.ValueText textStyle="xs" w="4dvw" minW="100px">
+                        {item.value2}
+                      </Progress.ValueText>
+                    </HStack>
+                  </Progress.Root>
+                </Stack>
+              </Group>
+            ) : (
+              <Group
+                key={index}
+                attached
+                colorPalette="grayBrand"
+                fontFamily="mono"
+                w="3dvw"
+                minW="65px"
+              >
+                <ProgressCircle.Root value={parseInt(item.value, 10)} size="xl">
+                  <ProgressCircle.Circle css={{ "--thickness": "3px" }}>
+                    <ProgressCircle.Track />
+                    <ProgressCircle.Range
+                      stroke={{
+                        base: "brandPrimary.900",
+                        _dark: "brandPrimary.200",
+                      }}
+                    />
+                  </ProgressCircle.Circle>
+                  <AbsoluteCenter>
+                    <Stack gap="0" alignItems="center">
+                      <Icon size="md">
+                        <item.statIcon />
+                      </Icon>
+                      <Text textStyle="xs">{item.value.slice(0, 10)}</Text>
+                    </Stack>
+                  </AbsoluteCenter>
+                </ProgressCircle.Root>
+              </Group>
+            )
+          )}
           {/* Connection Status - Subtle indicator */}
           {!connected && (
-            <Text
-              fontSize="xs"
-              color="brand.onSurfaceVariant"
-              textAlign="center"
-              opacity={0.7}
+            <Badge
+              bg="brandPrimary.100"
+              color="brandGray.900"
+              textStyle="xs"
+              justifyContent="space-between"
+              p="1.5"
+              w="6dvw"
+              minW="120px"
             >
-              {error ? `Error: ${error}` : "System stats disconnected"}
-            </Text>
+              <Status.Root colorPalette="redBrand" size="lg">
+                <StatusIndicator />
+                <Text textStyle="sm" fontFamily="adwide" fontWeight="thin">
+                  {error ? `E: ${error}` : "Disconnected"}
+                </Text>
+              </Status.Root>
+            </Badge>
           )}
           {connected && currentStats && (
-            <Text
-              fontSize="xs"
-              color="brand.primary"
-              textAlign="center"
-              opacity={0.7}
+            <Badge
+              bg="brandPrimary.100"
+              color="brandGray.900"
+              textStyle="xs"
+              p="1.5"
+              w="6dvw"
+              minW="120px"
             >
-              Live • {new Date(currentStats.collected_at).toLocaleTimeString()}
-            </Text>
+              <Status.Root
+                colorPalette="brand"
+                size="lg"
+                justifyContent="space-between"
+                w="full"
+                px="3"
+              >
+                <StatusIndicator />
+                <Text textStyle="sm" fontFamily="adwide" fontWeight="thin">
+                  {new Date(currentStats.collected_at).toLocaleTimeString()}
+                </Text>
+              </Status.Root>
+            </Badge>
           )}
         </Flex>
-      </HStack>
+      </Flex>
     </Container>
   );
 };

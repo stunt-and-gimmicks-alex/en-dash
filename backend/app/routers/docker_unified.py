@@ -191,7 +191,7 @@ class UnifiedStackConnectionManager:
                 logger.error(f"❌ Failed to stop system stats live query: {e}")
 
     async def _handle_system_stats_live_update(self, update_data: Any):
-        """Handle system stats live query updates from SurrealDB"""
+        logger.error(f"🔥 SYSTEM STATS LIVE QUERY TRIGGERED! Data: {update_data}")  # Force ERROR level
         try:
             logger.info("📊 Received system stats live update from SurrealDB")
             

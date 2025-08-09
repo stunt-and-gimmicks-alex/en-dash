@@ -201,21 +201,9 @@ export const Sidebar: React.FC<NavigationProps> = ({
       return (
         <HStack gap="2">
           <Text>Docker</Text>
-          {stackStats.running > 0 && (
-            <Badge colorPalette="green" size="sm">
-              {stackStats.running}
-            </Badge>
-          )}
-          {stackStats.partial > 0 && (
-            <Badge colorPalette="yellow" size="sm">
-              {stackStats.partial}
-            </Badge>
-          )}
-          {stackStats.stopped > 0 && (
-            <Badge colorPalette="red" size="sm">
-              {stackStats.stopped}
-            </Badge>
-          )}
+          <Badge color="brandGray.100" bg="brandGray.950" size="sm">
+            {stackStats.running + stackStats.partial + stackStats.stopped}
+          </Badge>
         </HStack>
       );
     }

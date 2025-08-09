@@ -3,6 +3,10 @@ import { createSystem, defaultConfig, defineConfig } from "@chakra-ui/react";
 const config = defineConfig({
   theme: {
     tokens: {
+      fonts: {
+        heading: { value: "Doto Variable" },
+        body: { value: "Space Grotesk Variable" },
+      },
       colors: {
         brandPrimary: {
           50: { value: "#eefff4" },
@@ -72,6 +76,9 @@ const config = defineConfig({
       },
     },
     semanticTokens: {
+      fonts: {
+        adwide: { value: "Audiowide" },
+      },
       colors: {
         bg: {
           solid: {

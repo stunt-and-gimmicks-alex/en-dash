@@ -5,8 +5,8 @@ import React from "react";
 import { Button, Stack, Box, HStack, Text } from "@chakra-ui/react";
 import { Collapsible } from "@chakra-ui/react";
 import { Status } from "@chakra-ui/react";
-import { ChevronDown, type LucideIcon } from "lucide-react";
 import { SidebarLink } from "./SidebarLink";
+import { PiCaretDown } from "react-icons/pi";
 
 interface ModuleDropdownItem {
   name: string;
@@ -84,7 +84,7 @@ export const ModuleDropdown: React.FC<ModuleDropdownProps> = ({
               <Box fontSize="sm">{label}</Box>
             )}
           </HStack>
-          <ChevronDown
+          <PiCaretDown
             size="16"
             style={{
               transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
