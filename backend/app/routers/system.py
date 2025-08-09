@@ -1,6 +1,7 @@
 # backend/app/routers/system.py - System monitoring endpoints
 
 import asyncio
+import os
 import json
 import logging
 import subprocess
@@ -21,7 +22,8 @@ from ..models.system_models import (
     FileSystemItem, 
     DiskUsage,
     ServiceAction,
-    ProcessAction
+    ProcessAction,
+    NetworkInterface
 )
 
 # Add import for surreal_service if you're using livequeries
@@ -515,9 +517,16 @@ class SystemStatsConnectionManager:
         except Exception as e:
             logger.error(f"❌ Failed to send immediate system stats: {e}")
         
-        # Start monitoring if first connection
-        if len(self.active_connections) == 1:
-            await self._start_monitoring()
+        # Start monitoring if first connection - PUT THE LOGGING CODE HERE
+        if not self.live_query_id and not self.polling_task:
+            logger.info("🎯 Starting monitoring...")
+            try:
+                await self._start_monitoring()
+                logger.info("✅ Monitoring started successfully")
+            except Exception as e:
+                logger.error(f"❌ Failed to start monitoring: {e}")
+                import traceback
+                traceback.print_exc()
     
     async def disconnect(self, websocket: WebSocket):
         """Remove connection and cleanup monitoring if needed"""
@@ -530,11 +539,12 @@ class SystemStatsConnectionManager:
     
     async def _start_monitoring(self):
         """Start either live query or polling fallback"""
+        logger.info("🚀 _start_monitoring called")
         try:
             logger.info("🚀 Attempting to start live query...")
             await self._start_live_stats_query()
         except Exception as e:
-            logger.warning(f"⚠️ Live query failed: {e}")
+            logger.error(f"⚠️ Live query failed: {e}")
             logger.info("🔄 Falling back to polling...")
             await self._start_polling()
     
@@ -605,10 +615,10 @@ class SystemStatsConnectionManager:
             self.polling_task = None
             logger.info("🛑 System stats polling stopped")
     
-    async def _handle_live_update(self, action, result):
-        """Handle live query updates from SurrealDB - Updated signature for current API"""
+    async def _handle_live_update(self, update_data: Any):
+        """Handle live query updates from SurrealDB - Fixed signature to match working docker unified"""
         try:
-            logger.info(f"📊 Live update received: action={action}")
+            logger.info(f"📊 Live update received: {update_data}")
             
             # Get the latest stat record (result might contain the update, but get fresh data to be sure)
             recent_stats = await surreal_service.get_system_stats(hours_back=1)
@@ -621,15 +631,15 @@ class SystemStatsConnectionManager:
                     "data": latest_stat,
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                     "trigger": "live_query",
-                    "action": action,  # Include the live query action for debugging
+                    "update_data": str(update_data),  # Include the live query data for debugging
                     "connection_count": len(self.active_connections)
                 })
                 
                 logger.info("✅ System stats live update broadcasted")
-            
+        
         except Exception as e:
             logger.error(f"❌ Error handling live update: {e}")
-    
+        
     async def send_personal_message(self, message: dict, websocket: WebSocket):
         """Send message to specific connection"""
         try:
@@ -654,3 +664,57 @@ class SystemStatsConnectionManager:
         # Clean up disconnected connections
         for conn in disconnected:
             self.active_connections.discard(conn)
+
+
+system_stats_manager = SystemStatsConnectionManager()
+
+@router.websocket("/stats/live")
+async def websocket_system_stats_live(websocket: WebSocket):
+    """WebSocket endpoint for live system stats updates"""
+    logger.info("🔌 New system stats WebSocket connection attempt")
+    
+    # Accept the connection using the manager
+    await system_stats_manager.connect(websocket)
+    
+    async def handle_messages():
+        """Handle incoming messages in separate task"""
+        try:
+            while True:
+                data = await websocket.receive_text()
+                message = json.loads(data)
+                
+                # Handle client configuration messages
+                if message.get("type") == "set_update_interval":
+                    interval = max(10.0, min(60.0, float(message.get("interval", 30.0))))
+                    system_stats_manager.update_interval = interval
+                    logger.info(f"Updated system stats interval to {interval}s")
+                    
+                    await system_stats_manager.send_personal_message({
+                        "type": "config_updated",
+                        "message": f"Update interval set to {interval} seconds"
+                    }, websocket)
+                
+                elif message.get("type") == "ping":
+                    await system_stats_manager.send_personal_message({
+                        "type": "pong",
+                        "timestamp": datetime.now(timezone.utc).isoformat()
+                    }, websocket)
+                    
+        except WebSocketDisconnect:
+            pass
+        except json.JSONDecodeError:
+            logger.warning("Received invalid JSON from system stats client")
+        except Exception as e:
+            logger.error(f"Error handling system stats client message: {e}")
+    
+    # Start message handling task
+    message_task = asyncio.create_task(handle_messages())
+    
+    try:
+        # Wait for disconnect
+        await message_task
+    except WebSocketDisconnect:
+        pass
+    finally:
+        message_task.cancel()
+        await system_stats_manager.disconnect(websocket)

@@ -1,4 +1,4 @@
-from surrealdb import Surreal
+from surrealdb import Surreal, AsyncSurreal
 from datetime import datetime, timezone, timedelta
 import asyncio
 import logging
@@ -35,30 +35,35 @@ class SurrealDBService:
         self.db = None
         self.connected = False
         self.live_queries: Dict[str, Dict] = {}  # Track active live queries with callbacks
+        self._connection_lock = asyncio.Lock()  # ADD THIS LINE - Prevent concurrent connections
         
     async def connect(self):
-        try:
-            # Create async connection
-            self.db = Surreal(settings.SURREALDB_URL)
-            
-            # Connect to SurrealDB
-            await self.db.connect()
-            
-            # Authenticate
-            await self.db.signin({
-                "user": settings.SURREALDB_USER, 
-                "pass": settings.SURREALDB_PASS
-            })
-            
-            # Use namespace and database
-            await self.db.use(settings.SURREALDB_NS, settings.SURREALDB_DB)
-            
-            self.connected = True
-            logger.info(f"✅ Connected to SurrealDB at {settings.SURREALDB_URL}")
-            
-        except Exception as e:
-            logger.error(f"❌ Failed to connect to SurrealDB: {e}")
-            self.connected = False
+        # Use async lock to prevent concurrent connection attempts
+        async with self._connection_lock:
+            # If already connected while waiting for lock, return
+            if self.connected and self.db:
+                return
+                
+            try:
+                # Create async connection
+                self.db = AsyncSurreal(settings.SURREALDB_URL)
+                
+#               # Authenticate
+#                await self.db.signin({
+#                    "user": settings.SURREALDB_USER, 
+#                    "pass": settings.SURREALDB_PASS
+#                })
+                
+                # Use namespace and database
+                await self.db.use(settings.SURREALDB_NS, settings.SURREALDB_DB)
+                
+                self.connected = True
+                logger.info(f"✅ Connected to SurrealDB at {settings.SURREALDB_URL}")
+                
+            except Exception as e:
+                logger.error(f"❌ Failed to connect to SurrealDB: {e}")
+                self.connected = False
+                self.db = None  # Reset db on failure
 
     async def store_unified_stacks(self, stacks_data: List[Dict[str, Any]]):
         """Store unified stacks data in SurrealDB"""
