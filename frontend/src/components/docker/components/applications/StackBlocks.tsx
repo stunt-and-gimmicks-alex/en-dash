@@ -22,6 +22,7 @@ import {
   PiShippingContainer,
   PiTerminal,
 } from "react-icons/pi";
+import { Heading } from "lucide-react";
 
 interface StackBlocksProps {
   stacks: UnifiedStack[];
@@ -82,7 +83,8 @@ const SingleStackBlock: React.FC<SingleStackBlockProps> = ({
   return (
     <Container
       fluid
-      p="8"
+      py="2"
+      px="4"
       bg={
         isSelected ? "brand.surfaceContainerHighest" : "brand.surfaceContainer"
       }
@@ -99,83 +101,84 @@ const SingleStackBlock: React.FC<SingleStackBlockProps> = ({
     >
       <Flex
         justify="space-between"
-        align="flex-start"
+        align="center"
         gap="8"
         direction={{ base: "column", md: "row" }}
       >
-        <HStack gap="4" alignItems="top">
-          <Stack>
-            <HStack fontWeight="medium" color="brand.onSurfaceVariant">
-              <Status.Root
-                size="lg"
-                colorPalette={
-                  status === "running"
-                    ? "green"
-                    : status === "partial"
-                    ? "yellow"
-                    : "red"
-                }
-              >
-                <Status.Indicator />
-              </Status.Root>
-              <Icon size="2xl">
-                <PiAppWindow />
-              </Icon>
-            </HStack>
-          </Stack>
-
-          <Stack gap="2">
+        <Flex gap="4" alignItems="top">
+          <HStack
+            fontWeight="medium"
+            color="brand.onSurfaceVariant"
+            w="15dvw"
+            gap="6"
+          >
+            <Status.Root
+              size="lg"
+              colorPalette={
+                status === "running"
+                  ? "green"
+                  : status === "partial"
+                  ? "yellow"
+                  : "red"
+              }
+            >
+              <Status.Indicator />
+            </Status.Root>
+            <Icon size="2xl">
+              <PiAppWindow />
+            </Icon>
             <Text fontSize="xl" fontWeight="semibold" color="brand.onSurface">
               {stack.name}
             </Text>
-            <HStack gap="4">
-              <Group attached colorPalette="gray">
-                <Badge variant="solid" size="lg">
-                  <PiShippingContainer />
-                </Badge>
-                <Badge fontSize="sm" size="lg" variant="subtle">
-                  {stack.stats?.containers?.running || 0} of{" "}
-                  {stack.stats?.containers?.total || 0} containers
-                </Badge>
-              </Group>
-              <Group attached colorPalette="gray">
-                <Badge variant="solid" size="lg">
-                  <PiNetwork />
-                </Badge>
-                <Badge fontSize="sm" size="lg" variant="subtle">
-                  {stack.stats?.networks?.total || 0} network(s)
-                </Badge>
-              </Group>
-              <Group attached colorPalette="gray">
-                <Badge variant="solid" size="lg">
-                  <PiHardDrives />
-                </Badge>
-                <Badge fontSize="sm" size="lg" variant="subtle">
-                  {stack.stats?.volumes?.total || 0} volume(s)
-                </Badge>
-              </Group>
-            </HStack>
-            <HStack gap="4">
-              <Group attached colorPalette="gray">
-                <Badge variant="solid" size="lg">
-                  <PiTerminal /> Path:
-                </Badge>
-                <Badge fontSize="sm" size="lg" variant="subtle">
-                  {stack.path}
-                </Badge>
-              </Group>
-            </HStack>
-          </Stack>
-        </HStack>
+          </HStack>
+
+          <HStack gap="4">
+            <Group attached colorPalette="grayBrand">
+              <Badge variant="solid" size="md" color="brandGray.100">
+                <PiShippingContainer />
+              </Badge>
+              <Badge fontSize="sm" size="md" variant="outline">
+                {stack.stats?.containers?.running || 0} of{" "}
+                {stack.stats?.containers?.total || 0} containers
+              </Badge>
+            </Group>
+            <Group attached colorPalette="grayBrand">
+              <Badge variant="solid" size="md" color="brandGray.100">
+                <PiNetwork />
+              </Badge>
+              <Badge fontSize="sm" size="md" variant="outline">
+                {stack.stats?.networks?.total || 0} network(s)
+              </Badge>
+            </Group>
+            <Group attached colorPalette="grayBrand">
+              <Badge variant="solid" size="md" color="brandGray.100">
+                <PiHardDrives />
+              </Badge>
+              <Badge fontSize="sm" size="md" variant="outline">
+                {stack.stats?.volumes?.total || 0} volume(s)
+              </Badge>
+            </Group>
+          </HStack>
+          <HStack gap="4">
+            <Group attached colorPalette="grayBrand">
+              <Badge variant="solid" size="md" color="brandGray.100">
+                <PiTerminal />
+              </Badge>
+              <Badge fontSize="sm" size="md" variant="outline">
+                {stack.path}
+              </Badge>
+            </Group>
+          </HStack>
+        </Flex>
 
         <HStack gap="2" flexShrink={0}>
           <StackControlButtons
+            buttonSize="sm"
             status={stack.status}
             onStart={() => onStart(stack.name)}
             onStop={() => onStop(stack.name)}
             onRestart={() => onRestart(stack.name)}
             disabled={disabled}
-            loading={loading}
             orientation="horizontal"
           />
         </HStack>

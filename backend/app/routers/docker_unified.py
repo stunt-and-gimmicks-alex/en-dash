@@ -104,15 +104,19 @@ async def _execute_stack_command(stack_name: str, command: str, action: str) -> 
         logger.error(f"Unexpected error {action} stack {stack_name}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}") 
 
+# Fix for backend/app/routers/docker_unified.py
+# Replace the UnifiedStackConnectionManager class with this corrected version
+
 class UnifiedStackConnectionManager:
     """Manages WebSocket connections with SurrealDB live queries for BOTH stacks and system stats"""
     
     def __init__(self):
         self.active_connections: Set[WebSocket] = set()
         self.live_query_id: Optional[str] = None
-        self.system_stats_live_query_id: Optional[str] = None  # ADD: Track system stats live query
-        self.unified_task: Optional[asyncio.Task] = None
+        self.system_stats_live_query_id: Optional[str] = None
+        self.unified_task: Optional[asyncio.Task] = None  # Only for polling fallback
         self.update_interval: float = 3.0
+        self.live_queries_active: bool = False  # Track if live queries are working
         
     async def connect(self, websocket: WebSocket):
         """Accept new WebSocket connection and setup live queries for both stacks and stats"""
@@ -123,45 +127,40 @@ class UnifiedStackConnectionManager:
         self.active_connections.add(websocket)
         logger.info(f"✅ Added to connections. Total: {len(self.active_connections)}")
         
-        # Send immediate current data (both stacks and stats)
+        # Send immediate current data ONCE (both stacks and stats)
         try:
-            logger.error(f"🔥 DEBUG: About to send immediate stacks data")
-            unified_stacks_data = await self._get_unified_stacks_data()
-            logger.error(f"🔥 DEBUG: Stacks data: {len(unified_stacks_data.get('stacks', []))} stacks")
+            logger.info("📤 Sending immediate data to new connection...")
             
+            # Send stacks
+            unified_stacks_data = await self._get_unified_stacks_data()
             await self.send_personal_message({
                 "type": "unified_stacks",
                 "data": unified_stacks_data,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
-                "immediate": True
+                "immediate": True,  # Mark as immediate data
+                "trigger": "initial_load"
             }, websocket)
             logger.info("✅ Immediate stacks data sent")
             
-            logger.error(f"🔥 DEBUG: About to send immediate system stats")
-            recent_stats = true
-            logger.error(f"🔥 DEBUG: System stats: {len(recent_stats) if recent_stats else 0} records")
-            
+            # Send system stats
+            recent_stats = await surreal_service.get_system_stats(hours_back=1)
             if recent_stats:
                 latest_stat = recent_stats[0]
                 await self.send_personal_message({
                     "type": "system_stats",
                     "data": latest_stat,
                     "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "immediate": True
+                    "immediate": True,  # Mark as immediate data
+                    "trigger": "initial_load"
                 }, websocket)
                 logger.info("✅ Immediate system stats sent")
-            else:
-                logger.warning("⚠️ No system stats found for immediate send")
                 
         except Exception as e:
             logger.error(f"❌ Failed to send immediate data: {e}")
-            import traceback
-            traceback.print_exc()
         
-        # Start live queries if first connection
-        if len(self.active_connections) == 1:
-            await self._start_live_query()
-            await self._start_system_stats_live_query()  # ADD: Start system stats live query
+        # Start live queries if first connection AND not already started
+        if len(self.active_connections) == 1 and not self.live_queries_active:
+            await self._start_live_queries()
     
     async def disconnect(self, websocket: WebSocket):
         """Remove WebSocket connection and cleanup live queries if needed"""
@@ -170,27 +169,62 @@ class UnifiedStackConnectionManager:
         
         # Stop live queries if no connections remain
         if len(self.active_connections) == 0:
-            await self._stop_live_query()
-            await self._stop_system_stats_live_query()  # ADD: Stop system stats live query
+            await self._stop_live_queries()
+            await self._stop_polling_fallback()
 
-    # ADD: System stats live query methods
-    async def _start_system_stats_live_query(self):
-        """Start SurrealDB live query for system_stats changes"""
+    async def _start_live_queries(self):
+        """Start both live queries and handle failures gracefully"""
         try:
-            logger.info("🚀 Starting system stats live query...")
+            logger.info("🚀 Starting SurrealDB live queries...")
             
-            self.system_stats_live_query_id = await surreal_service.create_live_query(
-                "system_stats",
-                self._handle_system_stats_live_update
-            )
+            # Try to start stack live query
+            try:
+                self.live_query_id = await surreal_service.create_live_query(
+                    "LIVE SELECT * FROM unified_stack",
+                    self._handle_stack_live_update
+                )
+                logger.info(f"📡 Stack live query started: {self.live_query_id}")
+            except Exception as e:
+                logger.error(f"❌ Failed to start stack live query: {e}")
+                self.live_query_id = None
             
-            logger.info(f"📡 System stats live query started: {self.system_stats_live_query_id}")
+            # Try to start system stats live query
+            try:
+                self.system_stats_live_query_id = await surreal_service.create_live_query(
+                    "system_stats",
+                    self._handle_system_stats_live_update
+                )
+                logger.info(f"📡 System stats live query started: {self.system_stats_live_query_id}")
+            except Exception as e:
+                logger.error(f"❌ Failed to start system stats live query: {e}")
+                self.system_stats_live_query_id = None
             
+            # Check if at least one live query succeeded
+            if self.live_query_id or self.system_stats_live_query_id:
+                self.live_queries_active = True
+                logger.info("✅ Live queries active")
+            else:
+                logger.warning("❌ All live queries failed, starting polling fallback")
+                await self._start_polling_fallback()
+                
         except Exception as e:
-            logger.error(f"❌ Failed to start system stats live query: {e}")
+            logger.error(f"❌ Failed to start live queries: {e}")
+            await self._start_polling_fallback()
 
-    async def _stop_system_stats_live_query(self):
-        """Stop the system stats live query"""
+    async def _stop_live_queries(self):
+        """Stop all live queries"""
+        self.live_queries_active = False
+        
+        # Stop stack live query
+        if self.live_query_id:
+            try:
+                await surreal_service.kill_live_query(self.live_query_id)
+                self.live_query_id = None
+                logger.info("🛑 Stack live query stopped")
+            except Exception as e:
+                logger.error(f"❌ Failed to stop stack live query: {e}")
+        
+        # Stop system stats live query
         if self.system_stats_live_query_id:
             try:
                 await surreal_service.kill_live_query(self.system_stats_live_query_id)
@@ -199,10 +233,32 @@ class UnifiedStackConnectionManager:
             except Exception as e:
                 logger.error(f"❌ Failed to stop system stats live query: {e}")
 
-    async def _handle_system_stats_live_update(self, update_data: Any):
-        logger.error(f"🔥 SYSTEM STATS LIVE QUERY TRIGGERED! Data: {update_data}")  # Force ERROR level
+    async def _handle_stack_live_update(self, update_data: Any):
+        """Handle live query updates from SurrealDB for stacks - ONLY triggered by actual changes"""
         try:
-            logger.info("📊 Received system stats live update from SurrealDB")
+            logger.info("📡 Received STACK live update from SurrealDB")
+            
+            # Get fresh data (the live query tells us something changed)
+            unified_stacks_data = await self._get_unified_stacks_data()
+            
+            # Broadcast to all connected clients
+            await self.broadcast({
+                "type": "unified_stacks",
+                "data": unified_stacks_data,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "connection_count": len(self.active_connections),
+                "trigger": "live_query"  # This was triggered by actual data change
+            })
+            
+            logger.info("✅ Stack live update broadcasted to clients")
+            
+        except Exception as e:
+            logger.error(f"❌ Error handling stack live update: {e}")
+
+    async def _handle_system_stats_live_update(self, update_data: Any):
+        """Handle live query updates from SurrealDB for system stats - ONLY triggered by actual changes"""
+        try:
+            logger.info("📊 Received SYSTEM STATS live update from SurrealDB")
             
             # Get fresh system stats data
             recent_stats = await surreal_service.get_system_stats(hours_back=1)
@@ -215,70 +271,70 @@ class UnifiedStackConnectionManager:
                     "data": latest_stat,
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                     "connection_count": len(self.active_connections),
-                    "trigger": "live_query"
+                    "trigger": "live_query"  # This was triggered by actual data change
                 })
                 
                 logger.info("✅ System stats live update broadcasted to clients")
             
         except Exception as e:
             logger.error(f"❌ Error handling system stats live update: {e}")
-
-    
-    async def _start_live_query(self):
-        """Start SurrealDB live query for unified_stack changes"""
-        try:
-            logger.info("🚀 Starting SurrealDB live query...")
-            
-            # Create live query for unified_stack table
-            self.live_query_id = await surreal_service.create_live_query(
-                "LIVE SELECT * FROM unified_stack",
-                self._handle_live_update
-            )
-            
-            logger.info(f"📡 Live query started: {self.live_query_id}")
-            
-        except Exception as e:
-            logger.error(f"❌ Failed to start live query: {e}")
-            # Fallback to polling if live query fails
-            await self._start_polling_fallback()
-    
-    async def _stop_live_query(self):
-        """Stop the SurrealDB live query"""
-        if self.live_query_id:
-            try:
-                await surreal_service.kill_live_query(self.live_query_id)
-                self.live_query_id = None
-                logger.info("🛑 Live query stopped")
-            except Exception as e:
-                logger.error(f"❌ Failed to stop live query: {e}")
-    
-    async def _handle_live_update(self, update_data: Any):
-        """Handle live query updates from SurrealDB"""
-        try:
-            logger.info("📡 Received live update from SurrealDB")
-            
-            # Get fresh data (the live query tells us something changed)
-            unified_stacks_data = await self._get_unified_stacks_data()
-            
-            # Broadcast to all connected clients
-            await self.broadcast({
-                "type": "unified_stacks",
-                "data": unified_stacks_data,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "connection_count": len(self.active_connections),
-                "trigger": "live_query"  # Indicate this was triggered by live query
-            })
-            
-            logger.info("✅ Live update broadcasted to clients")
-            
-        except Exception as e:
-            logger.error(f"❌ Error handling live update: {e}")
     
     async def _start_polling_fallback(self):
-        """Fallback to polling if live queries don't work"""
-        logger.warning("📡 Starting polling fallback...")
-        self.unified_task = asyncio.create_task(self._broadcast_unified_stacks())
+        """ONLY start polling if live queries failed completely"""
+        if self.live_queries_active:
+            logger.info("🚫 Live queries are active, skipping polling fallback")
+            return
+            
+        logger.warning("📡 Starting polling fallback (live queries failed)...")
+        self.unified_task = asyncio.create_task(self._polling_loop())
     
+    async def _stop_polling_fallback(self):
+        """Stop polling fallback if running"""
+        if self.unified_task:
+            self.unified_task.cancel()
+            self.unified_task = None
+            logger.info("🛑 Polling fallback stopped")
+    
+    async def _polling_loop(self):
+        """Polling loop - ONLY used when live queries fail"""
+        logger.info("🔄 Polling fallback loop started")
+        
+        while self.active_connections:
+            try:
+                # Get current data
+                unified_stacks_data = await self._get_unified_stacks_data()
+                recent_stats = await surreal_service.get_system_stats(hours_back=1)
+                
+                # Broadcast stacks
+                await self.broadcast({
+                    "type": "unified_stacks",
+                    "data": unified_stacks_data,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "connection_count": len(self.active_connections),
+                    "trigger": "polling_fallback"  # Clear this is fallback
+                })
+                
+                # Broadcast system stats
+                if recent_stats:
+                    latest_stat = recent_stats[0]
+                    await self.broadcast({
+                        "type": "system_stats",
+                        "data": latest_stat,
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "connection_count": len(self.active_connections),
+                        "trigger": "polling_fallback"  # Clear this is fallback
+                    })
+                
+                # Wait before next poll
+                await asyncio.sleep(self.update_interval)
+                
+            except asyncio.CancelledError:
+                logger.info("Polling fallback cancelled")
+                break
+            except Exception as e:
+                logger.error(f"❌ Error in polling fallback: {e}")
+                await asyncio.sleep(5)  # Wait before retrying
+
     async def send_personal_message(self, message: dict, websocket: WebSocket):
         """Send message to specific connection"""
         try:
@@ -304,128 +360,39 @@ class UnifiedStackConnectionManager:
         for conn in disconnected:
             self.active_connections.discard(conn)
     
-    async def _broadcast_unified_stacks(self):
-        """Continuously broadcast unified stack data"""
-        print("🎯 BROADCAST TASK STARTED!")
-        print(f"📊 Active connections: {len(self.active_connections)}")
-        
-        try:
-            while self.active_connections:
-                print("🔄 Broadcasting iteration starting...")
-                try:
-                    # Try SurrealDB fast path first
-                    stacks_from_db = await surreal_service.get_unified_stacks()
-                    
-                    if stacks_from_db:
-                        logger.info(f"⚡ Fast path: Using {len(stacks_from_db)} stacks from SurrealDB")
-                        unified_stacks_data = {
-                            "available": True,
-                            "stacks": stacks_from_db,
-                            "total_stacks": len(stacks_from_db),
-                            "processing_time": datetime.now(timezone.utc).isoformat(),
-                            "source": "surrealdb"
-                        }
-                    else:
-                        # Fallback to comprehensive discovery
-                        logger.warning("📡 SurrealDB empty, falling back to comprehensive discovery")
-                        unified_stacks = await unified_stack_service.get_all_unified_stacks()
-                        unified_stacks_data = {
-                            "available": True,
-                            "stacks": unified_stacks,
-                            "total_stacks": len(unified_stacks),
-                            "processing_time": datetime.now(timezone.utc).isoformat(),
-                            "source": "comprehensive"
-                        }
-                    
-                    # Broadcast the data
-                    await self.broadcast({
-                        "type": "unified_stacks",
-                        "data": unified_stacks_data,
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                        "connection_count": len(self.active_connections)
-                    })
-                    
-                    # Wait for next update
-                    await asyncio.sleep(self.update_interval)
-                    
-                except Exception as e:
-                    print(f"❌ BROADCAST ERROR: {e}")
-                    import traceback
-                    traceback.print_exc()
-                    
-                    # Send error message to clients
-                    await self.broadcast({
-                        "type": "error",
-                        "message": "Error updating stack data",
-                        "timestamp": datetime.now(timezone.utc).isoformat()
-                    })
-                    await asyncio.sleep(5)  # Wait longer on error
-                            
-        except asyncio.CancelledError:
-            logger.info("Unified stacks broadcasting cancelled")
-        except Exception as e:
-            logger.error(f"Fatal error in unified stacks broadcasting: {e}")
-
-    # Update the existing _get_unified_stacks_data method
     async def _get_unified_stacks_data(self) -> Dict[str, Any]:
-        """Fast unified stacks from SurrealDB cache"""
+        """Get unified stacks data (same method as before)"""
         try:
-            # Try SurrealDB first (fast path)
-            stacks = await surreal_service.get_unified_stacks()
+            # Try SurrealDB fast path first
+            stacks_from_db = await surreal_service.get_unified_stacks()
             
-            if stacks:
-                logger.info(f"⚡ Fast path: Retrieved {len(stacks)} stacks from SurrealDB")
+            if stacks_from_db:
                 return {
                     "available": True,
-                    "stacks": stacks,
-                    "total_stacks": len(stacks),
+                    "stacks": stacks_from_db,
+                    "total_stacks": len(stacks_from_db),
                     "processing_time": datetime.now(timezone.utc).isoformat(),
-                    "source": "surrealdb"  # For debugging
+                    "source": "surrealdb"
                 }
             else:
-                # Fallback to slow path
-                logger.warning("📡 SurrealDB empty, falling back to Docker API")
-                return await self._get_unified_stacks_data_legacy()
+                # Fallback to comprehensive discovery
+                unified_stacks = await unified_stack_service.get_all_unified_stacks()
+                return {
+                    "available": True,
+                    "stacks": unified_stacks,
+                    "total_stacks": len(unified_stacks),
+                    "processing_time": datetime.now(timezone.utc).isoformat(),
+                    "source": "comprehensive"
+                }
                 
         except Exception as e:
-            logger.error(f"❌ SurrealDB query failed: {e}")
-            # Fallback to slow path
-            return await self._get_unified_stacks_data_legacy()
-
-    async def _get_unified_stacks_data_legacy(self) -> Dict[str, Any]:
-        """Original slow method - moved here as fallback"""
-        if not docker_client:
-            return {
-                "available": False,
-                "error": "Docker daemon not available",
-                "stacks": []
-            }
-        
-        try:
-            logger.info("Starting comprehensive stack discovery via WebSocket...")
-            
-            # Use the new comprehensive discovery method
-            unified_stacks = await unified_stack_service.get_all_unified_stacks()
-            
-            logger.info(f"Comprehensive discovery complete: {len(unified_stacks)} stacks found")
-            
-            return {
-                "available": True,
-                "stacks": unified_stacks,
-                "total_stacks": len(unified_stacks),
-                "processing_time": datetime.now(timezone.utc).isoformat(),
-                "discovery_method": "comprehensive"  # For debugging
-            }
-            
-        except Exception as e:
-            logger.error(f"Error in comprehensive unified stacks discovery: {e}")
+            logger.error(f"❌ Error getting unified stacks data: {e}")
             return {
                 "available": False,
                 "error": str(e),
                 "stacks": [],
-                "discovery_method": "comprehensive_failed"
+                "source": "error"
             }
-
 # Connection manager instance
 unified_manager = UnifiedStackConnectionManager()
 

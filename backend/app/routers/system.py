@@ -707,6 +707,390 @@ async def websocket_system_stats_live(websocket: WebSocket):
         except Exception as e:
             logger.error(f"Error handling system stats client message: {e}")
 
+# Additional endpoints for backend/app/routers/system.py
+# Add these endpoints to your existing system router
+
+from typing import Optional
+
+# =============================================================================
+# ENHANCED HARDWARE MONITORING ENDPOINTS
+# =============================================================================
+
+@router.get("/hardware/dashboard")
+async def get_hardware_dashboard():
+    """Get comprehensive hardware monitoring dashboard data"""
+    try:
+        summary = await surreal_service.get_dashboard_summary()
+        return {
+            "success": True,
+            "data": summary,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving hardware dashboard: {str(e)}")
+
+@router.get("/hardware/sensors")
+async def get_available_sensors():
+    """Get list of available hardware sensors for dashboard configuration"""
+    try:
+        sensors = await surreal_service.get_available_sensors()
+        return {
+            "success": True,
+            "sensors": sensors,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving sensors: {str(e)}")
+
+@router.get("/hardware/cpu/cores")
+async def get_cpu_core_history(hours: int = 6):
+    """Get per-core CPU usage history for the specified number of hours"""
+    try:
+        if hours > 72:  # Limit to 3 days max
+            hours = 72
+        
+        core_history = await surreal_service.get_cpu_core_history(hours)
+        return {
+            "success": True,
+            "hours_requested": hours,
+            "data_points": len(core_history),
+            "data": core_history,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving CPU core history: {str(e)}")
+
+@router.get("/hardware/temperatures")
+async def get_temperature_history(hours: int = 6):
+    """Get temperature history for all sensors (CPU, Memory, SSD)"""
+    try:
+        if hours > 72:  # Limit to 3 days max
+            hours = 72
+        
+        temp_history = await surreal_service.get_temperature_history(hours)
+        return {
+            "success": True,
+            "hours_requested": hours,
+            "data": temp_history,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving temperature history: {str(e)}")
+
+@router.get("/hardware/fans")
+async def get_fan_speed_history(hours: int = 6):
+    """Get fan speed history for the specified number of hours"""
+    try:
+        if hours > 72:  # Limit to 3 days max
+            hours = 72
+        
+        fan_history = await surreal_service.get_fan_speed_history(hours)
+        return {
+            "success": True,
+            "hours_requested": hours,
+            "data_points": len(fan_history),
+            "data": fan_history,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving fan speed history: {str(e)}")
+
+@router.get("/hardware/docker/containers")
+async def get_docker_container_history(hours: int = 6, container: Optional[str] = None):
+    """Get Docker container resource usage history"""
+    try:
+        if hours > 72:  # Limit to 3 days max
+            hours = 72
+        
+        container_history = await surreal_service.get_docker_container_history(hours, container)
+        return {
+            "success": True,
+            "hours_requested": hours,
+            "container_filter": container,
+            "data_points": len(container_history),
+            "data": container_history,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving Docker container history: {str(e)}")
+
+@router.get("/hardware/metric/{metric_path:path}")
+async def get_metric_history(metric_path: str, hours: int = 6):
+    """
+    Get history for a specific metric using dot notation path
+    
+    Examples:
+    - /hardware/metric/cpu_enhanced.temperatures.tctl_temp
+    - /hardware/metric/memory_enhanced.temperatures.dimm_hwmon3_temp1
+    - /hardware/metric/ssd_temps.nvme0n1.composite_temp
+    - /hardware/metric/fans.cpu_fan.speed_rpm
+    - /hardware/metric/docker_containers.nginx.cpu.percent
+    """
+    try:
+        if hours > 72:  # Limit to 3 days max
+            hours = 72
+        
+        metric_history = await surreal_service.get_metric_history(metric_path, hours)
+        return {
+            "success": True,
+            "metric_path": metric_path,
+            "hours_requested": hours,
+            "data_points": len(metric_history),
+            "data": metric_history,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving metric {metric_path}: {str(e)}")
+
+@router.get("/hardware/cpu/frequencies")
+async def get_cpu_frequency_history(hours: int = 6):
+    """Get per-core CPU frequency history"""
+    try:
+        if hours > 72:
+            hours = 72
+        
+        stats = await surreal_service.get_enhanced_system_stats(hours)
+        
+        freq_history = []
+        for stat in stats:
+            if 'cpu_enhanced' in stat and 'per_core_freq' in stat['cpu_enhanced']:
+                freq_data = {
+                    'timestamp': stat.get('timestamp'),
+                    'collected_at': stat.get('collected_at'),
+                    'frequencies': stat['cpu_enhanced']['per_core_freq']
+                }
+                freq_history.append(freq_data)
+        
+        return {
+            "success": True,
+            "hours_requested": hours,
+            "data_points": len(freq_history),
+            "data": freq_history,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving CPU frequency history: {str(e)}")
+
+@router.get("/hardware/memory/enhanced")
+async def get_enhanced_memory_stats(hours: int = 6):
+    """Get enhanced memory statistics including physical/swap breakdown and temperatures"""
+    try:
+        if hours > 72:
+            hours = 72
+        
+        stats = await surreal_service.get_enhanced_system_stats(hours)
+        
+        memory_history = []
+        for stat in stats:
+            if 'memory_enhanced' in stat:
+                memory_data = {
+                    'timestamp': stat.get('timestamp'),
+                    'collected_at': stat.get('collected_at'),
+                    'memory': stat['memory_enhanced']
+                }
+                memory_history.append(memory_data)
+        
+        return {
+            "success": True,
+            "hours_requested": hours,
+            "data_points": len(memory_history),
+            "data": memory_history,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving enhanced memory stats: {str(e)}")
+
+@router.get("/hardware/docker/summary")
+async def get_docker_resource_summary():
+    """Get current Docker container resource usage summary"""
+    try:
+        # Get most recent stats
+        recent_stats = await surreal_service.get_enhanced_system_stats(hours_back=1)
+        
+        if not recent_stats:
+            return {
+                "success": False,
+                "error": "No recent Docker stats available"
+            }
+        
+        latest_stat = recent_stats[0]
+        
+        if 'docker_containers' not in latest_stat:
+            return {
+                "success": True,
+                "containers": {},
+                "summary": {
+                    "total_containers": 0,
+                    "total_cpu_percent": 0,
+                    "total_memory_mb": 0
+                }
+            }
+        
+        containers = latest_stat['docker_containers']
+        
+        # Calculate summary stats
+        total_cpu = sum(c.get('cpu', {}).get('percent', 0) for c in containers.values())
+        total_memory = sum(c.get('memory', {}).get('usage_mb', 0) for c in containers.values())
+        
+        # Group by compose project
+        by_project = {}
+        for container_name, container_data in containers.items():
+            project = container_data.get('compose_project', '_standalone')
+            if project not in by_project:
+                by_project[project] = {
+                    'containers': [],
+                    'total_cpu': 0,
+                    'total_memory': 0
+                }
+            
+            by_project[project]['containers'].append({
+                'name': container_name,
+                'cpu_percent': container_data.get('cpu', {}).get('percent', 0),
+                'memory_mb': container_data.get('memory', {}).get('usage_mb', 0),
+                'status': container_data.get('status', 'unknown')
+            })
+            by_project[project]['total_cpu'] += container_data.get('cpu', {}).get('percent', 0)
+            by_project[project]['total_memory'] += container_data.get('memory', {}).get('usage_mb', 0)
+        
+        return {
+            "success": True,
+            "containers": containers,
+            "by_project": by_project,
+            "summary": {
+                "total_containers": len(containers),
+                "total_cpu_percent": round(total_cpu, 2),
+                "total_memory_mb": round(total_memory, 2),
+                "total_memory_gb": round(total_memory / 1024, 2)
+            },
+            "timestamp": latest_stat.get('timestamp')
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving Docker resource summary: {str(e)}")
+
+# =============================================================================
+# ENHANCED HISTORICAL DATA ENDPOINTS
+# =============================================================================
+
+@router.get("/stats/enhanced")
+async def get_enhanced_system_stats_endpoint(hours: int = 24):
+    """Get enhanced system statistics with all hardware monitoring data"""
+    try:
+        if hours > 168:  # Limit to 1 week max
+            hours = 168
+        
+        stats = await surreal_service.get_enhanced_system_stats(hours)
+        return {
+            "success": True,
+            "hours_requested": hours,
+            "data_points": len(stats),
+            "data": stats,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving enhanced system stats: {str(e)}")
+
+@router.get("/stats/chart-data/{metric_type}")
+async def get_chart_data_for_metric(metric_type: str, hours: int = 6):
+    """
+    Get chart-ready data for dashboard widgets
+    
+    Supported metric types:
+    - cpu_percent, memory_percent, disk_percent (basic)
+    - cpu_temp, memory_temp, ssd_temp (temperatures)
+    - fan_speed (fan speeds)
+    - docker_cpu, docker_memory (Docker container totals)
+    """
+    try:
+        if hours > 72:
+            hours = 72
+        
+        stats = await surreal_service.get_enhanced_system_stats(hours)
+        
+        chart_data = []
+        
+        for stat in stats:
+            timestamp = stat.get('timestamp', time.time())
+            collected_at = stat.get('collected_at')
+            
+            value = None
+            
+            # Basic metrics
+            if metric_type == 'cpu_percent':
+                value = stat.get('cpu_percent', 0)
+            elif metric_type == 'memory_percent':
+                value = stat.get('memory_percent', 0)
+            elif metric_type == 'disk_percent':
+                value = stat.get('disk_percent', 0)
+            
+            # Temperature metrics (use average or first available)
+            elif metric_type == 'cpu_temp':
+                if 'cpu_enhanced' in stat and 'temperatures' in stat['cpu_enhanced']:
+                    temps = stat['cpu_enhanced']['temperatures']
+                    if 'tctl_temp' in temps:
+                        value = temps['tctl_temp']
+                    elif temps:
+                        value = list(temps.values())[0]  # First available
+            
+            elif metric_type == 'memory_temp':
+                if 'memory_enhanced' in stat and 'temperatures' in stat['memory_enhanced']:
+                    temps = stat['memory_enhanced']['temperatures']
+                    if temps:
+                        value = sum(temps.values()) / len(temps)  # Average
+            
+            elif metric_type == 'ssd_temp':
+                if 'ssd_temps' in stat:
+                    ssd_temps = []
+                    for ssd_data in stat['ssd_temps'].values():
+                        if isinstance(ssd_data, dict) and 'composite_temp' in ssd_data:
+                            ssd_temps.append(ssd_data['composite_temp'])
+                    if ssd_temps:
+                        value = sum(ssd_temps) / len(ssd_temps)  # Average
+            
+            elif metric_type == 'fan_speed':
+                if 'fans' in stat:
+                    fan_speeds = []
+                    for fan_data in stat['fans'].values():
+                        if isinstance(fan_data, dict) and 'speed_rpm' in fan_data:
+                            fan_speeds.append(fan_data['speed_rpm'])
+                    if fan_speeds:
+                        value = sum(fan_speeds) / len(fan_speeds)  # Average RPM
+            
+            # Docker metrics
+            elif metric_type == 'docker_cpu':
+                if 'docker_containers' in stat:
+                    total_cpu = sum(
+                        c.get('cpu', {}).get('percent', 0) 
+                        for c in stat['docker_containers'].values()
+                    )
+                    value = total_cpu
+            
+            elif metric_type == 'docker_memory':
+                if 'docker_containers' in stat:
+                    total_memory = sum(
+                        c.get('memory', {}).get('usage_mb', 0) 
+                        for c in stat['docker_containers'].values()
+                    )
+                    value = total_memory
+            
+            if value is not None:
+                chart_data.append({
+                    'timestamp': timestamp,
+                    'collected_at': collected_at,
+                    'value': round(value, 2),
+                    'time': datetime.fromtimestamp(timestamp).isoformat() if timestamp else collected_at
+                })
+        
+        return {
+            "success": True,
+            "metric_type": metric_type,
+            "hours_requested": hours,
+            "data_points": len(chart_data),
+            "data": chart_data,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving chart data for {metric_type}: {str(e)}")
+
 @router.get("/stats/debug")
 async def debug_system_stats():
     """Debug endpoint to check SurrealDB system stats"""
