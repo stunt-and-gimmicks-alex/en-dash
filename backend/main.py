@@ -8,16 +8,19 @@ Provides endpoints for Docker management, system monitoring, and more.
 import os
 import uvicorn
 import logging
+import signal
+import asyncio
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
-# Import your existing working routers (CLEANED UP)
+# Import your existing working routers
 from app.routers import docker, system, auth
-from app.routers import docker_unified  # Modern livequeries implementation
+from app.routers import docker_unified
 from app.services.background_collector import background_collector
+from app.services.surreal_service import surreal_service
 
 # Simplified configuration
 class Settings:
@@ -127,22 +130,57 @@ if static_dir.exists():
 @app.on_event("startup")
 async def startup_event():
     """Start background services"""
-    await background_collector.start()
-    logger.info("🚀 En-Dash API started with background SurrealDB collection")
+    try:
+        await background_collector.start()
+        logger.info("🚀 En-Dash API started with background SurrealDB collection")
+    except Exception as e:
+        logger.error(f"❌ Failed to start background services: {e}")
 
 @app.on_event("shutdown") 
 async def shutdown_event():
-    """Stop background services"""
-    await background_collector.stop()
-    logger.info("🛑 En-Dash API stopped")
+    """Stop background services gracefully"""
+    logger.info("🛑 Shutting down En-Dash API...")
+    
+    try:
+        # Stop background collector first
+        await background_collector.stop()
+        
+        # Disconnect from SurrealDB
+        await surreal_service.disconnect()
+        
+        logger.info("✅ En-Dash API stopped gracefully")
+    except Exception as e:
+        logger.error(f"❌ Error during shutdown: {e}")
+
+# Signal handlers for graceful shutdown
+def handle_sigint(signum, frame):
+    """Handle SIGINT (Ctrl+C) gracefully"""
+    logger.info("🛑 SIGINT received, initiating graceful shutdown...")
+    # Let FastAPI handle the shutdown
+
+def handle_sigterm(signum, frame):
+    """Handle SIGTERM gracefully"""
+    logger.info("🛑 SIGTERM received, initiating graceful shutdown...")
+    # Let FastAPI handle the shutdown
+
+# Register signal handlers
+signal.signal(signal.SIGINT, handle_sigint)
+signal.signal(signal.SIGTERM, handle_sigterm)
 
 # Development server entry point
 if __name__ == "__main__":
     logger.info("🚀 Starting En-Dash API server...")
-    uvicorn.run(
-        "main:app",
-        host=settings.HOST,
-        port=settings.PORT,
-        reload=settings.DEBUG,
-        log_level="debug" if settings.DEBUG else "info",
-    )
+    try:
+        uvicorn.run(
+            "main:app",
+            host=settings.HOST,
+            port=settings.PORT,
+            reload=settings.DEBUG,
+            log_level="debug" if settings.DEBUG else "info",
+        )
+    except KeyboardInterrupt:
+        logger.info("🛑 Keyboard interrupt received")
+    except Exception as e:
+        logger.error(f"❌ Server error: {e}")
+    finally:
+        logger.info("✅ Server shutdown complete")

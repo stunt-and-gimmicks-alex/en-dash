@@ -246,7 +246,9 @@ class UnifiedStackService:
     
     async def get_all_unified_stacks(self) -> List[Dict[str, Any]]:
         """
-        Get all unified stacks using comprehensive discovery:
+        Comprehensive Docker stack discovery with DUPLICATE PREVENTION
+        
+        Discovers:
         1. Stacks from /opt/stacks directory
         2. External compose projects (containers with compose labels but not in /opt/stacks)
         3. Orphaned containers (→ _ORPHAN_{container_name} pseudo-stacks)
@@ -258,11 +260,20 @@ class UnifiedStackService:
             all_containers = await self._get_all_containers_with_details()
             logger.info(f"Found {len(all_containers)} total containers")
             
-            # Step 2: Group containers by project
+            # Step 2: Group containers by project (with DEDUPLICATION)
             containers_by_project = {}
             orphan_containers = []
+            seen_containers = set()  # Track containers by ID to prevent duplicates
             
             for container in all_containers:
+                container_id = container.get('id', container.get('name', ''))
+                
+                # Skip if we've already processed this container
+                if container_id in seen_containers:
+                    logger.debug(f"Skipping duplicate container: {container_id}")
+                    continue
+                seen_containers.add(container_id)
+                
                 compose_project = container.get("compose", {}).get("project")
                 if compose_project:
                     if compose_project not in containers_by_project:
@@ -271,7 +282,7 @@ class UnifiedStackService:
                 else:
                     orphan_containers.append(container)
             
-            logger.info(f"Found {len(containers_by_project)} compose projects, {len(orphan_containers)} orphan containers")
+            logger.info(f"Found {len(containers_by_project)} unique compose projects, {len(orphan_containers)} orphan containers")
             
             unified_stacks = []
             processed_projects = set()
@@ -288,6 +299,12 @@ class UnifiedStackService:
                         continue
                     
                     project_name = stack_path.name
+                    
+                    # PREVENT DUPLICATES: Skip if already processed
+                    if project_name in processed_projects:
+                        logger.warning(f"⚠️ Skipping duplicate project from /opt/stacks: {project_name}")
+                        continue
+                    
                     processed_projects.add(project_name)
                     
                     # Get containers for this stack
@@ -303,10 +320,13 @@ class UnifiedStackService:
                     except Exception as e:
                         logger.error(f"Error processing stack {project_name}: {e}")
             
-            # Step 4: Process external compose projects
+            # Step 4: Process external compose projects (SKIP DUPLICATES)
             for project_name, project_containers in containers_by_project.items():
                 if project_name in processed_projects:
+                    logger.debug(f"Skipping already processed project: {project_name}")
                     continue  # Already processed from /opt/stacks
+                
+                processed_projects.add(project_name)
                 
                 try:
                     unified_stack = await self._build_unified_stack_from_external_project(
@@ -318,22 +338,45 @@ class UnifiedStackService:
                     logger.error(f"Error processing external project {project_name}: {e}")
             
             # Step 5: Process orphan containers → _ORPHAN_{name} pseudo-stacks
+            processed_orphan_names = set()  # Prevent duplicate orphan stacks
             for container in orphan_containers:
+                container_name = container.get('name', 'unknown')
+                orphan_stack_name = f"_ORPHAN_{container_name}"
+                
+                # Skip if already processed
+                if orphan_stack_name in processed_orphan_names:
+                    logger.debug(f"Skipping duplicate orphan: {orphan_stack_name}")
+                    continue
+                processed_orphan_names.add(orphan_stack_name)
+                
                 try:
                     orphan_stack = await self._build_orphan_pseudo_stack(container)
                     unified_stacks.append(orphan_stack)
-                    logger.debug(f"Processed orphan container: {container['name']}")
+                    logger.debug(f"Processed orphan container: {container_name}")
                 except Exception as e:
-                    logger.error(f"Error processing orphan container {container['name']}: {e}")
+                    logger.error(f"Error processing orphan container {container_name}: {e}")
             
             # Sort stacks: non-orphans first, then alphabetically
             unified_stacks.sort(key=lambda x: (x['name'].startswith('_ORPHAN_'), x['name']))
             
-            logger.info(f"Discovery complete: {len(unified_stacks)} total stacks")
-            return unified_stacks
+            # FINAL DEDUPLICATION by name
+            final_stacks = {}
+            for stack in unified_stacks:
+                stack_name = stack['name']
+                if stack_name in final_stacks:
+                    logger.warning(f"⚠️ Found duplicate stack name, keeping first: {stack_name}")
+                else:
+                    final_stacks[stack_name] = stack
+            
+            final_stack_list = list(final_stacks.values())
+            logger.info(f"Discovery complete: {len(final_stack_list)} unique stacks (removed {len(unified_stacks) - len(final_stack_list)} duplicates)")
+            
+            return final_stack_list
             
         except Exception as e:
             logger.error(f"Error in comprehensive stack discovery: {e}")
+            import traceback
+            traceback.print_exc()
             return []
 
     async def _get_all_containers_with_details(self) -> List[Dict[str, Any]]:

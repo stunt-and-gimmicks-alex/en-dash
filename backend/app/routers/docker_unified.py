@@ -191,10 +191,10 @@ class UnifiedStackConnectionManager:
             # Try to start system stats live query
             try:
                 self.system_stats_live_query_id = await surreal_service.create_live_query(
-                    "system_stats",
+                    "LIVE SELECT * FROM system_stats",  # FIXED: Use full LIVE SELECT query
                     self._handle_system_stats_live_update
                 )
-                logger.info(f"📡 System stats live query started: {self.system_stats_live_query_id}")
+                logger.info(f"📊 System stats live query started: {self.system_stats_live_query_id}")
             except Exception as e:
                 logger.error(f"❌ Failed to start system stats live query: {e}")
                 self.system_stats_live_query_id = None
@@ -203,6 +203,13 @@ class UnifiedStackConnectionManager:
             if self.live_query_id or self.system_stats_live_query_id:
                 self.live_queries_active = True
                 logger.info("✅ Live queries active")
+                
+                # Add debug logging
+                if self.system_stats_live_query_id:
+                    logger.info("📊 System stats live query is ACTIVE - frontend should receive updates")
+                else:
+                    logger.warning("⚠️ System stats live query FAILED - frontend will not receive stats updates")
+                    
             else:
                 logger.warning("❌ All live queries failed, starting polling fallback")
                 await self._start_polling_fallback()
@@ -260,21 +267,18 @@ class UnifiedStackConnectionManager:
         try:
             logger.info("📊 Received SYSTEM STATS live update from SurrealDB")
             
-            # Get fresh system stats data
-            recent_stats = await surreal_service.get_system_stats(hours_back=1)
-            if recent_stats:
-                latest_stat = recent_stats[0]
-                
-                # Broadcast to all connected clients
-                await self.broadcast({
-                    "type": "system_stats",
-                    "data": latest_stat,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "connection_count": len(self.active_connections),
-                    "trigger": "live_query"  # This was triggered by actual data change
-                })
-                
-                logger.info("✅ System stats live update broadcasted to clients")
+            latest_stat = recent_stats[0]
+            
+            # Broadcast to all connected clients
+            await self.broadcast({
+                "type": "system_stats",
+                "data": latest_stat,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "connection_count": len(self.active_connections),
+                "trigger": "live_query"  # This was triggered by actual data change
+            })
+            
+            logger.info("✅ System stats live update broadcasted to clients")
             
         except Exception as e:
             logger.error(f"❌ Error handling system stats live update: {e}")
