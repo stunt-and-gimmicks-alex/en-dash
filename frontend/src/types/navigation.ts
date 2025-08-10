@@ -8,9 +8,10 @@ export type PageKey =
   | "processes"
   | "network"
   | "security"
-  | "docker-overview" // Real overview page (stats, summary)
-  | "docker-stacks" // NEW - Stacks management page
-  | "new-docker-application" // Creates a new docker stack, which I'm calling an "application" because I'm difficult
+  | "docker-overview"
+  | "docker-stack-detail"
+  | "docker-stacks"
+  | "new-docker-application"
   | "databases-overview"
   | "web-services-overview"
   | "monitoring-overview";
@@ -33,7 +34,7 @@ export interface ModuleGroup {
 
 export interface NavigationProps {
   currentPage: PageKey;
-  onNavigate: (page: PageKey) => void;
+  onNavigate: (page: PageKey, stackData?: any) => void; //
 }
 
 // Page configuration for titles/descriptions
@@ -60,6 +61,10 @@ export const PAGE_CONFIG: Record<
     title: "Docker Stacks",
     description:
       "Professional Docker Compose stack management with real-time monitoring and deployments.",
+  },
+  "docker-stack-detail": {
+    title: "Stack Details",
+    description: "Detailed view and management of a Docker stack application.",
   },
   "new-docker-application": {
     title: "Create New Docker Application",

@@ -24,6 +24,7 @@ import {
 // NEW - Using migrated API hooks with unified stack data
 import { useStacks } from "@/hooks/useNewApi";
 import type { UnifiedStack } from "@/types/unified";
+import { useSelectedStackStore } from "@/stores/selectedStackStore";
 
 // NEW - Using migrated stack components with UnifiedStack types
 import { StackBlocks } from "@/components/docker/components/applications/StackBlocks";
@@ -44,32 +45,6 @@ export const DockerStacksPage: React.FC = () => {
   } = useStacks();
 
   const { onNavigate } = useNavigation();
-
-  const [selectedStack, setSelectedStack] = useState<UnifiedStack | null>(null);
-
-  useEffect(() => {
-    if (selectedStack && stacks.length > 0) {
-      // Find the updated version of the selected stack
-      const updatedStack = stacks.find(
-        (stack) => stack.name === selectedStack.name
-      );
-      if (updatedStack) {
-        setSelectedStack(updatedStack);
-      } else {
-        // Stack was deleted
-        setSelectedStack(null);
-      }
-    }
-  }, [stacks, selectedStack]);
-
-  // Handle stack selection for detail drawer
-  const handleStackToggle = (stack: UnifiedStack | null) => {
-    setSelectedStack(stack);
-  };
-
-  const handleCloseDrawer = () => {
-    setSelectedStack(null);
-  };
 
   // Compute stack counts from unified data
   const stackCounts = useMemo(() => {
@@ -245,14 +220,11 @@ export const DockerStacksPage: React.FC = () => {
                     </Text>
                   </Box>
                 ) : (
-                  // Stack blocks with migrated components
                   <StackBlocks
                     stacks={filter.content}
                     onStart={startStack}
                     onStop={stopStack}
                     onRestart={restartStack}
-                    onToggle={handleStackToggle}
-                    selectedStack={selectedStack}
                     loading={loading}
                   />
                 )}
@@ -261,66 +233,6 @@ export const DockerStacksPage: React.FC = () => {
           </Tabs.Root>
         </Container>
       </Box>
-
-      {/* Stack Detail Drawer - Full width sliding drawer */}
-      <Drawer.Root
-        open={!!selectedStack}
-        onOpenChange={(details) => {
-          if (!details.open) {
-            handleCloseDrawer();
-          }
-        }}
-        size="full"
-        placement="end"
-      >
-        <Portal>
-          <Drawer.Backdrop />
-          <Drawer.Positioner>
-            <Drawer.Content>
-              {/* Drawer Header with Close Button */}
-              <Drawer.Header bg="brand.solid" pt="4" pb={{ sm: "1", md: "4" }}>
-                <Drawer.Title p="0">
-                  <HStack gap="3" p="0" color="brand.onSolid/85">
-                    <Text textStyle="lg" textTransform="lowercase">
-                      application
-                    </Text>
-                    <Text textStyle="lg" textTransform="lowercase">
-                      &gt;
-                    </Text>
-                    <Text color="brand.contrast">
-                      {selectedStack?.name || "Stack Details"}
-                    </Text>
-                  </HStack>
-                </Drawer.Title>
-                <Drawer.CloseTrigger
-                  asChild
-                  my={{ sm: "0", md: "0" }}
-                  mx={{ sm: "1", md: "3" }}
-                >
-                  <CloseButton
-                    size="sm"
-                    variant="outline"
-                    color="brand.contrast"
-                  />
-                </Drawer.CloseTrigger>
-              </Drawer.Header>
-              <Drawer.Body p="0">
-                {selectedStack && (
-                  <StackDetail
-                    stack={selectedStack}
-                    onStart={startStack}
-                    onStop={stopStack}
-                    onRestart={restartStack}
-                    onToggle={handleStackToggle}
-                    isSelected={true}
-                    loading={loading}
-                  />
-                )}
-              </Drawer.Body>
-            </Drawer.Content>
-          </Drawer.Positioner>
-        </Portal>
-      </Drawer.Root>
     </>
   );
 };

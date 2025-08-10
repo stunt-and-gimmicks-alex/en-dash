@@ -17,6 +17,7 @@ import { DashboardPage } from "@/pages/DashboardPage";
 import { SystemMonitorPage } from "@/pages/SystemMonitorPage";
 import { DockerOverviewPage } from "@/components/docker/pages/DockerOverviewPage";
 import { DockerStacksPage } from "@/components/docker/pages/DockerStacksPage";
+import { DockerStackDetailPage } from "@/components/docker/pages/DockerStackDetailPage";
 import { NewDockerApplication } from "@/components/docker/pages/CreateNewDockerApplicationPage";
 import { StoragePage } from "@/pages/StoragePage";
 import { ProcessesPage } from "@/pages/ProcessPage";
@@ -35,6 +36,7 @@ const PAGE_COMPONENTS: Record<PageKey, React.ComponentType> = {
   "system-monitor": SystemMonitorPage,
   "docker-overview": DockerOverviewPage,
   "docker-stacks": DockerStacksPage,
+  "docker-stack-detail": DockerStackDetailPage,
   "new-docker-application": NewDockerApplication,
   storage: StoragePage,
   processes: ProcessesPage,

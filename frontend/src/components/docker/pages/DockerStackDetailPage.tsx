@@ -1,4 +1,4 @@
-// frontend/src/components/stacks/StackDetail.tsx
+// frontend/src/components/docker/pages/DockerStackDetailPage.tsx
 // MIGRATED - Original StackDetail layout restored using UnifiedStack + ChakraUI v3
 
 import React, { useMemo } from "react";
@@ -38,25 +38,23 @@ import { UsageCard } from "@/components/ui/small/UsageCard";
 // import { mapToStackContainers, apiService } from "@/services/apiService";
 // import { validateStack } from "@/utils/stackValidation";
 
-interface DockerStackDetailPageProps {
-  stack: UnifiedStack;
-  onStart: (stackName: string) => Promise<boolean>;
-  onStop: (stackName: string) => Promise<boolean>;
-  onRestart: (stackName: string) => Promise<boolean>;
-  onToggle: (stack: UnifiedStack | null) => void;
-  isSelected?: boolean;
-  loading?: boolean;
-  disabled?: boolean;
-}
+import { useSelectedStackStore } from "@/stores/selectedStackStore";
+import { useStacks } from "@/hooks/useNewApi";
 
-export const DockerStackDetailPage: React.FC<DockerStackDetailPageProps> = ({
-  stack,
-  onStart,
-  onStop,
-  onRestart,
-  loading = false,
-  disabled = false,
-}) => {
+export const DockerStackDetailPage: React.FC = () => {
+  const selectedStackName = useSelectedStackStore(
+    (state) => state.selectedStackName
+  );
+  const { stacks, startStack, stopStack, restartStack, loading } = useStacks();
+
+  const stack = stacks.find((s) => s.name === selectedStackName);
+  const onStart = (stackName: string) => startStack(stackName);
+  const onStop = (stackName: string) => stopStack(stackName);
+  const onRestart = (stackName: string) => restartStack(stackName);
+  const disabled = false;
+  if (!stack) {
+    return <div>Loading...</div>;
+  }
   const services = Object.values(stack.services || {});
 
   // Dummy save function for now - will be wired up later
@@ -238,7 +236,7 @@ export const DockerStackDetailPage: React.FC<DockerStackDetailPageProps> = ({
             <SimpleGrid columns={{ base: 1, md: 2 }} gap="6">
               {" "}
               {/*TODO - Add Global App-level CPU/Memory/Network/Storage Usage stat to UnifiedStack */}
-              <UsageCard title="CPU Use" description="" max={100} value={12} />
+              <UsageCard title="CPU Use" description="" max={100} value={30} />
               <UsageCard
                 title="Memory Use"
                 description=""

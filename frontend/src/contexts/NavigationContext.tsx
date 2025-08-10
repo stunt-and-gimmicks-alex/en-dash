@@ -6,7 +6,7 @@ import type { PageKey } from "@/types/navigation";
 
 interface NavigationContextType {
   currentPage: PageKey;
-  onNavigate: (page: PageKey) => void;
+  onNavigate: (page: PageKey, stackData?: any) => void;
 }
 
 const NavigationContext = createContext<NavigationContextType | undefined>(

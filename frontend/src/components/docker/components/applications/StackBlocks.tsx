@@ -23,13 +23,15 @@ import {
   PiTerminal,
 } from "react-icons/pi";
 import { Heading } from "lucide-react";
+import { useNavigation } from "@/contexts/NavigationContext";
+import { useSelectedStackStore } from "@/stores/selectedStackStore";
 
 interface StackBlocksProps {
   stacks: UnifiedStack[];
   onStart: (stackName: string) => Promise<boolean>;
   onStop: (stackName: string) => Promise<boolean>;
   onRestart: (stackName: string) => Promise<boolean>;
-  onToggle: (stack: UnifiedStack | null) => void;
+  onToggle?: (stack: UnifiedStack | null) => void;
   selectedStack?: UnifiedStack | null;
   loading?: boolean;
   disabled?: boolean;
@@ -40,7 +42,7 @@ interface SingleStackBlockProps {
   onStart: (stackName: string) => Promise<boolean>;
   onStop: (stackName: string) => Promise<boolean>;
   onRestart: (stackName: string) => Promise<boolean>;
-  onToggle: (stack: UnifiedStack | null) => void;
+  onToggle?: (stack: UnifiedStack | null) => void;
   isSelected?: boolean;
   loading?: boolean;
   disabled?: boolean;
@@ -56,9 +58,11 @@ const SingleStackBlock: React.FC<SingleStackBlockProps> = ({
   loading = false,
   disabled = false,
 }) => {
+  const { onNavigate } = useNavigation();
   // Handle container click (but not button clicks)
   const handleContainerClick = () => {
-    onToggle(isSelected ? null : stack);
+    useSelectedStackStore.getState().setSelectedStack(stack.name);
+    onNavigate("docker-stack-detail");
   };
 
   /*  // Prevent event bubbling from buttons
@@ -206,7 +210,6 @@ export const StackBlocks: React.FC<StackBlocksProps> = ({
           onStart={onStart}
           onStop={onStop}
           onRestart={onRestart}
-          onToggle={onToggle}
           isSelected={selectedStack?.name === stack.name}
           loading={loading}
           disabled={disabled}
