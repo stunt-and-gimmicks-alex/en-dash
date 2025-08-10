@@ -267,21 +267,32 @@ class UnifiedStackConnectionManager:
         try:
             logger.info("📊 Received SYSTEM STATS live update from SurrealDB")
             
-            latest_stat = recent_stats[0]
-            
-            # Broadcast to all connected clients
-            await self.broadcast({
-                "type": "system_stats",
-                "data": latest_stat,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "connection_count": len(self.active_connections),
-                "trigger": "live_query"  # This was triggered by actual data change
-            })
-            
-            logger.info("✅ System stats live update broadcasted to clients")
+            # Get fresh system stats data
+            try:
+                recent_stats = await surreal_service.get_system_stats(hours_back=1)
+                if recent_stats and len(recent_stats) > 0:
+                    latest_stat = recent_stats[0]
+                    
+                    # Broadcast to all connected clients
+                    await self.broadcast({
+                        "type": "system_stats",
+                        "data": latest_stat,
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "connection_count": len(self.active_connections),
+                        "trigger": "live_query"  # This was triggered by actual data change
+                    })
+                    
+                    logger.info("✅ System stats live update broadcasted to clients")
+                else:
+                    logger.warning("⚠️ No recent system stats found to broadcast")
+                    
+            except Exception as stats_error:
+                logger.error(f"❌ Failed to get system stats: {stats_error}")
             
         except Exception as e:
             logger.error(f"❌ Error handling system stats live update: {e}")
+            import traceback
+            traceback.print_exc()
     
     async def _start_polling_fallback(self):
         """ONLY start polling if live queries failed completely"""

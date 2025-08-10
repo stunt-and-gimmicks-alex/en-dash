@@ -47,29 +47,62 @@ class SurrealDBService:
     # CONNECTION MANAGEMENT
     # =============================================================================
 
-    async def connect(self) -> bool:
-        """Connect to SurrealDB with proper error handling"""
+    # Fix for backend/app/services/surreal_service.py
+    # Replace the connect() method with this corrected version
+
+    async def connect(self):
+        # Use async lock to prevent concurrent connection attempts
         async with self._connection_lock:
+            # If already connected while waiting for lock, return
             if self.connected and self.db:
-                return True
+                return
                 
             try:
-                logger.info(f"🔌 Connecting to SurrealDB at {settings.SURREALDB_URL}")
+                # Create async connection
                 self.db = AsyncSurreal(settings.SURREALDB_URL)
+                
+                # Try different authentication approaches for SurrealDB 2.0.0
+                try:
+                    # Approach 1: Root user authentication (system level)
+                    await self.db.signin({
+                        "username": settings.SURREALDB_USER, 
+                        "password": settings.SURREALDB_PASS
+                    })
+                    logger.info("✅ Authenticated with username/password")
+                except Exception as e1:
+                    logger.warning(f"Username/password auth failed: {e1}")
+                    try:
+                        # Approach 2: Legacy user/pass format  
+                        await self.db.signin({
+                            "user": settings.SURREALDB_USER, 
+                            "pass": settings.SURREALDB_PASS
+                        })
+                        logger.info("✅ Authenticated with user/pass")
+                    except Exception as e2:
+                        logger.warning(f"User/pass auth failed: {e2}")
+                        try:
+                            # Approach 3: Root with namespace/database
+                            await self.db.signin({
+                                "namespace": settings.SURREALDB_NS,
+                                "database": settings.SURREALDB_DB,
+                                "username": settings.SURREALDB_USER, 
+                                "password": settings.SURREALDB_PASS
+                            })
+                            logger.info("✅ Authenticated with NS/DB context")
+                        except Exception as e3:
+                            logger.error(f"All authentication methods failed: {e1}, {e2}, {e3}")
+                            raise e3
                 
                 # Use namespace and database
                 await self.db.use(settings.SURREALDB_NS, settings.SURREALDB_DB)
                 
                 self.connected = True
-                self._shutdown_requested = False
-                logger.info("✅ Connected to SurrealDB successfully")
-                return True
+                logger.info(f"✅ Connected to SurrealDB at {settings.SURREALDB_URL} as {settings.SURREALDB_USER}")
                 
             except Exception as e:
                 logger.error(f"❌ Failed to connect to SurrealDB: {e}")
                 self.connected = False
-                self.db = None
-                return False
+                self.db = None  # Reset db on failure
 
     async def disconnect(self):
         """Disconnect from SurrealDB with proper cleanup"""
@@ -98,34 +131,74 @@ class SurrealDBService:
     # UNIFIED STACKS STORAGE (with change detection)
     # =============================================================================
 
-    async def store_unified_stacks(self, stacks_data: List[Dict[str, Any]]) -> bool:
-        """Store unified stacks with change detection to prevent unnecessary writes"""
-        if self._shutdown_requested:
-            return False
+    async def store_unified_stacks(self, stacks_data: List[Dict[str, Any]]):
+        """Store unified stacks data in SurrealDB - ONLY if changed"""
+        if not self.connected:
+            await self.connect()
             
-        if not self.connected and not await self.connect():
-            return False
+        if not self.connected:
+            return False  # Return False to indicate no storage
             
         try:
-            # Calculate hash for change detection
-            current_hash = self._calculate_stacks_hash(stacks_data)
+            # Calculate hash of current stack data for change detection
+            # Sort by name to ensure consistent hashing
+            sorted_stacks = sorted(stacks_data, key=lambda x: x.get('name', ''))
             
+            # Create hash from ONLY essential stack data (excluding changing timestamps/IDs)
+            stack_essence = []
+            for stack in sorted_stacks:
+                # Extract only stable, meaningful data for comparison
+                containers_essence = []
+                for container in stack.get('containers', {}).get('containers', []):
+                    containers_essence.append({
+                        'name': container.get('name'),
+                        'status': container.get('status'),
+                        'image': container.get('image')
+                    })
+                
+                services_essence = {}
+                for name, svc in stack.get('services', {}).items():
+                    services_essence[name] = {
+                        'status': svc.get('status'),
+                        'replicas': svc.get('replicas', 0),
+                        'image': svc.get('image')
+                    }
+                
+                # Only include data that matters for actual changes
+                essence = {
+                    'name': stack.get('name'),
+                    'status': stack.get('status'),
+                    'containers_count': len(containers_essence),
+                    'containers_status': sorted([c['status'] for c in containers_essence]),
+                    'services_status': {name: svc['status'] for name, svc in services_essence.items()},
+                    'running_containers': stack.get('stats', {}).get('running_containers', 0),
+                    'total_containers': stack.get('stats', {}).get('total_containers', 0)
+                }
+                stack_essence.append(essence)
+            
+            # Calculate hash
+            current_hash = hashlib.sha256(
+                json.dumps(stack_essence, sort_keys=True, default=str).encode()
+            ).hexdigest()
+            
+            # Check if data has actually changed
             if self._last_stacks_hash == current_hash:
                 logger.debug("🔄 Stack data unchanged, skipping database write")
-                return False
+                return False  # No changes detected
             
             logger.info(f"📝 Stack data changed, updating database (hash: {current_hash[:8]}...)")
             
-            # Get existing stacks
-            existing_stacks = await self._get_existing_stacks()
-            existing_by_name = {stack.get('name'): stack for stack in existing_stacks}
+            # Get existing stacks from database
+            existing_stacks = await self.db.select("unified_stack")
+            existing_by_name = {stack.get('name'): stack for stack in (existing_stacks or [])}
             
-            current_names = {stack['name'] for stack in stacks_data}
-            existing_names = set(existing_by_name.keys())
+            current_stack_names = {stack['name'] for stack in stacks_data}
+            existing_stack_names = set(existing_by_name.keys())
             
+            # Track actual changes made
             changes_made = False
             
-            # Update or create stacks
+            # 1. Update or create stacks that exist in current data
             for stack in stacks_data:
                 stack_name = stack['name']
                 stack_with_timestamp = {
@@ -134,26 +207,47 @@ class SurrealDBService:
                 }
                 
                 if stack_name in existing_by_name:
-                    if self._stack_needs_update(existing_by_name[stack_name], stack):
-                        await self._update_stack(stack_name, stack_with_timestamp)
+                    # Update existing stack - but only if essential fields changed
+                    existing_stack = existing_by_name[stack_name]
+                    
+                    # Compare only meaningful fields that indicate real changes
+                    needs_update = (
+                        existing_stack.get('status') != stack.get('status') or
+                        existing_stack.get('stats', {}).get('running_containers') != stack.get('stats', {}).get('running_containers') or
+                        existing_stack.get('stats', {}).get('total_containers') != stack.get('stats', {}).get('total_containers') or
+                        len(existing_stack.get('services', {})) != len(stack.get('services', {}))
+                    )
+                    
+                    if needs_update:
+                        await self.db.update(f"unified_stack:{stack_name}", stack_with_timestamp)
+                        logger.debug(f"  ✏️ Updated stack: {stack_name}")
                         changes_made = True
+                    else:
+                        logger.debug(f"  ⏭️ Stack unchanged: {stack_name}")
                 else:
-                    await self._create_stack(stack_with_timestamp)
+                    # Create new stack
+                    await self.db.create(f"unified_stack:{stack_name}", stack_with_timestamp)
+                    logger.info(f"  ➕ Created new stack: {stack_name}")
                     changes_made = True
             
-            # Delete removed stacks
-            for stack_name in (existing_names - current_names):
-                await self._delete_stack(stack_name)
+            # 2. Delete stacks that no longer exist
+            stacks_to_delete = existing_stack_names - current_stack_names
+            for stack_name in stacks_to_delete:
+                await self.db.delete(f"unified_stack:{stack_name}")
+                logger.info(f"  🗑️ Deleted removed stack: {stack_name}")
                 changes_made = True
             
+            # Update hash only if we made changes
             if changes_made:
                 self._last_stacks_hash = current_hash
-                logger.info(f"✅ Stack storage complete - {len(stacks_data)} stacks")
-            
-            return changes_made
-            
+                logger.info(f"✅ Stack storage complete - {len(stacks_data)} stacks, changes made")
+                return True
+            else:
+                logger.debug("✅ Stack storage complete - no changes needed")
+                return False
+                
         except Exception as e:
-            logger.error(f"❌ Failed to store unified stacks: {e}")
+            logger.error(f"❌ Failed to store unified stacks in SurrealDB: {e}")
             return False
 
     def _calculate_stacks_hash(self, stacks_data: List[Dict[str, Any]]) -> str:

@@ -20,8 +20,8 @@ class Settings(BaseSettings):
 
     # SurrealDB Settings - UPDATED FOR WEBSOCKET  
     SURREALDB_URL: str = Field(default="ws://localhost:18000/rpc")  # CHANGED: ws:// instead of http://
-    SURREALDB_USER: str = Field(default="endash_admin")
-    SURREALDB_PASS: str = Field(default="Zi/QNOQanuLM5VX4PFX/bRWovkzKS203")
+    SURREALDB_USER: str = Field(default="root")
+    SURREALDB_PASS: str = Field(default="secret")
     SURREALDB_NS: str = Field(default="endash")
     SURREALDB_DB: str = Field(default="homelab")
     USE_SURREALDB: bool = Field(default=True)

@@ -1,0 +1,186 @@
+# docker-compose.endash-database.yml
+# En-Dash SurrealDB Database Stack
+# Follows En-Dash best practices for service naming and metadata
+
+services:
+  database:
+    image: surrealdb/surrealdb:v2.0.0
+    restart: unless-stopped
+
+    # En-Dash metadata for stack management
+    x-meta:
+      name: database
+      category: database
+      description: "Multi-model database for metrics and configuration"
+      documentation: "https://surrealdb.com/docs"
+      provides: ["database", "websocket-api", "http-api"]
+
+    # Resource limits for homelab stability
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+        reservations:
+          memory: 512M
+          cpus: "0.5"
+
+    networks:
+      - localweb
+
+    # Port exposure - keeping original assignment for compatibility
+    ports:
+      - "127.0.0.1:18000:8000" # Only bind to localhost for security
+
+    # Essential environment variables
+    environment:
+      TZ: ${TZ:-UTC}
+
+    # Persistent storage with proper structure
+    volumes:
+      - database_data:/data
+      - database_logs:/logs
+
+    # SurrealDB 2.0.0+ command syntax with new storage format
+    command: >
+      start
+      --log info
+      --user root
+      --pass secret
+      --bind 0.0.0.0:8000
+      surrealkv:///data/database.db
+
+    # Health check using available tools
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget --quiet --tries=1 --spider http://localhost:8000/health || exit 1",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+    # Run as root to avoid permission issues (common for homelab)
+    user: "0:0"
+
+    # En-Dash service labels for management
+    labels:
+      - "endash.stack=database"
+      - "endash.service=database"
+      - "endash.category=database"
+      - "endash.version=2.0.0"
+      - "endash.backup=daily"
+      - "traefik.enable=false" # Internal service
+
+  # Database administration interface
+  admin:
+    image: surrealdb/surrealdb:v2.0.0
+    restart: "no" # Only run when needed
+    profiles: ["admin"] # Start with: docker compose --profile admin up
+
+    x-meta:
+      name: admin
+      category: utility
+      description: "Database administration and CLI access"
+      depends_on_service: database
+      usage: "docker compose --profile admin up -d admin"
+
+    depends_on:
+      database:
+        condition: service_started # Changed from service_healthy to avoid health check dependency
+
+    networks:
+      - localweb
+
+    environment:
+      SURREAL_USER: ${SURREAL_USER:-root}
+      SURREAL_PASS: ${SURREAL_PASS:-secret}
+
+    # Keep container alive for exec access
+    command: tail -f /dev/null
+
+    labels:
+      - "endash.stack=database"
+      - "endash.service=admin"
+      - "endash.category=utility"
+
+  # Automated backup service
+  backup:
+    image: alpine:3.19
+    restart: unless-stopped
+
+    x-meta:
+      name: backup
+      category: maintenance
+      description: "Automated database backup service"
+      depends_on_service: database
+      schedule: "daily at 2AM"
+
+    depends_on:
+      database:
+        condition: service_started # Changed from service_healthy
+
+    networks:
+      - localweb
+
+    environment:
+      BACKUP_INTERVAL: ${BACKUP_INTERVAL:-86400} # 24 hours
+      BACKUP_RETENTION: ${BACKUP_RETENTION:-7} # 7 days
+      SURREAL_USER: ${SURREAL_USER:-root}
+      SURREAL_PASS: ${SURREAL_PASS:-secret}
+      TZ: ${TZ:-UTC}
+
+    volumes:
+      - database_backups:/backups
+      - ./scripts/backup-database.sh:/usr/local/bin/backup.sh:ro
+
+    # Install required tools and run backup schedule
+    command: >
+      sh -c "
+        apk add --no-cache wget curl &&
+        chmod +x /usr/local/bin/backup.sh &&
+        echo '0 2 * * * /usr/local/bin/backup.sh' | crontab - &&
+        crond -f -d 8
+      "
+
+    labels:
+      - "endash.stack=database"
+      - "endash.service=backup"
+      - "endash.category=maintenance"
+
+# Network definition for internal communication
+networks:
+  localweb:
+    external: true
+
+# Volume definitions with En-Dash conventions
+volumes:
+  database_data:
+    driver: local
+    labels:
+      - "endash.volume=data"
+      - "endash.backup=critical"
+
+  database_logs:
+    driver: local
+    labels:
+      - "endash.volume=logs"
+      - "endash.backup=optional"
+
+  database_backups:
+    driver: local
+    labels:
+      - "endash.volume=backups"
+      - "endash.backup=archive"
+
+# En-Dash global configuration
+x-endash-config:
+  stack_name: "database"
+  stack_version: "1.0.0"
+  stack_description: "SurrealDB database with administration and backup"
+  required_env_vars: []
+  optional_env_vars: ["TZ", "SURREAL_USER", "SURREAL_PASS"]
+  default_profile: "default"
+  admin_profile: "admin"
