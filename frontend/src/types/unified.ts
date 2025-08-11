@@ -4,7 +4,6 @@
  */
 
 // Enhanced aggregated configs that work with your existing unified.ts types
-// Add these to your existing frontend/src/types/unified.ts file
 
 // =============================================================================
 // AGGREGATED CONFIGURATION TYPES (Addition to existing unified.ts)
@@ -60,7 +59,8 @@ export interface AggregatedVolumeConfig {
   type: "named" | "bind" | "tmpfs";
   level: "stack" | "service" | "container";
   source: string;
-  sharedBy: string[]; // which services share this volume
+  shared_by: string[]; // which services share this volume
+  sharedBy?: string[];
   // Enhanced from your existing types
   details: UnifiedVolumeItem & {
     compose_defined?: boolean;
@@ -73,7 +73,7 @@ export interface AggregatedEnvironmentConfig {
   value: string;
   level: "service" | "container";
   source: string;
-  isSecret: boolean;
+  is_secret: boolean;
   category: "database" | "auth" | "config" | "system" | "custom";
   description: string;
 }
@@ -93,13 +93,13 @@ export interface AggregatedLabelConfig {
 // Add aggregatedConfigs to your existing UnifiedStack interface
 export interface EnhancedUnifiedStack extends UnifiedStack {
   // All your existing fields remain the same
-  aggregatedConfigs: AggregatedConfigs;
+  aggregated_configs: AggregatedConfigs; // Backend format
 }
 
 // Add aggregatedConfigs to your existing UnifiedService interface
 export interface EnhancedUnifiedService extends UnifiedService {
   // All your existing fields remain the same
-  aggregatedConfigs: AggregatedConfigs;
+  aggregated_Configs: AggregatedConfigs;
 }
 
 // =============================================================================
@@ -162,7 +162,7 @@ export const createSafeVolumeConfig = (
   type: "named",
   level: "service",
   source: "unknown",
-  sharedBy: [],
+  shared_by: [],
   details: {
     volume: "Not set",
     sources: [],
@@ -181,7 +181,7 @@ export const createSafeEnvironmentConfig = (
   value: "Not set",
   level: "service",
   source: "unknown",
-  isSecret: false,
+  is_secret: false,
   category: "custom",
   description: "No description available",
   ...overrides,
@@ -223,7 +223,7 @@ export const getPortsWithConflicts = (
 export const getSharedVolumes = (
   configs: AggregatedConfigs
 ): AggregatedVolumeConfig[] => {
-  return configs.volumes.filter((v) => v.sharedBy.length > 1);
+  return configs.volumes.filter((v) => v.shared_by.length > 1);
 };
 
 /**
@@ -232,7 +232,7 @@ export const getSharedVolumes = (
 export const getSecretEnvironmentVars = (
   configs: AggregatedConfigs
 ): AggregatedEnvironmentConfig[] => {
-  return configs.environment.filter((e) => e.isSecret);
+  return configs.environment.filter((e) => e.is_secret);
 };
 
 /**

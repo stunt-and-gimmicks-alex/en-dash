@@ -1,8 +1,8 @@
 // Enhanced hooks for frontend/src/hooks/useEnhancedSystemStats.ts
-// Hardware monitoring hooks for dashboard widgets
+// Hardware monitoring hooks for dashboard widgets - FIXED VERSION
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import {
+import type {
   HardwareDashboardSummary,
   AvailableSensors,
   CPUCoreHistory,
@@ -30,7 +30,8 @@ export const useHardwareDashboard = (refreshInterval: number = 5000) => {
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const intervalRef = useRef<NodeJS.Timeout>();
+  // FIXED: Added undefined as initial value
+  const intervalRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
   const fetchDashboard = useCallback(async () => {
     try {
@@ -416,7 +417,8 @@ export const useDockerResourceSummary = (refreshInterval: number = 10000) => {
   const [summary, setSummary] = useState<DockerResourceSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const intervalRef = useRef<NodeJS.Timeout>();
+  // FIXED: Added undefined as initial value
+  const intervalRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
   const fetchSummary = useCallback(async () => {
     try {

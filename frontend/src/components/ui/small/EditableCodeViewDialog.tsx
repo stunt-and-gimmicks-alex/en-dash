@@ -11,6 +11,7 @@ import {
   Dialog,
   Editable,
   HStack,
+  Link,
   Stack,
   Text,
 } from "@chakra-ui/react";
@@ -19,11 +20,11 @@ import type { HighlighterGeneric } from "shiki";
 
 interface EditableCodeViewDialogProps {
   code: string;
+  color?: string;
   language: string;
   title: string;
   triggerText?: string;
-  triggerIcon?: React.ReactNode;
-  size?: "sm" | "md" | "lg";
+  size?: "xs" | "sm" | "md" | "lg" | "xl" | "2xl";
   showLineNumbers?: boolean;
   onSave: (editedCode: string) => void | Promise<void>;
   onCancel?: () => void;
@@ -40,7 +41,7 @@ export const EditableCodeViewDialog: React.FC<EditableCodeViewDialogProps> = ({
   language,
   title,
   triggerText = "View Code",
-  triggerIcon = <LuFileText />,
+  color = "#fff",
   size = "lg",
   showLineNumbers = true,
   onSave,
@@ -93,12 +94,11 @@ export const EditableCodeViewDialog: React.FC<EditableCodeViewDialogProps> = ({
   return (
     <Dialog.Root onExitComplete={handleDialogClose}>
       <Dialog.Trigger asChild>
-        <Button size="sm" variant="outline" colorPalette="grayBrand">
+        <Link color={color}>
           <HStack p="1" gap="1" cursor="pointer">
-            <Text textStyle="xs">{triggerText}</Text>
-            {triggerIcon}
+            <Text textStyle={size}>{triggerText}</Text>
           </HStack>
-        </Button>
+        </Link>
       </Dialog.Trigger>
       <Dialog.Backdrop />
       <Dialog.Positioner>

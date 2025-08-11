@@ -3,11 +3,16 @@
 
 import React, { useMemo } from "react";
 import {
+  AbsoluteCenter,
   Accordion,
   Alert,
   Button,
   Card,
+  CloseButton,
+  Drawer,
   HStack,
+  Link,
+  Portal,
   ProgressCircle,
   Stack,
   Tabs,
@@ -15,6 +20,7 @@ import {
 } from "@chakra-ui/react";
 import type { UnifiedStack } from "@/types/unified";
 import { PiWarning } from "react-icons/pi";
+import { FaG } from "react-icons/fa6";
 
 // =============================================================================
 // UNIFIED STACK VALIDATION TYPES
@@ -453,49 +459,55 @@ export const StackValidationAccordion: React.FC<{ stack: UnifiedStack }> = ({
   const stackValidation = useUnifiedStackValidation(stack);
 
   return (
-    <Card.Root>
-      <Accordion.Root collapsible variant="outline" size="sm" py="0">
-        <Accordion.Item key="1" value="1" borderRadius="0">
-          <Accordion.ItemTrigger pr="6" justifyContent="space-between">
-            <Card.Header
-              gap="4"
-              flexDirection={{ base: "column", md: "row" }}
-              alignItems="center"
-              w="full"
-              py="2"
-              justifyContent="space-between"
-            >
-              <HStack gap="6">
-                <ProgressCircle.Root value={stackValidation.score} size="sm">
-                  <ProgressCircle.Circle>
-                    <ProgressCircle.Track />
-                    <ProgressCircle.Range strokeLinecap="round" />
-                  </ProgressCircle.Circle>
-                </ProgressCircle.Root>
-                <Stack gap="0">
-                  <Card.Description>Application Validation</Card.Description>
-                  <Card.Title textStyle="lg">
-                    {stackValidation.score}/100
-                  </Card.Title>
-                </Stack>
-              </HStack>
-            </Card.Header>
-            <Accordion.ItemIndicator />
-          </Accordion.ItemTrigger>
-          <Card.Body p="0">
-            <Accordion.ItemContent>
-              <Accordion.ItemBody h="23dvh">
+    <>
+      <Drawer.Root size="lg">
+        <Drawer.Trigger asChild>
+          <Link textStyle="sm" color="fg">
+            App Validation: {stackValidation.score}/100
+          </Link>
+        </Drawer.Trigger>
+        <Portal>
+          <Drawer.Backdrop />
+          <Drawer.Positioner>
+            <Drawer.Content>
+              <Drawer.Header>
+                <HStack>
+                  <ProgressCircle.Root
+                    value={stackValidation.score}
+                    size="lg"
+                    colorPalette={
+                      stackValidation.score > 90
+                        ? "brand"
+                        : stackValidation.score > 70
+                        ? "yellowBrand"
+                        : "redBrand"
+                    }
+                  >
+                    <ProgressCircle.Circle>
+                      <ProgressCircle.Track />
+                      <ProgressCircle.Range strokeLinecap="round" />
+                    </ProgressCircle.Circle>
+                    <AbsoluteCenter>
+                      <ProgressCircle.ValueText textStyle="xs">
+                        {stackValidation.score}%
+                      </ProgressCircle.ValueText>
+                    </AbsoluteCenter>
+                  </ProgressCircle.Root>
+                  <Drawer.Title>App Validation Score</Drawer.Title>
+                </HStack>
+              </Drawer.Header>
+              <Drawer.Body>
                 <Tabs.Root defaultValue="critical" fitted px="2">
                   <Tabs.List>
-                    <Tabs.Trigger value="critical">
+                    <Tabs.Trigger value="critical" color="fg.error">
                       <PiWarning />
                       {stackValidation.summary.critical} Critical
                     </Tabs.Trigger>
-                    <Tabs.Trigger value="high">
+                    <Tabs.Trigger value="high" color="fg.warning">
                       <PiWarning />
                       {stackValidation.summary.high} High
                     </Tabs.Trigger>
-                    <Tabs.Trigger value="medium">
+                    <Tabs.Trigger value="medium" color="fg.info">
                       <PiWarning />
                       {stackValidation.summary.medium} Medium
                     </Tabs.Trigger>
@@ -508,7 +520,7 @@ export const StackValidationAccordion: React.FC<{ stack: UnifiedStack }> = ({
                   {/* Critical Issues */}
                   <Tabs.Content
                     value="critical"
-                    h="18dvh"
+                    h="75dvh"
                     overflow="auto"
                     px="2"
                   >
@@ -546,7 +558,7 @@ export const StackValidationAccordion: React.FC<{ stack: UnifiedStack }> = ({
                   </Tabs.Content>
 
                   {/* High Issues */}
-                  <Tabs.Content value="high" h="18dvh" overflow="auto" px="2">
+                  <Tabs.Content value="high" h="75dvh" overflow="auto" px="2">
                     <Stack gap="4">
                       {stackValidation.issues
                         .filter((i) => i.impact === "high")
@@ -580,7 +592,7 @@ export const StackValidationAccordion: React.FC<{ stack: UnifiedStack }> = ({
                   </Tabs.Content>
 
                   {/* Medium Issues */}
-                  <Tabs.Content value="medium" h="18dvh" overflow="auto" px="2">
+                  <Tabs.Content value="medium" h="75dvh" overflow="auto" px="2">
                     <Stack gap="4">
                       {stackValidation.issues
                         .filter((i) => i.impact === "medium")
@@ -615,7 +627,7 @@ export const StackValidationAccordion: React.FC<{ stack: UnifiedStack }> = ({
                   </Tabs.Content>
 
                   {/* Low Issues */}
-                  <Tabs.Content value="low" h="18dvh" overflow="auto" px="2">
+                  <Tabs.Content value="low" h="75dvh" overflow="auto" px="2">
                     <Stack gap="4">
                       {stackValidation.issues
                         .filter((i) => i.impact === "low")
@@ -648,11 +660,15 @@ export const StackValidationAccordion: React.FC<{ stack: UnifiedStack }> = ({
                     </Stack>
                   </Tabs.Content>
                 </Tabs.Root>
-              </Accordion.ItemBody>
-            </Accordion.ItemContent>
-          </Card.Body>
-        </Accordion.Item>
-      </Accordion.Root>
-    </Card.Root>
+              </Drawer.Body>
+              <Drawer.Footer />
+              <Drawer.CloseTrigger asChild>
+                <CloseButton size="md" />
+              </Drawer.CloseTrigger>
+            </Drawer.Content>
+          </Drawer.Positioner>
+        </Portal>
+      </Drawer.Root>
+    </>
   );
 };

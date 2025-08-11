@@ -1,14 +1,15 @@
 // frontend/src/hooks/useWebSocketUnifiedStacks.ts
 // Real-time unified stack data via WebSocket with unified backend processing
+// Updated to use EnhancedUnifiedStack throughout
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import type { UnifiedStack } from "@/types/unified";
+import type { EnhancedUnifiedStack } from "@/types/unified";
 
 interface WebSocketUnifiedStacksResponse {
   type: "unified_stacks" | "error" | "config_updated" | "pong";
   data?: {
     available: boolean;
-    stacks: UnifiedStack[];
+    stacks: EnhancedUnifiedStack[]; // Changed from UnifiedStack[]
     total_stacks: number;
     processing_time: string;
     error?: string;
@@ -27,7 +28,7 @@ interface UseWebSocketUnifiedStacksOptions {
 }
 
 interface UseWebSocketUnifiedStacksResult {
-  stacks: UnifiedStack[];
+  stacks: EnhancedUnifiedStack[]; // Changed from UnifiedStack[]
   connected: boolean;
   connecting: boolean;
   error: string | null;
@@ -53,7 +54,6 @@ const getWsBaseUrl = () => {
 };
 
 const WS_BASE = getWsBaseUrl();
-
 const WS_URL = WS_BASE + "/docker/ws/unified-stacks";
 
 export const useWebSocketUnifiedStacks = (
@@ -66,8 +66,8 @@ export const useWebSocketUnifiedStacks = (
     maxReconnectAttempts = 5,
   } = options;
 
-  // State
-  const [stacks, setStacks] = useState<UnifiedStack[]>([]);
+  // State - Updated to use EnhancedUnifiedStack
+  const [stacks, setStacks] = useState<EnhancedUnifiedStack[]>([]);
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -169,21 +169,14 @@ export const useWebSocketUnifiedStacks = (
           event.code !== 1000 &&
           reconnectAttempts.current < maxReconnectAttempts
         ) {
-          const delay = Math.min(
-            1000 * Math.pow(2, reconnectAttempts.current),
-            30000
-          );
           reconnectAttempts.current++;
-
           console.log(
-            `Attempting to reconnect in ${delay}ms (attempt ${reconnectAttempts.current})`
+            `🔄 Attempting reconnect ${reconnectAttempts.current}/${maxReconnectAttempts}`
           );
 
           reconnectTimeoutRef.current = setTimeout(() => {
             connect();
-          }, delay);
-        } else if (reconnectAttempts.current >= maxReconnectAttempts) {
-          setError("Max reconnection attempts reached");
+          }, Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000));
         }
       };
     } catch (err) {
@@ -194,29 +187,27 @@ export const useWebSocketUnifiedStacks = (
   }, [updateInterval, reconnectOnError, maxReconnectAttempts]);
 
   const disconnect = useCallback(() => {
-    // Clear reconnect timeout
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
     }
 
-    // Close WebSocket
     if (wsRef.current) {
-      wsRef.current.close(1000, "User disconnected");
+      wsRef.current.close(1000, "Client disconnect");
       wsRef.current = null;
     }
 
     setConnected(false);
     setConnecting(false);
+    reconnectAttempts.current = 0;
   }, []);
 
-  // Actions
   const setUpdateInterval = useCallback((interval: number) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(
         JSON.stringify({
           type: "set_update_interval",
-          interval: Math.max(1, Math.min(10, interval)), // Clamp between 1-10 seconds
+          interval,
         })
       );
     }
@@ -268,17 +259,18 @@ export const useWebSocketUnifiedStacks = (
 };
 
 // =============================================================================
-// CONVENIENCE HOOKS
+// CONVENIENCE HOOKS - Updated to use EnhancedUnifiedStack
 // =============================================================================
 
 /**
  * Simple hook for basic unified stacks usage
+ * Now returns EnhancedUnifiedStack[] with aggregatedConfigs
  */
 export const useUnifiedStacks = () => {
   const { stacks, connected, error } = useWebSocketUnifiedStacks();
 
   return {
-    stacks,
+    stacks, // Now EnhancedUnifiedStack[]
     loading: !connected && !error,
     error: error,
     connected,
@@ -287,6 +279,7 @@ export const useUnifiedStacks = () => {
 
 /**
  * Hook for getting a specific stack by name
+ * Now returns EnhancedUnifiedStack | null with aggregatedConfigs
  */
 export const useUnifiedStack = (stackName: string) => {
   const { stacks, connected, error } = useWebSocketUnifiedStacks();
@@ -294,7 +287,7 @@ export const useUnifiedStack = (stackName: string) => {
   const stack = stacks.find((s) => s.name === stackName) || null;
 
   return {
-    stack,
+    stack, // Now EnhancedUnifiedStack | null
     loading: !connected && !error,
     error,
     connected,
@@ -312,6 +305,19 @@ export const useStackContainers = (stackName: string) => {
     loading: !stack,
     totalContainers: stack?.containers?.total || 0,
     runningContainers: stack?.stats?.containers?.running || 0,
+  };
+};
+
+/**
+ * NEW: Hook for getting aggregated configs from a specific stack
+ */
+export const useStackAggregatedConfigs = (stackName: string) => {
+  const { stack } = useUnifiedStack(stackName);
+
+  return {
+    aggregatedConfigs: stack?.aggregated_configs || null,
+    loading: !stack,
+    error: stack ? null : "Stack not found",
   };
 };
 

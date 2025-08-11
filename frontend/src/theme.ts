@@ -190,7 +190,7 @@ const config = defineConfig({
             },
           },
         },
-        fg: {
+        fgbrand: {
           value: {
             _light: "colors.brandGray.950",
             _dark: "colors.brandGray.50",
@@ -227,8 +227,8 @@ const config = defineConfig({
           },
           warning: {
             value: {
-              _light: "colors.brandYellow.600",
-              _dark: "colors.brandGray.300",
+              _light: "colors.brandYellow.700",
+              _dark: "colors.brandYellow.200",
             },
           },
           success: {
@@ -491,8 +491,8 @@ const config = defineConfig({
         secondaryBrand: {
           bg: {
             value: {
-              _light: "colors.brandSecondary.950",
-              _dark: "colors.brandSecondary.50",
+              _light: "colors.brandSecondary.50",
+              _dark: "colors.brandSecondary.950",
             },
           },
           border: {
@@ -534,7 +534,7 @@ const config = defineConfig({
           emphasized: {
             value: {
               _light: "colors.brandSecondary.300",
-              _dark: "colors.brandSecondary.700",
+              _dark: "colors.brandSecondary.600",
             },
           },
           focusRing: {
@@ -560,7 +560,7 @@ const config = defineConfig({
           fg: {
             value: {
               _light: "colors.brandYellow.800",
-              _dark: "colors.brandGray.300",
+              _dark: "colors.brandYellow.300",
             },
           },
           solid: {
@@ -686,8 +686,8 @@ const config = defineConfig({
           },
           subtle: {
             value: {
-              _light: "colors.brandGray.200",
-              _dark: "colors.brandGray.800",
+              _light: "colors.brandGray.100",
+              _dark: "colors.brandGray.900",
             },
           },
           muted: {
