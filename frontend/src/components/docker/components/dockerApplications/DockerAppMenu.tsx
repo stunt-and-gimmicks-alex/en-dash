@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React from "react";
 import {
   Box,
   Button,
@@ -10,7 +10,7 @@ import {
   Stack,
   Text,
 } from "@chakra-ui/react";
-import type { UnifiedStack } from "@/types/unified";
+// import type { UnifiedStack } from "@/types/unified";
 import { stringify } from "yaml";
 import { EditableCodeViewDialog } from "@/components/ui/small/EditableCodeViewDialog";
 import { StackValidationAccordion } from "./StackValidationAccordion";
@@ -72,7 +72,7 @@ export const DockerAppDetailMenu: React.FC = () => {
   const handleStop = () => stopStack(selectedStackName);
   const handleRestart = () => restartStack(selectedStackName);
 
-  const services = Object.values(stack.services || {});
+  // const services = Object.values(stack.services || {});
 
   // Dummy save function for now - will be wired up later
   const handleSaveCompose = async (editedYaml: string) => {

@@ -1,7 +1,7 @@
 // ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
 // ▓▓▒▒░░ Functionality Imports ░░▒▒▓▓
 // ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState /* useMemo, useEffect */ } from "react";
 import { useNewStackStore } from "@/stores/useNewStackStore";
 
 // ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
@@ -43,9 +43,9 @@ import {
 // ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
 import { useStacks, useStackActions } from "@/hooks/v06-stackHooks";
 import type { UnifiedStack } from "@/types/unified";
-import { StackBlocks } from "@/components/docker/components/applications/StackBlocks";
-import { StackDetail } from "@/components/docker/components/applications/StackDetail";
-import { useNavigation } from "@/contexts/NavigationContext";
+// import { StackBlocks } from "@/components/docker/components/applications/StackBlocks";
+// import { StackDetail } from "@/components/docker/components/applications/StackDetail";
+// import { useNavigation } from "@/contexts/NavigationContext";
 import { NewDockerAppWizard } from "@/components/ui/large/CreateNewDockerApplication/NewDockerApplicationForm";
 import { FaHatWizard } from "react-icons/fa";
 import { useColorMode } from "@/components/ui/color-mode";
@@ -214,7 +214,7 @@ networks:
           </Card.Footer>
         </Card.Root>
         <Box w="1/2" display="inline-block">
-          <Float placement="middle-top" maxW="43dvw">
+          <Float placement="middle-start" maxW="43dvw">
             <CodeBlock.AdapterProvider value={shikiAdapter}>
               <ClientOnly>
                 {() => (

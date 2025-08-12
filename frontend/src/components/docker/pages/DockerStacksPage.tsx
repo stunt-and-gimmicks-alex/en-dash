@@ -2,7 +2,7 @@
 // MIGRATED - Docker Stacks page using new unified WebSocket API + ChakraUI v3
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useMemo /* useState, useEffect */ } from "react";
 import {
   Badge,
   Box,
@@ -20,11 +20,11 @@ import {
 // NEW - Using migrated API hooks with unified stack data
 import { useStacks, useStackActions } from "@/hooks/v06-stackHooks";
 import type { EnhancedUnifiedStack } from "@/types/unified";
-import { useSelectedStackStore } from "@/stores/selectedStackStore";
+// import { useSelectedStackStore } from "@/stores/selectedStackStore";
 
 // NEW - Using migrated stack components with UnifiedStack types
-import { StackBlocks } from "@/components/docker/components/applications/StackBlocks";
-import { StackDetail } from "@/components/docker/components/applications/StackDetail";
+import { StackBlocks } from "@/components/docker/components/dockerApplications/StackBlocks";
+// import { StackDetail } from "@/components/docker/components/dockerApplications/StackDetail";
 import { PiPlus } from "react-icons/pi";
 import { useNavigation } from "@/contexts/NavigationContext";
 
@@ -40,7 +40,7 @@ export const DockerStacksPage: React.FC = () => {
     error
   );
   console.log("🐛 DockerStacksPage - actual stacks:", stacks);
-  const { startStack, stopStack, restartStack, isPerformingAction } =
+  const { startStack, stopStack, restartStack /* isPerformingAction */ } =
     useStackActions();
 
   const { onNavigate } = useNavigation();

@@ -127,9 +127,9 @@ class DataBroadcaster:
                 logger.info("🔍 DEBUG: SurrealDB is connected, attempting live query...")
                 
                 live_id = await surreal_service.create_live_query(
-                    "system_stats",  # Just the table name
-                    self._handle_system_stats_update
-                )
+                "system_stats",  # Just the table name
+                self._handle_system_stats_update
+            )
                 
                 logger.info(f"🔍 DEBUG: Live query result: {live_id}")
                 
@@ -182,11 +182,28 @@ class DataBroadcaster:
         
         self.polling_tasks['system_stats'] = asyncio.create_task(poll_loop())
     
+# REPLACE the incomplete _handle_system_stats_update method with this:
+
     async def _handle_system_stats_update(self, update_data: Any):
         """Handle system stats live query updates"""
         try:
-            logger.info(f"🔍 DEBUG: Live query callback triggered with: {update_data}")
-            # ... rest of existing code
+            logger.debug("📊 System stats live update received")
+            
+            # Get fresh data from SurrealDB (just like Docker does from unified_stack_service)
+            recent_stats = await surreal_service.get_system_stats(hours_back=1)
+            
+            if recent_stats and len(recent_stats) > 0:
+                # Get the most recent stat entry
+                latest_stats = recent_stats[0]
+                
+                # Cache and broadcast (same pattern as Docker)
+                self.cached_data['system_stats'] = latest_stats
+                self.cached_data['last_update']['system_stats'] = datetime.now(timezone.utc)
+                
+                await self._broadcast_system_stats(latest_stats, trigger="live_query")
+            else:
+                logger.warning("No recent system stats found in SurrealDB")
+                
         except Exception as e:
             logger.error(f"Error handling system stats update: {e}")
         
@@ -216,8 +233,8 @@ class DataBroadcaster:
             if surreal_service.connected:
                 # Try live query first
                 live_id = await surreal_service.create_live_query(
-                    "unified_stack",  # Just the table name
-                    self._handle_docker_update
+                    "system_stats",  # Just the table name
+                    self._handle_system_stats_update
                 )
                                 
                 if live_id:

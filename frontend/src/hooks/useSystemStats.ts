@@ -1,382 +1,133 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { newApiService } from "@/services/newApiServices";
-import type {
-  ChartData,
-  DashboardData,
-  SystemStat,
-  HistoricalStatsResponse,
-  MetricsResponse,
-} from "@/types/unified";
+// frontend/src/hooks/useSystemStats.ts
+// Simple hook that uses the existing v06-unifiedWebSocketService for system stats
+// This replaces the old duplicate WebSocket connections
 
-const getWsBaseUrl = () => {
-  if (typeof window !== "undefined") {
-    const { hostname, protocol } = window.location;
-    const wsProtocol = protocol === "https:" ? "wss:" : "ws:";
-    if (hostname !== "localhost" && hostname !== "127.0.0.1") {
-      return `${wsProtocol}//${hostname}:8001/api`;
-    }
-  }
-  return "ws://localhost:8001/api";
-};
+import { useState, useEffect, useCallback } from "react";
+import v06WebSocketService from "@/services/v06-unifiedWebSocketService";
 
-const WS_BASE = getWsBaseUrl();
-
-// =============================================================================
-// HISTORICAL STATS HOOKS
-// =============================================================================
-
-/**
- * Hook to get historical system statistics
- */
-export const useHistoricalStats = (hours: number = 24) => {
-  const [stats, setStats] = useState<SystemStat[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchStats = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response: HistoricalStatsResponse =
-        await newApiService.systemStats.getHistoricalStats(hours);
-      setStats(response.stats || []);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to fetch historical stats"
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [hours]);
-
-  useEffect(() => {
-    fetchStats();
-  }, [fetchStats]);
-
-  return { stats, loading, error, refresh: fetchStats };
-};
-
-/**
- * Hook to get chart data for a specific metric
- */
-export const useChartData = (
-  metric: string = "cpu_percent",
-  hours: number = 6
-) => {
-  const [chartData, setChartData] = useState<ChartData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchChartData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data: ChartData = await newApiService.systemStats.getChartData(
-        metric,
-        hours
-      );
-      setChartData(data);
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : `Failed to fetch ${metric} chart data`
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [metric, hours]);
-
-  useEffect(() => {
-    fetchChartData();
-  }, [fetchChartData]);
-
-  return { chartData, loading, error, refresh: fetchChartData };
-};
-
-/**
- * Hook to get dashboard data for multiple metrics
- */
-export const useDashboardData = (hours: number = 6) => {
-  const [dashboardData, setDashboardData] = useState<DashboardData | null>(
-    null
-  );
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchDashboardData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data: DashboardData =
-        await newApiService.systemStats.getDashboardData(hours);
-      setDashboardData(data);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to fetch dashboard data"
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [hours]);
-
-  useEffect(() => {
-    fetchDashboardData();
-  }, [fetchDashboardData]);
-
-  return { dashboardData, loading, error, refresh: fetchDashboardData };
-};
-
-/**
- * Hook to get available metrics
- */
-export const useAvailableMetrics = () => {
-  const [metrics, setMetrics] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchMetrics = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response: MetricsResponse =
-        await newApiService.systemStats.getAvailableMetrics();
-      setMetrics(response.metrics || []);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to fetch available metrics"
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchMetrics();
-  }, [fetchMetrics]);
-
-  return { metrics, loading, error, refresh: fetchMetrics };
-};
-
-// =============================================================================
-// COMBINED LIVE + HISTORICAL HOOK
-// =============================================================================
-
-/**
- * Hook that combines live stats with historical trend data
- */
-export const useCombinedStats = (hours: number = 6) => {
-  const { chartData: cpuChart, loading: cpuLoading } = useChartData(
-    "cpu_percent",
-    hours
-  );
-  const { chartData: memoryChart, loading: memoryLoading } = useChartData(
-    "memory_percent",
-    hours
-  );
-  const { chartData: diskChart, loading: diskLoading } = useChartData(
-    "disk_percent",
-    hours
-  );
-
-  const loading = cpuLoading || memoryLoading || diskLoading;
-
-  return {
-    cpu: cpuChart,
-    memory: memoryChart,
-    disk: diskChart,
-    loading,
-    timeframe: hours,
+interface SystemStats {
+  cpu_percent: number;
+  memory_percent: number;
+  disk_percent: number;
+  memory_used_gb: number;
+  memory_total_gb: number;
+  disk_used_gb: number;
+  disk_total_gb: number;
+  network_bytes_sent: number;
+  network_bytes_recv: number;
+  timestamp: string;
+  container_resources?: {
+    total_containers: number;
+    total_cpu_usage: number;
+    total_memory_usage_mb: number;
+    total_memory_limit_mb: number;
+    containers: Array<{
+      id: string;
+      name: string;
+      stack_name?: string;
+      service_name?: string;
+      cpu_percent: number;
+      memory_usage_mb: number;
+      memory_limit_mb: number;
+      memory_percent: number;
+      network_rx_bytes: number;
+      network_tx_bytes: number;
+      block_read_bytes: number;
+      block_write_bytes: number;
+    }>;
   };
-};
+}
 
-export const useLiveSystemStats = () => {
-  const [currentStats, setCurrentStats] = useState<SystemStat | null>(null);
+/**
+ * Hook for system stats using the unified v06 WebSocket service
+ * Provides buttery smooth 1/2 second updates with 5-second server batches
+ */
+export const useSystemStats = () => {
+  const [currentStats, setCurrentStats] = useState<SystemStats | null>(null);
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
-  const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const reconnectAttempts = useRef(0);
-  const maxReconnectAttempts = 5;
-
-  const connect = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      return; // Already connected
-    }
-
+  const connect = useCallback(async () => {
     try {
       setConnecting(true);
       setError(null);
-
-      // Use the EXISTING unified WebSocket endpoint
-      const wsUrl = "ws://192.168.1.69:8002/"; // Direct picows connection
-      console.log("🔗 Connecting to unified WebSocket:", wsUrl);
-
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        console.log("✅ Connected to unified WebSocket");
-        setConnected(true);
-        setConnecting(false);
-        setError(null);
-        reconnectAttempts.current = 0;
-
-        // Subscribe to system_stats topic (ADD THIS)
-        ws.send(
-          JSON.stringify({
-            type: "subscribe",
-            topic: "system_stats",
-          })
-        );
-
-        // Send ping to confirm connection
-        ws.send(JSON.stringify({ type: "ping" }));
-      };
-
-      ws.onmessage = async (event) => {
-        try {
-          // Handle binary frames from picows
-          let messageText;
-          if (event.data instanceof Blob) {
-            messageText = await event.data.text();
-          } else {
-            messageText = event.data;
-          }
-
-          const message = JSON.parse(messageText);
-          console.log("📊 Received from unified WebSocket:", message);
-
-          switch (message.type) {
-            case "system_stats": // HANDLE SYSTEM STATS
-              setCurrentStats(message.data);
-              setLastUpdated(message.timestamp);
-              setError(null);
-
-              if (message.immediate) {
-                console.log("⚡ Immediate system stats loaded");
-              } else if (message.trigger === "live_query") {
-                console.log("📡 System stats live query update received");
-              }
-              break;
-
-            case "unified_stacks": // IGNORE STACK DATA (handled by other hooks)
-              console.log(
-                "📦 Stack data received (ignored by system stats hook)"
-              );
-              break;
-
-            case "pong":
-              console.log("🏓 Pong received from unified WebSocket");
-              break;
-
-            case "error":
-              console.error("❌ WebSocket error:", message.message);
-              setError(message.message || "WebSocket error");
-              break;
-
-            case "connected":
-              console.log("🎉 Connected to picows server:", message);
-              break;
-
-            case "subscribed":
-              console.log("✅ Subscribed to topic:", message.topic);
-              break;
-
-            case "pong":
-              console.log("🏓 Pong received");
-              break;
-
-            default:
-              console.log("🔍 Unknown message type:", message.type);
-          }
-        } catch (error) {
-          console.error("❌ Failed to parse WebSocket message:", error);
-          setError("Failed to parse message");
-        }
-      };
-
-      ws.onclose = (event) => {
-        console.log(
-          "🔌 System stats WebSocket closed:",
-          event.code,
-          event.reason
-        );
-        setConnected(false);
-        setConnecting(false);
-
-        // Auto-reconnect with exponential backoff
-        if (reconnectAttempts.current < maxReconnectAttempts) {
-          const delay = Math.min(
-            1000 * Math.pow(2, reconnectAttempts.current),
-            30000
-          );
-          console.log(
-            `🔄 Reconnecting system stats in ${delay}ms (attempt ${
-              reconnectAttempts.current + 1
-            }/${maxReconnectAttempts})`
-          );
-
-          reconnectTimeoutRef.current = setTimeout(() => {
-            reconnectAttempts.current++;
-            connect();
-          }, delay);
-        } else {
-          setError("Max reconnection attempts reached");
-        }
-      };
-
-      ws.onerror = (error) => {
-        console.error("❌ System stats WebSocket error:", error);
-        setError("WebSocket connection error");
-        setConnecting(false);
-      };
-    } catch (error) {
-      console.error("❌ Failed to create WebSocket connection:", error);
-      setError("Failed to connect");
+      await v06WebSocketService.connect();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Connection failed");
       setConnecting(false);
     }
   }, []);
 
   const disconnect = useCallback(() => {
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-      reconnectTimeoutRef.current = null;
-    }
-
-    if (wsRef.current) {
-      wsRef.current.close(1000, "User disconnected");
-      wsRef.current = null;
-    }
-
-    setConnected(false);
-    setConnecting(false);
-    reconnectAttempts.current = 0;
+    v06WebSocketService.disconnect();
   }, []);
 
   const ping = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: "ping" }));
-    }
+    v06WebSocketService.ping();
   }, []);
 
-  // Auto-connect on mount
+  // Set up event listeners and subscription
   useEffect(() => {
-    connect();
-    return () => disconnect();
-  }, [connect, disconnect]);
+    let unsubscribeFromSystemStats: (() => void) | null = null;
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
+    const handleConnected = () => {
+      setConnected(true);
+      setConnecting(false);
+      setError(null);
+
+      // Subscribe to system_stats topic
+      unsubscribeFromSystemStats = v06WebSocketService.subscribe(
+        "system_stats",
+        (data: SystemStats, message: any) => {
+          setCurrentStats(data);
+          setLastUpdated(message.timestamp);
+          setError(null);
+        }
+      );
+    };
+
+    const handleDisconnected = () => {
+      setConnected(false);
+      setConnecting(false);
+      if (unsubscribeFromSystemStats) {
+        unsubscribeFromSystemStats();
+        unsubscribeFromSystemStats = null;
       }
     };
-  }, []);
+
+    const handleConnecting = () => {
+      setConnecting(true);
+      setError(null);
+    };
+
+    const handleError = (error: Error) => {
+      setError(error.message);
+      setConnecting(false);
+    };
+
+    // Register event listeners
+    v06WebSocketService.on("connected", handleConnected);
+    v06WebSocketService.on("disconnected", handleDisconnected);
+    v06WebSocketService.on("connecting", handleConnecting);
+    v06WebSocketService.on("error", handleError);
+
+    // Auto-connect
+    connect();
+
+    return () => {
+      // Cleanup
+      v06WebSocketService.off("connected", handleConnected);
+      v06WebSocketService.off("disconnected", handleDisconnected);
+      v06WebSocketService.off("connecting", handleConnecting);
+      v06WebSocketService.off("error", handleError);
+
+      if (unsubscribeFromSystemStats) {
+        unsubscribeFromSystemStats();
+      }
+    };
+  }, [connect]);
 
   return {
     currentStats,
@@ -389,3 +140,94 @@ export const useLiveSystemStats = () => {
     ping,
   };
 };
+
+/**
+ * Hook specifically for container resource data from system stats
+ */
+export const useContainerResourceStats = () => {
+  const { currentStats, connected, error } = useSystemStats();
+
+  const containerResources = currentStats?.container_resources;
+
+  const getContainersByStack = useCallback(
+    (stackName: string) => {
+      return (
+        containerResources?.containers.filter(
+          (c) => c.stack_name === stackName
+        ) || []
+      );
+    },
+    [containerResources]
+  );
+
+  const getStackResourceSummary = useCallback(
+    (stackName: string) => {
+      const stackContainers = getContainersByStack(stackName);
+
+      if (stackContainers.length === 0) {
+        return {
+          total_containers: 0,
+          total_cpu_usage: 0,
+          total_memory_usage_mb: 0,
+          avg_cpu_usage: 0,
+          avg_memory_percent: 0,
+        };
+      }
+
+      const totalCpu = stackContainers.reduce(
+        (sum, c) => sum + c.cpu_percent,
+        0
+      );
+      const totalMemoryUsage = stackContainers.reduce(
+        (sum, c) => sum + c.memory_usage_mb,
+        0
+      );
+
+      return {
+        total_containers: stackContainers.length,
+        total_cpu_usage: totalCpu,
+        total_memory_usage_mb: totalMemoryUsage,
+        avg_cpu_usage: totalCpu / stackContainers.length,
+        avg_memory_percent:
+          stackContainers.reduce((sum, c) => sum + c.memory_percent, 0) /
+          stackContainers.length,
+      };
+    },
+    [getContainersByStack]
+  );
+
+  return {
+    containerResources,
+    connected,
+    error,
+    getContainersByStack,
+    getStackResourceSummary,
+    hasContainerData: !!containerResources,
+    totalContainers: containerResources?.total_containers || 0,
+  };
+};
+
+/**
+ * Debug hook for monitoring the smooth update system
+ */
+export const useSystemStatsDebug = () => {
+  const [debugInfo, setDebugInfo] = useState<any>(null);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setDebugInfo({
+        timestamp: new Date().toISOString(),
+        serviceStats: v06WebSocketService.getStats(),
+        queueInfo: v06WebSocketService.getSystemStatsQueueInfo(),
+        currentStats: v06WebSocketService.getCurrentSystemStats(),
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  return debugInfo;
+};
+
+// Legacy compatibility - same interface as old useSystemStats
+export const useLiveSystemStats = useSystemStats;

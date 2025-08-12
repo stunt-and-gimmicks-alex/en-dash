@@ -23,7 +23,7 @@ import type { UnifiedStack } from "@/types/unified";
 import { stringify } from "yaml";
 import { EditableCodeViewDialog } from "@/components/ui/small/EditableCodeViewDialog";
 import { StackControlButtons } from "@/components/ui/small/StackControlButtons";
-import { ServicesPane } from "@/components/docker/components/services/ServicesPane";
+import { ServicesPane } from "@/components/docker/components/dockerServices/ServicesPane";
 import { StackValidationAccordion } from "./StackValidationAccordion";
 import {
   PiAppWindow,

@@ -268,7 +268,7 @@ export interface UnifiedStack {
   last_modified: string;
   status: "running" | "stopped" | "partial" | "empty" | "error";
 
-  services: Record<string, UnifiedService>;
+  services: Record<string, EnhancedUnifiedService>;
   networks: UnifiedNetworks;
   volumes: UnifiedVolumes;
   containers: ContainerSummary;
@@ -610,7 +610,7 @@ export interface StacksSummary {
 export interface FrontendReadyStack extends UnifiedStack {
   services: Record<
     string,
-    UnifiedService & {
+    EnhancedUnifiedService & {
       displayName?: string;
       statusColor?: string;
       networkList?: string[];

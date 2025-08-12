@@ -2,7 +2,7 @@
 // MIGRATED - Original StackDetail layout restored using UnifiedStack + ChakraUI v3
 
 import React from "react";
-import { stringify } from "yaml";
+// import { stringify } from "yaml";
 
 import {
   AbsoluteCenter,
@@ -52,14 +52,15 @@ import {
 // import { mapToStackContainers, apiService } from "@/services/apiService";
 // import { validateStack } from "@/utils/stackValidation";
 
-import type { UnifiedNetworkItem } from "@/types/unified";
+// import type { UnifiedNetworkItem } from "@/types/unified";
 
 import { useSelectedStackStore } from "@/stores/selectedStackStore";
-import { useStackActions } from "@/hooks/v06-stackHooks";
+// import { useStackActions } from "@/hooks/v06-stackHooks";
 import { useStackData } from "@/hooks/v06-useStackData";
 
-import { DockerAppDetailMenu } from "../components/applications/DockerAppMenu";
-import { ServicesPane } from "../components/services/ServicesPane";
+import { DockerAppDetailMenu } from "../components/dockerApplications/DockerAppMenu";
+import { ServicesPane } from "../components/dockerServices/ServicesPane";
+import type { EnhancedUnifiedService } from "@/types/unified";
 
 export const DockerStackDetailPage: React.FC = () => {
   const selectedStackName = useSelectedStackStore(
@@ -85,21 +86,21 @@ export const DockerStackDetailPage: React.FC = () => {
     );
   }
 
-  // Stack actions (keep this for start/stop/restart functionality)
-  const { startStack, stopStack, restartStack } = useStackActions();
+  // Stack actions (keep this for start/stop/restart functionality) -- not implemented yet~
+  // const { startStack, stopStack, restartStack } = useStackActions();
 
   // Enhanced stack data with analytics - ONLY FIXED THE IMPORT
   const {
     stack,
-    loading,
+    //    loading,
     error,
     resourceUsage,
     healthSummary,
-    analysis,
-    configs,
+    //    analysis,
+    //    configs,
     isHealthy,
-    hasIssues,
-    containerRatio,
+    //    hasIssues,
+    //    containerRatio,
   } = useStackData(selectedStackName);
 
   if (error) {
@@ -136,16 +137,18 @@ export const DockerStackDetailPage: React.FC = () => {
     );
   }
 
-  const services = Object.values(stack.services || {});
+  const services: EnhancedUnifiedService[] = Object.values(
+    stack.services || {}
+  );
 
-  // Dummy save function for now - will be wired up later
-  const handleSaveCompose = async (editedYaml: string) => {
-    console.log("Saving compose file:", editedYaml);
-    // TODO: Implement actual save functionality
-    // This could call an API endpoint to update the compose file
-  };
+  //  Dummy save function for now - will be wired up later
+  // const handleSaveCompose = async (editedYaml: string) => {
+  //    console.log("Saving compose file:", editedYaml);
+  // TODO: Implement actual save functionality
+  // This could call an API endpoint to update the compose file
+  //  };
 
-  const yaml_file_text: string = stringify(stack.compose_content);
+  //  const yaml_file_text: string = stringify(stack.compose_content);
 
   return (
     <Stack w="full" alignItems="top" gap="0" px="0" mx="0" colorPalette="brand">

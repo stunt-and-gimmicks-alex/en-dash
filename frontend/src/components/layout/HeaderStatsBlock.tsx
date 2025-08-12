@@ -27,7 +27,7 @@ import {
   PiCloudArrowDownFill,
   PiCloudArrowUpFill,
 } from "react-icons/pi";
-import { useLiveSystemStats } from "@/hooks/useSystemStats";
+import { useSystemStats } from "@/hooks/v06-systemStatsHooks";
 import type { IconType } from "react-icons";
 
 interface StatItem {
@@ -48,8 +48,17 @@ interface HeaderStatsBlockProps {
 export const HeaderStatsBlock: React.FC<HeaderStatsBlockProps> = ({
   title = "en-dash / Better Homelab Management",
 }) => {
+  useEffect(() => {
+    import("@/stores/v06-systemStatsStore").then(
+      ({ initializeSystemStatsStore }) => {
+        initializeSystemStatsStore().catch(console.error);
+      }
+    );
+  }, []);
+
   // ✨ NEW - Modern livequery system stats
-  const { currentStats, connected, error } = useLiveSystemStats();
+  const { currentStats, connected, error } = useSystemStats();
+  console.log("the stats are:", currentStats?.cpu_percent);
 
   // State for tracking network rates with trailing average
   const [networkHistory, setNetworkHistory] = useState<
@@ -115,13 +124,13 @@ export const HeaderStatsBlock: React.FC<HeaderStatsBlockProps> = ({
   };
 
   // Helper function to format disk usage with size info
-  const formatDiskUsage = (stats: any): string => {
-    if (!stats) return "0% used";
+  const formatDiskUsage = (currentStats: any): string => {
+    if (!currentStats) return "0% used";
 
     // Use the livequery data format
-    const percent = stats.disk_percent || 0;
-    const usedGB = stats.disk_used_gb || 0;
-    const totalGB = stats.disk_total_gb || 0;
+    const percent = currentStats.disk_percent || 0;
+    const usedGB = currentStats.disk_used_gb || 0;
+    const totalGB = currentStats.disk_total_gb || 0;
 
     return `${percent.toFixed(1)}% used (${usedGB.toFixed(
       1
@@ -386,7 +395,7 @@ export const HeaderStatsBlock: React.FC<HeaderStatsBlockProps> = ({
               >
                 <StatusIndicator />
                 <Text textStyle="sm" fontFamily="adwide" fontWeight="thin">
-                  {new Date(currentStats.collected_at).toLocaleTimeString()}
+                  {new Date(currentStats.timestamp).toLocaleTimeString()}
                 </Text>
               </Status.Root>
             </Badge>
