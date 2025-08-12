@@ -1,5 +1,5 @@
 // frontend/src/components/navigation/ModuleDropdown.tsx
-// Fixed module dropdown component with working item click handlers
+// Fixed module dropdown component - ONLY ADDED currentPage logic for sub-item highlighting
 
 import React from "react";
 import { Button, Stack, Box, HStack, Text } from "@chakra-ui/react";
@@ -7,6 +7,7 @@ import { Collapsible } from "@chakra-ui/react";
 import { Status } from "@chakra-ui/react";
 import { SidebarLink } from "./SidebarLink";
 import { PiCaretDown } from "react-icons/pi";
+import type { PageKey } from "@/types/navigation";
 
 interface ModuleDropdownItem {
   name: string;
@@ -23,6 +24,7 @@ interface ModuleDropdownProps {
   onHeaderClick?: () => void;
   onItemClick?: (item: string) => void;
   disabled?: boolean; // Add disabled prop
+  currentPage?: PageKey; // ← ONLY FIX: Add currentPage prop
 }
 
 export const ModuleDropdown: React.FC<ModuleDropdownProps> = ({
@@ -35,6 +37,7 @@ export const ModuleDropdown: React.FC<ModuleDropdownProps> = ({
   onHeaderClick,
   onItemClick,
   disabled = false,
+  currentPage, // ← ONLY FIX: Accept currentPage prop
 }) => {
   // Convert items to consistent format
   const normalizedItems: ModuleDropdownItem[] = items.map((item) => {
@@ -43,6 +46,39 @@ export const ModuleDropdown: React.FC<ModuleDropdownProps> = ({
     }
     return item;
   });
+
+  // ← ONLY FIX: Helper function to check if sub-item should be active
+  const isItemActive = (itemName: string): boolean => {
+    if (!currentPage) return false;
+
+    // Map Docker sub-items to their corresponding pages (only existing pages)
+    const itemPageMapping: Record<string, PageKey[]> = {
+      Stacks: ["docker-stacks"],
+      // TODO: Add other pages when they exist:
+      // "Containers": ["docker-containers"],
+      // "Images": ["docker-images"],
+      // "Networks": ["docker-networks"],
+      // "Volumes": ["docker-volumes"],
+    };
+
+    const mappedPages = itemPageMapping[itemName] || [];
+    return mappedPages.includes(currentPage);
+  };
+
+  // ← ONLY FIX: Helper function to check if sub-item has an existing page
+  const isItemEnabled = (itemName: string): boolean => {
+    const itemPageMapping: Record<string, PageKey[]> = {
+      Stacks: ["docker-stacks"],
+      // TODO: Add other pages when they exist:
+      // "Containers": ["docker-containers"],
+      // "Images": ["docker-images"],
+      // "Networks": ["docker-networks"],
+      // "Volumes": ["docker-volumes"],
+    };
+
+    const mappedPages = itemPageMapping[itemName] || [];
+    return mappedPages.length > 0; // Item is enabled if it has at least one mapped page
+  };
 
   return (
     <Collapsible.Root open={isOpen}>
@@ -98,6 +134,10 @@ export const ModuleDropdown: React.FC<ModuleDropdownProps> = ({
       <Collapsible.Content>
         <Stack gap="1" pl="3" pt="1">
           {normalizedItems.map((item) => {
+            // ← ONLY FIX: Check if this sub-item should be active and enabled
+            const isActive = isItemActive(item.name);
+            const isEnabled = isItemEnabled(item.name);
+
             // Handle simple string items
             if (!item.status) {
               return (
@@ -105,8 +145,11 @@ export const ModuleDropdown: React.FC<ModuleDropdownProps> = ({
                   key={item.name}
                   ps="9"
                   fontSize="sm"
-                  disabled={disabled}
-                  onClick={() => !disabled && onItemClick?.(item.name)}
+                  disabled={disabled || !isEnabled} // ← ONLY FIX: Auto-disable if no page exists
+                  isActive={isActive}
+                  onClick={() =>
+                    !disabled && isEnabled && onItemClick?.(item.name)
+                  } // ← ONLY FIX: Only call onClick if enabled
                 >
                   {item.name}
                 </SidebarLink>
@@ -126,8 +169,11 @@ export const ModuleDropdown: React.FC<ModuleDropdownProps> = ({
                 key={item.name}
                 ps="9"
                 fontSize="sm"
-                disabled={disabled}
-                onClick={() => !disabled && onItemClick?.(item.name)}
+                disabled={disabled || !isEnabled} // ← ONLY FIX: Auto-disable if no page exists
+                isActive={isActive}
+                onClick={() =>
+                  !disabled && isEnabled && onItemClick?.(item.name)
+                } // ← ONLY FIX: Only call onClick if enabled
               >
                 <HStack justify="space-between" width="full">
                   <Text>{item.name}</Text>

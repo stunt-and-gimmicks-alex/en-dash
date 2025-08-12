@@ -25,10 +25,7 @@ import { useDockerStats } from "@/hooks/useNewApi";
 import { useStacks } from "@/hooks/v06-useStacks";
 import { useNavigation } from "@/contexts/NavigationContext";
 import { RealtimeStacksTest } from "@/components/debug/RealTimeStackTest";
-import type {
-  EnhancedUnifiedService,
-  EnhancedUnifiedStack,
-} from "@/types/unified";
+import type { EnhancedUnifiedStack } from "@/types/unified";
 
 export const DockerOverviewPage: React.FC = () => {
   // NEW - Using navigation context instead of props
@@ -38,15 +35,17 @@ export const DockerOverviewPage: React.FC = () => {
   const { stats, loading: statsLoading } = useDockerStats();
   const { stacks, connected, error } = useStacks();
 
-  // Calculate quick stats
+  // Calculate quick stats - FIXED TYPE ERRORS
   const runningStacks = stacks.filter(
     (s: EnhancedUnifiedStack) => s.status === "running"
   ).length;
+
   const totalContainers = stacks.reduce(
     (total: number, stack: EnhancedUnifiedStack) =>
       total + (stack.containers?.total || 0),
     0
   );
+
   const runningContainers = stacks.reduce(
     (total: number, stack: EnhancedUnifiedStack) =>
       total +
@@ -130,7 +129,11 @@ export const DockerOverviewPage: React.FC = () => {
                 <GridItem key={stat.label}>
                   <HStack justify="space-between" gap="5">
                     <stat.icon size="24" />
-                    <Stack></Stack>
+                    <Stack>
+                      <Text fontSize="sm" color="brand.onSurfaceVariant">
+                        {stat.valueRunning}/{stat.valueTotal} {stat.label}
+                      </Text>
+                    </Stack>
                   </HStack>
                 </GridItem>
               ))}

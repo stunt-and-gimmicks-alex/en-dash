@@ -24,7 +24,7 @@ import {
 // NEW - Using migrated API hooks with unified stack data
 import { useStacks } from "@/hooks/v06-useStacks";
 import { useStackActions } from "@/hooks/v06-useStackActions";
-import type { UnifiedStack } from "@/types/unified";
+import type { EnhancedUnifiedStack } from "@/types/unified";
 import { useSelectedStackStore } from "@/stores/selectedStackStore";
 
 // NEW - Using migrated stack components with UnifiedStack types
@@ -36,6 +36,15 @@ import { useNavigation } from "@/contexts/NavigationContext";
 export const DockerStacksPage: React.FC = () => {
   // NEW - Real-time unified stacks via WebSocket
   const { stacks, connected, error } = useStacks();
+  console.log(
+    "🐛 DockerStacksPage - stacks:",
+    stacks.length,
+    "connected:",
+    connected,
+    "error:",
+    error
+  );
+  console.log("🐛 DockerStacksPage - actual stacks:", stacks);
   const { startStack, stopStack, restartStack, isPerformingAction } =
     useStackActions();
 
@@ -53,7 +62,7 @@ export const DockerStacksPage: React.FC = () => {
     }
 
     return stacks.reduce(
-      (counts, stack) => {
+      (counts, stack: EnhancedUnifiedStack) => {
         const runningContainers = stack.stats?.containers?.running || 0;
         const totalContainers = stack.stats?.containers?.total || 0;
 
@@ -78,7 +87,7 @@ export const DockerStacksPage: React.FC = () => {
       status: "Running",
       colorPalette: "green",
       count: stackCounts.running,
-      content: stacks.filter((stack) => {
+      content: stacks.filter((stack: EnhancedUnifiedStack) => {
         const running = stack.stats?.containers?.running || 0;
         const total = stack.stats?.containers?.total || 0;
         return running > 0 && running === total;
@@ -88,7 +97,7 @@ export const DockerStacksPage: React.FC = () => {
       status: "Partial",
       colorPalette: "yellow",
       count: stackCounts.partial,
-      content: stacks.filter((stack) => {
+      content: stacks.filter((stack: EnhancedUnifiedStack) => {
         const running = stack.stats?.containers?.running || 0;
         const total = stack.stats?.containers?.total || 0;
         return running > 0 && running < total;
@@ -98,7 +107,7 @@ export const DockerStacksPage: React.FC = () => {
       status: "Stopped",
       colorPalette: "red",
       count: stackCounts.stopped,
-      content: stacks.filter((stack) => {
+      content: stacks.filter((stack: EnhancedUnifiedStack) => {
         const running = stack.stats?.containers?.running || 0;
         return running === 0;
       }),

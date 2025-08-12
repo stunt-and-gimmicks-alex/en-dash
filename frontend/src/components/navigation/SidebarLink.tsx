@@ -27,8 +27,8 @@ export const SidebarLink: React.FC<SidebarLinkProps> = ({
       py="2"
       px="3"
       fontWeight="normal"
-      color={isActive ? "brand.onPrimary" : "brand.onPrimary/90"}
-      bg={isActive ? "brand.PrimaryContainer" : "transparent"}
+      color={isActive ? "brand.primary" : "brand.onPrimary"}
+      bg={isActive ? "brand.primaryContainer" : "transparent"}
       _hover={{
         bg: isActive ? "brand.primaryContainer" : "brand.primaryContainer",
         color: isActive

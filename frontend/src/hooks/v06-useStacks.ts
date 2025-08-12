@@ -63,53 +63,59 @@ export const useStacks = (options: UseStacksOptions = {}): UseStacksResult => {
   const isSubscribedRef = useRef(false);
 
   // Handle stacks messages from WebSocket
-  const handleStacksMessage = useCallback(
-    (data: any, message: StacksMessage) => {
-      console.log("📦 v06-useStacks received:", {
-        type: message.type,
-        stackCount: data?.stacks?.length,
-        timestamp: message.timestamp,
-      });
+  const handleStacksMessage = useCallback((data: any, message: any) => {
+    console.log("📦 v06-useStacks received:", {
+      type: message.type,
+      stackCount: data?.stacks?.length,
+      timestamp: message.timestamp,
+    });
 
-      switch (message.type) {
-        case "unified_stacks":
-          if (data?.available && data.stacks) {
-            setStacks(data.stacks);
-            setTotalStacks(data.total_stacks || 0);
-            setLastUpdated(message.timestamp);
-            setConnectionCount(message.connection_count || 0);
-            setError(null);
+    console.log("🔍 Full message data:", message.data);
+    console.log("🔍 Data available:", data?.available);
+    console.log("🔍 Stacks array:", data?.stacks);
 
-            console.log(
-              `✅ v06-useStacks updated: ${data.stacks.length} stacks`
-            );
-          } else if (data?.error) {
-            console.error("❌ v06-useStacks data error:", data.error);
-            setError(data.error);
-          }
-          break;
+    switch (message.type) {
+      case "unified_stacks":
+        if (data?.available && data.stacks) {
+          setStacks(data.stacks);
+          setTotalStacks(data.total_stacks || 0);
+          setLastUpdated(message.timestamp);
+          setConnectionCount(message.connection_count || 0);
+          setError(null);
 
-        case "error":
-          console.error("❌ v06-useStacks WebSocket error:", message.message);
-          setError(message.message || "Unknown WebSocket error");
-          break;
+          // ADD THIS DEBUG LOG:
+          console.log(
+            "🔍 State being set - stacks length:",
+            data.stacks.length
+          );
+          console.log("🔍 First stack name:", data.stacks[0]?.name);
 
-        case "config_updated":
-          console.log("🔄 v06-useStacks config updated:", message.message);
-          // Could trigger a refresh here if needed
-          break;
+          console.log(`✅ v06-useStacks updated: ${data.stacks.length} stacks`);
+        } else if (data?.error) {
+          console.error("❌ v06-useStacks data error:", data.error);
+          setError(data.error);
+        }
+        break;
 
-        case "pong":
-          console.log("🏓 v06-useStacks ping successful");
-          break;
+      case "error":
+        console.error("❌ v06-useStacks WebSocket error:", message.message);
+        setError(message.message || "Unknown WebSocket error");
+        break;
 
-        default:
-          console.log("📭 v06-useStacks unknown message type:", message.type);
-          break;
-      }
-    },
-    []
-  );
+      case "config_updated":
+        console.log("🔄 v06-useStacks config updated:", message.message);
+        // Could trigger a refresh here if needed
+        break;
+
+      case "pong":
+        console.log("🏓 v06-useStacks ping successful");
+        break;
+
+      default:
+        console.log("📭 v06-useStacks unknown message type:", message.type);
+        break;
+    }
+  }, []);
 
   // Actions
   const connect = useCallback(async () => {

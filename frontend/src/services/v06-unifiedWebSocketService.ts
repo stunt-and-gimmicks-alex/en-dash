@@ -290,6 +290,12 @@ class UnifiedWebSocketService extends SimpleEventEmitter {
     this.subscriptions.get(topic)!.add(callback);
     this.updateSubscriptionStats();
 
+    console.log(
+      `📊 v06 Topic "${topic}" now has ${
+        this.subscriptions.get(topic)!.size
+      } subscribers`
+    );
+
     // Return unsubscribe function
     return () => this.unsubscribe(topic, callback);
   }

@@ -25,8 +25,7 @@ import { UserProfile } from "./UserProfile";
 import { ModuleDropdown } from "./ModuleDropdown";
 
 // USING NEW WEBSOCKET API with unified backend processing
-import { useStacks } from "@/hooks/v06-useStacks";
-import { useStackActions } from "@/hooks/v06-useStackActions";
+import { useStacks, useStackActions } from "@/hooks/v06-stackHooks";
 
 import type {
   NavigationProps,
@@ -34,7 +33,7 @@ import type {
   ModuleGroup,
   PageKey,
 } from "@/types/navigation";
-import type { UnifiedStack } from "@/types/unified";
+import type { EnhancedUnifiedStack } from "@/types/unified";
 
 // Server management navigation items
 const serverLinks: NavigationItem[] = [
@@ -75,151 +74,103 @@ const EXISTING_PAGES: PageKey[] = [
   "docker-stacks",
 ];
 
-// Check if a page exists and should be enabled
-const isPageEnabled = (pageKey: PageKey): boolean => {
-  return EXISTING_PAGES.includes(pageKey);
-};
-
-// Docker item to page mapping
-const DOCKER_ITEM_MAPPING: Record<string, PageKey> = {
-  Overview: "docker-overview",
-  Stacks: "docker-stacks",
-  Containers: "docker-overview", // TODO: Create separate containers page
-  Images: "docker-overview", // TODO: Create separate images page
-  Networks: "docker-overview", // TODO: Create separate networks page
-  Volumes: "docker-overview", // TODO: Create separate volumes page
-};
-
 export const Sidebar: React.FC<NavigationProps> = ({
   currentPage,
   onNavigate,
 }) => {
-  const [openModule, setOpenModule] = useState<string | null>(null);
+  const [openModule, setOpenModule] = useState<string | null>("Docker");
 
-  // Get live Docker stacks using NEW WebSocket API with unified processing
-  const { stacks, connected, error } = useStacks();
+  // FIXED: Using v06 hooks correctly
+  const { stacks, connected, connecting, error } = useStacks();
+  const { isPerformingAction } = useStackActions();
 
-  const handleModuleToggle = (moduleLabel: string) => {
-    setOpenModule(openModule === moduleLabel ? null : moduleLabel);
+  // Helper function to check if a page exists
+  const isPageEnabled = (pageKey: PageKey): boolean => {
+    return EXISTING_PAGES.includes(pageKey);
   };
 
-  // Docker item click handler
+  // Handle module toggle
+  const handleModuleToggle = (moduleName: string) => {
+    setOpenModule(openModule === moduleName ? null : moduleName);
+  };
+
+  // Handle Docker item clicks with mapping
   const handleDockerItemClick = (item: string) => {
-    console.log(`🐳 Docker item clicked: ${item}`);
-    const pageKey = DOCKER_ITEM_MAPPING[item];
-    if (pageKey && isPageEnabled(pageKey)) {
-      console.log(`🔍 Mapping ${item} → ${pageKey}`);
-      onNavigate(pageKey);
-    } else if (!isPageEnabled(pageKey)) {
-      console.warn(`⚠️ Page not yet implemented: ${pageKey}`);
-    } else {
-      console.warn(`⚠️ No mapping found for Docker item: ${item}`);
+    console.log("🐳 Docker item clicked:", item);
+
+    // Map Docker items to navigation pages
+    switch (item) {
+      case "Stacks":
+        console.log("🔍 Mapping Stacks → docker-stacks");
+        onNavigate("docker-stacks");
+        break;
+      case "Containers":
+        console.log("🔍 Mapping Containers → docker-containers");
+        // onNavigate("docker-containers"); // Enable when page exists
+        break;
+      case "Images":
+        console.log("🔍 Mapping Images → docker-images");
+        // onNavigate("docker-images"); // Enable when page exists
+        break;
+      case "Networks":
+        console.log("🔍 Mapping Networks → docker-networks");
+        // onNavigate("docker-networks"); // Enable when page exists
+        break;
+      case "Volumes":
+        console.log("🔍 Mapping Volumes → docker-volumes");
+        // onNavigate("docker-volumes"); // Enable when page exists
+        break;
+      default:
+        console.log("🔍 Unknown Docker item:", item);
     }
   };
 
-  // Calculate stack statistics for badges
-  const getStackStats = () => {
-    if (!stacks || stacks.length === 0) {
-      return { running: 0, partial: 0, stopped: 0, total: 0 };
-    }
-
-    return stacks.reduce(
-      (counts, stack: UnifiedStack) => {
-        const runningContainers = stack.stats?.containers?.running || 0;
-        const totalContainers = stack.stats?.containers?.total || 0;
-
-        if (runningContainers === 0) {
-          counts.stopped++;
-        } else if (runningContainers === totalContainers) {
-          counts.running++;
-        } else {
-          counts.partial++;
-        }
-
-        counts.total++;
-        return counts;
-      },
-      { running: 0, partial: 0, stopped: 0, total: 0 }
-    );
-  };
-
-  const stackStats = getStackStats();
-
-  // Create Docker module with proper structure
-  const dockerModuleItems = [
-    "Overview", // NEW: Real overview page
-    "Stacks", // EXISTING: Current docker-overview content
-    "Containers",
-    "Images",
-    "Networks",
-    "Volumes",
-  ];
-
-  // Build Docker label with status indicator
-  const getDockerLabel = () => {
-    // Show spinner if:
-    // 1. Still loading, OR
-    // 2. Connected but no stacks loaded yet (could be loading), OR
-    // 3. Error but still attempting to connect
-    if ((connected && stacks.length === 0 && !error) || (error && !connected)) {
+  // Generate Docker module label with real-time data
+  const getDockerLabel = (): React.ReactNode => {
+    if (connecting) {
       return (
         <HStack gap="2">
           <Text>Docker</Text>
-          <Spinner size="sm" color="brand.onSurfaceVariant" />
+          <Spinner size="xs" color="brand.onPrimary" />
         </HStack>
       );
     }
 
-    // Only show error badge if there's a definitive error and we're not connected
-    if (error && !connected) {
+    if (error) {
       return (
         <HStack gap="2">
           <Text>Docker</Text>
-          <Badge colorPalette="red" size="sm">
-            ✕
+          <Badge colorScheme="red" size="xs">
+            Error
           </Badge>
         </HStack>
       );
     }
 
-    // Show "0" badge only if connected, no error, AND we've confirmed there are no stacks
-    if (connected && !error && stacks.length === 0) {
-      return (
-        <HStack gap="2">
-          <Text>Docker</Text>
-          <Badge colorPalette="gray" size="sm">
-            0
-          </Badge>
-        </HStack>
-      );
-    }
-
-    // Show color-coded badges for stack status when we have actual stack data
     if (connected && stacks.length > 0) {
+      const runningStacks = stacks.filter(
+        (stack: EnhancedUnifiedStack) => stack.status === "running"
+      ).length;
+
       return (
         <HStack gap="2">
           <Text>Docker</Text>
-          <Badge color="brandGray.100" bg="brandGray.950" size="sm">
-            {stackStats.running + stackStats.partial + stackStats.stopped}
+          <Badge colorScheme="green" size="xs">
+            {runningStacks}/{stacks.length}
           </Badge>
         </HStack>
       );
     }
 
-    // Fallback: show spinner for any uncertain states
-    return (
-      <HStack gap="2">
-        <Text>Docker</Text>
-        <Spinner size="sm" color="brand.onSurfaceVariant" />
-      </HStack>
-    );
+    return "Docker";
   };
 
-  const dockerModule: ModuleGroup = {
-    key: "docker-overview",
-    label: "Docker", // Will be overridden by custom label
+  // Docker module configuration
+  const dockerModule = {
+    key: "docker-overview" as PageKey,
+    label: "Docker",
     icon: Container,
-    items: dockerModuleItems,
+    items: ["Stacks", "Containers", "Images", "Networks", "Volumes"],
   };
 
   return (
@@ -234,17 +185,20 @@ export const Sidebar: React.FC<NavigationProps> = ({
       overflowY="auto"
       maxW="10dvw"
     >
-      {/* Main content */}
-      <Stack gap="8">
-        {/* Header */}
-        <Stack gap="6">
+      {/* Main navigation */}
+      <Stack gap="6" flex="1" overflowY="auto">
+        {/* Logo */}
+        <Box px="2">
           <Logo />
-          <SearchField />
-        </Stack>
+        </Box>
 
-        {/* Navigation sections */}
-        <Stack gap="6">
-          {/* Server Management Section */}
+        {/* Search */}
+        <Box px="1">
+          <SearchField />
+        </Box>
+
+        <Stack gap="6" flex="1">
+          {/* Server Links */}
           <Stack gap="2">
             <Text
               fontWeight="semibold"
@@ -261,8 +215,10 @@ export const Sidebar: React.FC<NavigationProps> = ({
                 <SidebarLink
                   key={link.key}
                   isActive={currentPage === link.key}
-                  onClick={() =>
-                    isPageEnabled(link.key) ? onNavigate(link.key) : undefined
+                  onClick={
+                    isPageEnabled(link.key)
+                      ? () => onNavigate(link.key)
+                      : undefined
                   }
                   disabled={!isPageEnabled(link.key)}
                 >
@@ -296,6 +252,7 @@ export const Sidebar: React.FC<NavigationProps> = ({
                 isMainActive={currentPage === dockerModule.key}
                 onHeaderClick={() => onNavigate(dockerModule.key)}
                 onItemClick={handleDockerItemClick}
+                currentPage={currentPage}
               />
 
               {/* Static Modules */}
@@ -314,6 +271,7 @@ export const Sidebar: React.FC<NavigationProps> = ({
                       : undefined
                   }
                   disabled={!isPageEnabled(module.key)}
+                  currentPage={currentPage}
                 />
               ))}
             </Stack>
