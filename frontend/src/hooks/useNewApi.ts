@@ -5,7 +5,7 @@ import { useRefresh } from "@/contexts/RefreshContext";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { newApiService } from "@/services/newApiServices";
 import type { UnifiedStack } from "@/types/unified";
-import { useStacks } from "@/hooks/v06-useStacks";
+import { useStacks, useStackActions } from "@/hooks/v06-stackHooks";
 
 // =============================================================================
 // WEBSOCKET-BASED HOOKS (Primary Data Source)

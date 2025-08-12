@@ -41,8 +41,7 @@ import {
 // ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
 // ▓▓▒▒░░      App Imports      ░░▒▒▓▓
 // ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
-import { useStacks } from "@/hooks/v06-useStacks";
-import { useStackActions } from "@/hooks/v06-useStackActions";
+import { useStacks, useStackActions } from "@/hooks/v06-stackHooks";
 import type { UnifiedStack } from "@/types/unified";
 import { StackBlocks } from "@/components/docker/components/applications/StackBlocks";
 import { StackDetail } from "@/components/docker/components/applications/StackDetail";

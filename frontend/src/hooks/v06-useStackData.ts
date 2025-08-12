@@ -1,9 +1,12 @@
 // frontend/src/hooks/useStackData.ts
 // Comprehensive hook that combines stack data, aggregated configs, and resource usage
+// FIXED: Updated to use new v06 hooks instead of old useWebSocketUnifiedStacks
 
 import { useMemo } from "react";
-import { useUnifiedStack } from "./useWebSocketUnifiedStacks";
-import { useStackAggregatedConfigs } from "./useWebSocketUnifiedStacks";
+import {
+  useUnifiedStack,
+  useStackAggregatedConfigs,
+} from "@/hooks/v06-stackHooks";
 import type {
   AggregatedPortConfig,
   AggregatedVolumeConfig,
@@ -49,6 +52,7 @@ interface StackHealthSummary {
 
 /**
  * Comprehensive hook that provides everything you need about a stack
+ * FIXED: Now uses v06 hooks instead of old useWebSocketUnifiedStacks
  */
 export const useStackData = (stackName: string) => {
   const { stack, loading, error, connected } = useUnifiedStack(stackName);
@@ -128,117 +132,124 @@ export const useStackData = (stackName: string) => {
     const resourceTotals = runningContainers.reduce(
       (acc, container) => {
         const stats = container.live_stats!;
-        acc.cpu.total += stats.cpu_percent || 0;
-        acc.memory.used += stats.memory.usage || 0; // Fixed: usage instead of usage_bytes
-        acc.memory.limit += stats.memory.limit || 0; // Fixed: limit instead of limit_bytes
+
+        // CPU calculation
+        if (stats.cpu_percent !== undefined) {
+          acc.cpu.total += stats.cpu_percent;
+          acc.cpu.containers++;
+        }
+
+        // Memory calculation
+        if (stats.memory && stats.memory.usage && stats.memory.limit) {
+          acc.memory.used += stats.memory.usage;
+          acc.memory.limit += stats.memory.limit;
+        }
+
         return acc;
       },
       {
-        cpu: { total: 0, containers: runningContainers.length, average: 0 },
-        memory: { used: 0, limit: 0, percent: 0, usedMB: 0, limitMB: 0 },
-        network: {
-          totalPorts: analysis.ports.totalPorts,
-          conflictedPorts: analysis.ports.conflicted.length,
-        },
-        storage: {
-          totalVolumes: analysis.volumes.totalVolumes,
-          sharedVolumes: analysis.volumes.shared.length,
-        },
-        runningContainers: runningContainers.length,
-        totalContainers: stack.containers.containers.length,
+        cpu: { total: 0, containers: 0 },
+        memory: { used: 0, limit: 0 },
       }
     );
 
-    // Calculate derived values
-    resourceTotals.cpu.average =
-      resourceTotals.cpu.containers > 0
-        ? resourceTotals.cpu.total / resourceTotals.cpu.containers
-        : 0;
-
-    resourceTotals.memory.percent =
-      resourceTotals.memory.limit > 0
-        ? (resourceTotals.memory.used / resourceTotals.memory.limit) * 100
-        : 0;
-
-    resourceTotals.memory.usedMB = resourceTotals.memory.used / 1024 / 1024;
-    resourceTotals.memory.limitMB = resourceTotals.memory.limit / 1024 / 1024;
-
-    return resourceTotals;
-  }, [stack?.containers?.containers, analysis]);
+    return {
+      cpu: {
+        total: resourceTotals.cpu.total,
+        containers: resourceTotals.cpu.containers,
+        average:
+          resourceTotals.cpu.containers > 0
+            ? resourceTotals.cpu.total / resourceTotals.cpu.containers
+            : 0,
+      },
+      memory: {
+        used: resourceTotals.memory.used,
+        limit: resourceTotals.memory.limit,
+        percent:
+          resourceTotals.memory.limit > 0
+            ? (resourceTotals.memory.used / resourceTotals.memory.limit) * 100
+            : 0,
+        usedMB: resourceTotals.memory.used / (1024 * 1024),
+        limitMB: resourceTotals.memory.limit / (1024 * 1024),
+      },
+      network: {
+        totalPorts: analysis.ports.totalPorts,
+        conflictedPorts: analysis.ports.conflicted.length,
+      },
+      storage: {
+        totalVolumes: analysis.volumes.totalVolumes,
+        sharedVolumes: analysis.volumes.shared.length,
+      },
+      runningContainers: stack.stats?.containers?.running || 0,
+      totalContainers: stack.stats?.containers?.total || 0,
+    };
+  }, [stack, analysis]);
 
   // Calculate health summary
   const healthSummary = useMemo((): StackHealthSummary => {
-    const issues: StackHealthSummary["issues"] = [];
+    const issues = [];
     let score = 100;
 
-    // Port conflicts
+    // Check for port conflicts
     if (analysis.ports.hasConflicts) {
       issues.push({
-        type: "port_conflict",
-        severity: "high",
+        type: "port_conflict" as const,
+        severity: "high" as const,
         message: `${analysis.ports.conflicted.length} port conflicts detected`,
         count: analysis.ports.conflicted.length,
       });
       score -= 20;
     }
 
-    // High resource usage
-    if (resourceUsage.cpu.total > 80) {
+    // Check container health
+    const containerHealth = stack?.health?.overall_health;
+    if (containerHealth === "degraded" || containerHealth === "unknown") {
       issues.push({
-        type: "resource_high",
-        severity: "medium",
-        message: `High CPU usage: ${resourceUsage.cpu.total.toFixed(1)}%`,
-      });
-      score -= 10;
-    }
-
-    if (resourceUsage.memory.percent > 90) {
-      issues.push({
-        type: "resource_high",
-        severity: "high",
-        message: `High memory usage: ${resourceUsage.memory.percent.toFixed(
-          1
-        )}%`,
-      });
-      score -= 15;
-    }
-
-    // Container health
-    const downContainers =
-      resourceUsage.totalContainers - resourceUsage.runningContainers;
-    if (downContainers > 0) {
-      issues.push({
-        type: "container_down",
-        severity: "critical",
-        message: `${downContainers} containers not running`,
-        count: downContainers,
+        type: "container_down" as const,
+        severity: "critical" as const,
+        message: "Container health issues detected",
       });
       score -= 30;
     }
 
-    // Security warnings
+    // Check resource usage
+    if (resourceUsage.memory.percent > 90) {
+      issues.push({
+        type: "resource_high" as const,
+        severity: "medium" as const,
+        message: "High memory usage detected",
+      });
+      score -= 10;
+    }
+
+    // Check for secrets in environment
     if (analysis.environment.hasSecrets) {
       issues.push({
-        type: "security",
-        severity: "medium",
-        message: `${analysis.environment.secretCount} potential secrets found`,
+        type: "security" as const,
+        severity: "low" as const,
+        message: `${analysis.environment.secretCount} secrets in environment`,
         count: analysis.environment.secretCount,
       });
       score -= 5;
     }
 
-    // Determine overall health
-    let overall: StackHealthSummary["overall"] = "healthy";
-    if (score < 50) overall = "critical";
-    else if (score < 70) overall = "warning";
-    else if (issues.length > 0) overall = "warning";
+    const overall =
+      score >= 80 ? "healthy" : score >= 60 ? "warning" : "critical";
 
     return {
       overall,
       issues,
       score: Math.max(0, score),
     };
-  }, [analysis, resourceUsage]);
+  }, [analysis, stack, resourceUsage]);
+
+  // Convenience computed values
+  const isHealthy = healthSummary.overall === "healthy";
+  const hasIssues = healthSummary.issues.length > 0;
+  const containerRatio =
+    resourceUsage.totalContainers > 0
+      ? resourceUsage.runningContainers / resourceUsage.totalContainers
+      : 0;
 
   return {
     // Core data
@@ -247,22 +258,15 @@ export const useStackData = (stackName: string) => {
     error,
     connected,
 
-    // Enhanced aggregated configs
-    configs: aggregatedConfigs,
-    analysis,
-
-    // Resource calculations
+    // Enhanced analytics
     resourceUsage,
-
-    // Health summary
     healthSummary,
+    analysis,
+    configs: aggregatedConfigs,
 
-    // Quick access helpers
-    isHealthy: healthSummary.overall === "healthy",
-    hasIssues: healthSummary.issues.length > 0,
-    isRunning: stack?.status === "running",
-    containerRatio: `${resourceUsage.runningContainers}/${resourceUsage.totalContainers}`,
+    // Convenience flags
+    isHealthy,
+    hasIssues,
+    containerRatio,
   };
 };
-
-// Note: Remove the circular import - define the function locally if needed

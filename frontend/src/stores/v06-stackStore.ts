@@ -156,21 +156,47 @@ export const useStackStore = create<StackStore>()(
           timestamp: message.timestamp,
         });
 
+        // DEBUG: Add detailed logging to understand the data structure
+        console.log("🔍 v06-stackStore - Full message:", message);
+        console.log("🔍 v06-stackStore - Data parameter:", data);
+        console.log("🔍 v06-stackStore - message.data:", message.data);
+
         switch (message.type) {
           case "unified_stacks":
-            if (data?.available && data.stacks) {
+            // Try both data patterns since there might be inconsistency
+            const stacksData = data || message.data;
+            console.log("🔍 v06-stackStore - Using stacksData:", stacksData);
+            console.log(
+              "🔍 v06-stackStore - stacksData.available:",
+              stacksData?.available
+            );
+            console.log(
+              "🔍 v06-stackStore - stacksData.stacks:",
+              stacksData?.stacks
+            );
+
+            if (stacksData?.available && stacksData.stacks) {
+              // FIXED: Just pass through the data - backend already provides status field
               get()._setStackData(
-                data.stacks,
-                data.total_stacks || 0,
+                stacksData.stacks,
+                stacksData.total_stacks || 0,
                 message.timestamp,
                 message.connection_count || 0
               );
               console.log(
-                `✅ v06-stackStore: Updated ${data.stacks.length} stacks`
+                `✅ v06-stackStore: Updated ${stacksData.stacks.length} stacks (backend provides status field)`
               );
-            } else if (data?.error) {
-              console.error("❌ v06-stackStore: Data error:", data.error);
-              get()._setError(data.error);
+            } else if (stacksData?.error) {
+              console.error("❌ v06-stackStore: Data error:", stacksData.error);
+              get()._setError(stacksData.error);
+            } else {
+              console.warn("❌ v06-stackStore: No valid stacks data found:", {
+                hasData: !!data,
+                hasMessageData: !!message.data,
+                available: stacksData?.available,
+                hasStacks: !!stacksData?.stacks,
+                stacksLength: stacksData?.stacks?.length,
+              });
             }
             break;
 
@@ -232,60 +258,61 @@ export const useStackStore = create<StackStore>()(
         handleStacksMessage
       );
 
-      // Create comprehensive unsubscribe function
-      const unsubscribe = () => {
-        console.log("🧹 v06-stackStore: Unsubscribing from all events");
+      // Create composite unsubscribe function
+      const unsubscribeAll = () => {
+        console.log("🔇 v06-stackStore: Unsubscribing from all events");
 
         // Unsubscribe from topic
-        unsubscribeFromTopic();
+        if (unsubscribeFromTopic) {
+          unsubscribeFromTopic();
+        }
 
         // Remove event listeners
         v06WebSocketService.off("connected", handleConnected);
         v06WebSocketService.off("disconnected", handleDisconnected);
         v06WebSocketService.off("connecting", handleConnecting);
         v06WebSocketService.off("error", handleError);
-
-        set({ _isSubscribed: false, _unsubscribe: null });
       };
 
-      // Set initial connection state from service
-      const stats = v06WebSocketService.getStats();
-      get()._setConnectionState(stats.connected, stats.connecting);
-
+      // Store the unsubscribe function and mark as subscribed
       set({
         _isSubscribed: true,
-        _unsubscribe: unsubscribe,
-        connectionCount: stats.connectionCount,
+        _unsubscribe: unsubscribeAll,
       });
     },
 
     unsubscribe: () => {
       const state = get();
-      if (state._unsubscribe) {
-        state._unsubscribe();
+      if (!state._isSubscribed || !state._unsubscribe) {
+        console.log(
+          "📭 v06-stackStore: Not subscribed, nothing to unsubscribe"
+        );
+        return;
       }
+
+      state._unsubscribe();
+      set({ _isSubscribed: false, _unsubscribe: null });
     },
 
     ping: () => {
+      console.log("🏓 v06-stackStore: Sending ping");
       v06WebSocketService.ping();
     },
 
     setUpdateInterval: (interval: number) => {
+      console.log(`⏰ v06-stackStore: Setting update interval to ${interval}s`);
       v06WebSocketService.setUpdateInterval(interval);
     },
 
-    // Stack Actions (REST API)
-    startStack: async (stackName: string): Promise<boolean> => {
-      return get()._performStackAction(stackName, "start");
-    },
+    // Stack Actions
+    startStack: (stackName: string) =>
+      get()._performStackAction(stackName, "start"),
 
-    stopStack: async (stackName: string): Promise<boolean> => {
-      return get()._performStackAction(stackName, "stop");
-    },
+    stopStack: (stackName: string) =>
+      get()._performStackAction(stackName, "stop"),
 
-    restartStack: async (stackName: string): Promise<boolean> => {
-      return get()._performStackAction(stackName, "restart");
-    },
+    restartStack: (stackName: string) =>
+      get()._performStackAction(stackName, "restart"),
 
     // Generic action performer
     _performStackAction: async (
@@ -451,23 +478,42 @@ export const useStackStore = create<StackStore>()(
 // Auto-connect and subscribe when store is first used
 let hasInitialized = false;
 let isInitializing = false;
+let initCallCount = 0;
 
 export const initializeStackStore = async () => {
-  if (hasInitialized || isInitializing) return;
+  initCallCount++;
+  console.log(`🔍 initializeStackStore called #${initCallCount}`);
+
+  // FIXED: Stronger protection against React StrictMode double effects
+  if (hasInitialized) {
+    console.log("📡 v06-stackStore: Already initialized, skipping");
+    return;
+  }
+
+  if (isInitializing) {
+    console.log("📡 v06-stackStore: Already initializing, skipping");
+    return;
+  }
+
   isInitializing = true;
 
-  console.log("🚀 v06-stackStore: Initializing");
+  console.log("🚀 v06-stackStore: Initializing (ONCE)");
 
   try {
     const store = useStackStore.getState();
 
-    // Auto-connect and subscribe
-    await store.connect();
+    // FIXED: Only connect if not already connected
+    if (!store.connected && !store.connecting) {
+      await store.connect();
+    } else {
+      console.log("📡 v06-stackStore: Already connected, skipping connection");
+    }
 
     // Set default update interval
     store.setUpdateInterval(3);
 
     hasInitialized = true;
+    console.log("✅ v06-stackStore: Initialization complete");
   } catch (error) {
     console.error("❌ v06-stackStore: Initialization failed:", error);
   } finally {
@@ -475,49 +521,41 @@ export const initializeStackStore = async () => {
   }
 };
 
-// Convenience selectors
+// FIXED: Convenience selectors that maintain referential equality
 export const stackSelectors = {
-  // Connection state
-  useConnection: () =>
-    useStackStore((state) => ({
-      connected: state.connected,
-      connecting: state.connecting,
-      error: state.error,
-    })),
+  // Connection state - use primitive selectors
+  useConnected: () => useStackStore((state) => state.connected),
+  useConnecting: () => useStackStore((state) => state.connecting),
+  useError: () => useStackStore((state) => state.error),
 
-  // Stack data
+  // Stack data - use primitive selectors
   useStacks: () => useStackStore((state) => state.stacks),
   useStack: (stackName: string) =>
     useStackStore((state) => state.getStack(stackName)),
   useStackContainers: (stackName: string) =>
     useStackStore((state) => state.getStackContainers(stackName)),
 
-  // Stack categories
+  // Stack categories - these functions return new arrays, so they're ok
   useRunningStacks: () => useStackStore((state) => state.getRunningStacks()),
   useStoppedStacks: () => useStackStore((state) => state.getStoppedStacks()),
   usePartialStacks: () => useStackStore((state) => state.getPartialStacks()),
 
-  // Actions
-  useStackActions: () =>
-    useStackStore((state) => ({
-      startStack: state.startStack,
-      stopStack: state.stopStack,
-      restartStack: state.restartStack,
-      isPerformingAction: state.isPerformingAction,
-      lastAction: state.lastAction,
-      clearActionHistory: state.clearActionHistory,
-    })),
+  // Action state - use primitive selectors
+  useIsPerformingAction: () =>
+    useStackStore((state) => state.isPerformingAction),
+  useLastAction: () => useStackStore((state) => state.lastAction),
 
-  // Stats
-  useStackStats: () =>
-    useStackStore((state) => ({
-      totalStacks: state.totalStacks,
-      runningCount: state.getRunningStacks().length,
-      stoppedCount: state.getStoppedStacks().length,
-      partialCount: state.getPartialStacks().length,
-      lastUpdated: state.lastUpdated,
-      connectionCount: state.connectionCount,
-    })),
+  // Stats - use primitive selectors
+  useTotalStacks: () => useStackStore((state) => state.totalStacks),
+  useLastUpdated: () => useStackStore((state) => state.lastUpdated),
+  useConnectionCount: () => useStackStore((state) => state.connectionCount),
+
+  // Action methods - stable references
+  useStartStack: () => useStackStore((state) => state.startStack),
+  useStopStack: () => useStackStore((state) => state.stopStack),
+  useRestartStack: () => useStackStore((state) => state.restartStack),
+  useClearActionHistory: () =>
+    useStackStore((state) => state.clearActionHistory),
 };
 
 export default useStackStore;

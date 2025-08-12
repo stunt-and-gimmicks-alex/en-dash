@@ -21,8 +21,7 @@ import {
 } from "react-icons/pi";
 
 // CHANGED - Using new API hooks and navigation context
-import { useDockerStats } from "@/hooks/useNewApi";
-import { useStacks } from "@/hooks/v06-useStacks";
+import { useStacks } from "@/hooks/v06-stackHooks";
 import { useNavigation } from "@/contexts/NavigationContext";
 import { RealtimeStacksTest } from "@/components/debug/RealTimeStackTest";
 import type { EnhancedUnifiedStack } from "@/types/unified";
@@ -32,7 +31,7 @@ export const DockerOverviewPage: React.FC = () => {
   const { onNavigate } = useNavigation();
 
   // CHANGED - Using new API hooks
-  const { stats, loading: statsLoading } = useDockerStats();
+  /* const { stats, loading: statsLoading } = useDockerStats(); */
   const { stacks, connected, error } = useStacks();
 
   // Calculate quick stats - FIXED TYPE ERRORS
@@ -176,7 +175,7 @@ export const DockerOverviewPage: React.FC = () => {
           </Stack>
         </HStack>
         <Stack>
-          {/* System Status */}
+          {/* System Status 
           {stats && (
             <Card.Root bg="brand.surfaceContainer">
               <Card.Header>
@@ -220,7 +219,7 @@ export const DockerOverviewPage: React.FC = () => {
                 </Grid>
               </Card.Body>
             </Card.Root>
-          )}
+          )} */}
 
           <RealtimeStacksTest />
         </Stack>

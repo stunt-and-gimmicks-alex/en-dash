@@ -7,12 +7,8 @@ import {
   Badge,
   Box,
   Button,
-  CloseButton,
   Container,
-  Drawer,
   HStack,
-  Portal,
-  Skeleton,
   Spacer,
   Stack,
   Status,
@@ -22,8 +18,7 @@ import {
 } from "@chakra-ui/react";
 
 // NEW - Using migrated API hooks with unified stack data
-import { useStacks } from "@/hooks/v06-useStacks";
-import { useStackActions } from "@/hooks/v06-useStackActions";
+import { useStacks, useStackActions } from "@/hooks/v06-stackHooks";
 import type { EnhancedUnifiedStack } from "@/types/unified";
 import { useSelectedStackStore } from "@/stores/selectedStackStore";
 

@@ -1,6 +1,5 @@
 import React from "react";
-import { Box, Text } from "@chakra-ui/react";
-import { DashboardMainPage } from "@/components/dashboard/pages/DashboardMainPage";
+import { Box, Heading, Text } from "@chakra-ui/react";
 
 // Keep your exact ContentPlaceholder and Label components
 const ContentPlaceholder: React.FC<any> = ({ children, ...props }) => (
@@ -53,7 +52,8 @@ const Content: React.FC = () => {
 export const DashboardPage: React.FC = () => {
   return (
     <>
-      <DashboardMainPage />
+      <Heading>Heading goes here</Heading>
+      <Text>Text goes here.</Text>
     </>
   );
 };

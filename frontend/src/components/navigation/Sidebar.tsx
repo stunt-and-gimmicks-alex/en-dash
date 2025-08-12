@@ -127,15 +127,7 @@ export const Sidebar: React.FC<NavigationProps> = ({
 
   // Generate Docker module label with real-time data
   const getDockerLabel = (): React.ReactNode => {
-    if (connecting) {
-      return (
-        <HStack gap="2">
-          <Text>Docker</Text>
-          <Spinner size="xs" color="brand.onPrimary" />
-        </HStack>
-      );
-    }
-
+    // FIXED: Check for actual data instead of unreliable connecting state
     if (error) {
       return (
         <HStack gap="2">
@@ -147,7 +139,8 @@ export const Sidebar: React.FC<NavigationProps> = ({
       );
     }
 
-    if (connected && stacks.length > 0) {
+    if (stacks && stacks.length > 0) {
+      // We have data - show the actual counts
       const runningStacks = stacks.filter(
         (stack: EnhancedUnifiedStack) => stack.status === "running"
       ).length;
@@ -162,7 +155,13 @@ export const Sidebar: React.FC<NavigationProps> = ({
       );
     }
 
-    return "Docker";
+    // No data yet - show loading spinner
+    return (
+      <HStack gap="2">
+        <Text>Docker</Text>
+        <Spinner size="xs" color="brand.onPrimary" />
+      </HStack>
+    );
   };
 
   // Docker module configuration

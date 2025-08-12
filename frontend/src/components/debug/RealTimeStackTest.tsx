@@ -3,7 +3,7 @@
 
 import React from "react";
 import { Box, Text, Stack, Badge, Card, HStack } from "@chakra-ui/react";
-import { useStacks } from "@/hooks/v06-useStacks";
+import { useStacks } from "@/hooks/v06-stackHooks";
 
 export const RealtimeStacksTest: React.FC = () => {
   const { stacks, connected, error } = useStacks();

@@ -10,46 +10,69 @@ import {
 } from "@/stores/v06-stackStore";
 
 // =============================================================================
+// GLOBAL INITIALIZATION - Survive React StrictMode double effects
+// =============================================================================
+
+let globalInitPromise: Promise<void> | null = null;
+let initCallCount = 0;
+let isGloballyInitialized = false;
+
+const ensureInitialized = () => {
+  initCallCount++;
+  console.log(`🔍 ensureInitialized called #${initCallCount}`);
+
+  // FIXED: Only initialize once globally, ignore React StrictMode double effects
+  if (isGloballyInitialized) {
+    console.log("✅ Already globally initialized, skipping");
+    return Promise.resolve();
+  }
+
+  if (!globalInitPromise) {
+    console.log("🚀 Creating new global init promise");
+    globalInitPromise = initializeStackStore().then(() => {
+      isGloballyInitialized = true;
+      console.log("🎉 Global initialization complete");
+    });
+  } else {
+    console.log("♻️ Reusing existing global init promise");
+  }
+  return globalInitPromise;
+};
+
+// =============================================================================
 // MAIN HOOKS - Drop-in replacements
 // =============================================================================
 
 /**
  * Main stacks hook - replaces v06-useStacks
- * Auto-initializes the store on first use
+ * Auto-initializes the store on first use ONLY
  */
 export const useStacks = () => {
-  // Auto-initialize store only once
+  // FIXED: Only initialize once globally, not per hook
   useEffect(() => {
-    let mounted = true;
+    ensureInitialized();
+  }, []);
 
-    const init = async () => {
-      if (mounted) {
-        await initializeStackStore();
-      }
-    };
-
-    init();
-
-    return () => {
-      mounted = false;
-    };
-  }, []); // Empty dependency array - only run once
-
+  // Use individual primitive selectors to avoid object recreation
   const stacks = stackSelectors.useStacks();
-  const connection = stackSelectors.useConnection();
-  const stats = stackSelectors.useStackStats();
+  const connected = stackSelectors.useConnected();
+  const connecting = stackSelectors.useConnecting();
+  const error = stackSelectors.useError();
+  const totalStacks = stackSelectors.useTotalStacks();
+  const lastUpdated = stackSelectors.useLastUpdated();
+  const connectionCount = stackSelectors.useConnectionCount();
 
   const store = useStackStore();
 
   return {
     // Data
     stacks,
-    connected: connection.connected,
-    connecting: connection.connecting,
-    error: connection.error,
-    totalStacks: stats.totalStacks,
-    lastUpdated: stats.lastUpdated,
-    connectionCount: stats.connectionCount,
+    connected,
+    connecting,
+    error,
+    totalStacks,
+    lastUpdated,
+    connectionCount,
 
     // Actions
     connect: store.connect,
@@ -59,9 +82,9 @@ export const useStacks = () => {
 
     // Debug
     serviceStats: () => ({
-      connected: connection.connected,
-      totalStacks: stats.totalStacks,
-      lastUpdated: stats.lastUpdated,
+      connected,
+      totalStacks,
+      lastUpdated,
     }),
   };
 };
@@ -70,24 +93,25 @@ export const useStacks = () => {
  * Stack actions hook - replaces v06-useStackActions
  */
 export const useStackActions = () => {
-  // Auto-initialize store only once
-  useEffect(() => {
-    let mounted = true;
+  // FIXED: No initialization here, rely on global init
+  // Use individual primitive selectors for action state
+  const isPerformingAction = stackSelectors.useIsPerformingAction();
+  const lastAction = stackSelectors.useLastAction();
 
-    const init = async () => {
-      if (mounted) {
-        await initializeStackStore();
-      }
-    };
+  // Use individual action method selectors
+  const startStack = stackSelectors.useStartStack();
+  const stopStack = stackSelectors.useStopStack();
+  const restartStack = stackSelectors.useRestartStack();
+  const clearActionHistory = stackSelectors.useClearActionHistory();
 
-    init();
-
-    return () => {
-      mounted = false;
-    };
-  }, []); // Empty dependency array - only run once
-
-  return stackSelectors.useStackActions();
+  return {
+    startStack,
+    stopStack,
+    restartStack,
+    clearActionHistory,
+    isPerformingAction,
+    lastAction,
+  };
 };
 
 // =============================================================================
@@ -98,31 +122,35 @@ export const useStackActions = () => {
  * Get a specific stack by name
  */
 export const useStack = (stackName: string) => {
-  useEffect(() => {
-    let mounted = true;
-
-    const init = async () => {
-      if (mounted) {
-        await initializeStackStore();
-      }
-    };
-
-    init();
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
+  // FIXED: No initialization here
 
   const stack = stackSelectors.useStack(stackName);
-  const connection = stackSelectors.useConnection();
+  const connected = stackSelectors.useConnected();
+  const error = stackSelectors.useError();
 
   return {
     stack,
-    loading: !connection.connected && !connection.error,
-    error: connection.error,
-    connected: connection.connected,
-    connecting: connection.connecting,
+    loading: !connected && !error,
+    error,
+    connected,
+    connecting: stackSelectors.useConnecting(),
+  };
+};
+
+/**
+ * Hook for getting a specific stack by name (OLD API COMPATIBILITY)
+ * Now returns EnhancedUnifiedStack | null with aggregatedConfigs
+ */
+export const useUnifiedStack = (stackName: string) => {
+  const { stacks, connected, error } = useStacks();
+
+  const stack = stacks.find((s) => s.name === stackName) || null;
+
+  return {
+    stack, // Now EnhancedUnifiedStack | null
+    loading: !connected && !error,
+    error,
+    connected,
   };
 };
 
@@ -157,21 +185,7 @@ export const useStackAggregatedConfigs = (stackName: string) => {
  * Get stacks by status category
  */
 export const useStacksByStatus = () => {
-  useEffect(() => {
-    let mounted = true;
-
-    const init = async () => {
-      if (mounted) {
-        await initializeStackStore();
-      }
-    };
-
-    init();
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
+  // FIXED: No initialization here
 
   return {
     running: stackSelectors.useRunningStacks(),
@@ -184,23 +198,23 @@ export const useStacksByStatus = () => {
  * Get stack statistics and counts
  */
 export const useStackStats = () => {
-  useEffect(() => {
-    let mounted = true;
+  // FIXED: No initialization here
 
-    const init = async () => {
-      if (mounted) {
-        await initializeStackStore();
-      }
-    };
+  const totalStacks = stackSelectors.useTotalStacks();
+  const lastUpdated = stackSelectors.useLastUpdated();
+  const connectionCount = stackSelectors.useConnectionCount();
+  const runningStacks = stackSelectors.useRunningStacks();
+  const stoppedStacks = stackSelectors.useStoppedStacks();
+  const partialStacks = stackSelectors.usePartialStacks();
 
-    init();
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  return stackSelectors.useStackStats();
+  return {
+    totalStacks,
+    runningCount: runningStacks.length,
+    stoppedCount: stoppedStacks.length,
+    partialCount: partialStacks.length,
+    lastUpdated,
+    connectionCount,
+  };
 };
 
 /**
@@ -211,7 +225,14 @@ export const useStackAction = (stackName: string) => {
   const store = useStackStore();
 
   return {
-    ...actions,
+    // Individual action methods
+    startStack: actions.startStack,
+    stopStack: actions.stopStack,
+    restartStack: actions.restartStack,
+    clearActionHistory: actions.clearActionHistory,
+    isPerformingAction: actions.isPerformingAction,
+    lastAction: actions.lastAction,
+
     // Pre-bound methods for this specific stack
     start: () => actions.startStack(stackName),
     stop: () => actions.stopStack(stackName),
