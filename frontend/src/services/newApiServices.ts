@@ -93,7 +93,7 @@ class UnifiedStackService {
     updateInterval?: number
   ): WebSocket {
     const interval = updateInterval || 3;
-    const ws = new WebSocket(`${WS_BASE}/docker/ws/unified`);
+    const ws = new WebSocket(`${WS_BASE}/`);
 
     ws.onopen = () => {
       ws.send(
@@ -283,7 +283,7 @@ class SystemStatsService {
     onData: (stats: SystemStat) => void,
     onError?: (error: string) => void
   ): WebSocket {
-    const ws = new WebSocket(`${WS_BASE}/system/stats/live`);
+    const ws = new WebSocket(`${WS_BASE}/`);
 
     ws.onopen = () => {
       console.log("🔗 Live system stats connected");
@@ -339,7 +339,7 @@ class WebSocketService {
   // System stats WebSocket
   connectSystemStats(onData: (stats: any) => void, updateInterval?: number) {
     const interval = updateInterval || 5000;
-    const ws = new WebSocket(`${WS_BASE}/system/stats`);
+    const ws = new WebSocket(`${WS_BASE}/`);
 
     ws.onopen = () => {
       ws.send(
@@ -366,7 +366,7 @@ class WebSocketService {
 
   // Docker stats WebSocket
   connectDockerStats(onData: (dockerData: any) => void) {
-    const ws = new WebSocket(`${WS_BASE}/docker/stats`);
+    const ws = new WebSocket(`${WS_BASE}/`);
 
     ws.onmessage = (event) => {
       try {

@@ -33,7 +33,10 @@ import {
 
 import { useSelectedStackStore } from "@/stores/selectedStackStore";
 import { useStacks } from "@/hooks/useNewApi";
-import { useUnifiedStack } from "@/hooks/useWebSocketUnifiedStacks";
+import {
+  useUnifiedStack,
+  useUnifiedStacks,
+} from "@/hooks/useWebSocketUnifiedStacks";
 
 export const DockerAppDetailMenu: React.FC = () => {
   const selectedStackName = useSelectedStackStore(

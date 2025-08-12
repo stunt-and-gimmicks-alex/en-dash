@@ -98,6 +98,17 @@ class EnDashWebSocketListener(WSListener):
             self.client.send(welcome_message)
         except Exception as e:
             logger.error(f"Failed to send welcome message: {e}")
+
+        asyncio.create_task(self._send_welcome_data(client_id))
+
+    async def _send_welcome_data(self, client_id: str):
+        """Send cached data to newly connected client"""
+        try:
+            from ..services.data_broadcaster import data_broadcaster
+            await data_broadcaster.send_welcome_data(client_id)
+            logger.debug(f"📦 Welcome data sent to {client_id}")
+        except Exception as e:
+            logger.error(f"Error sending welcome data to {client_id}: {e}")
     
     def on_ws_frame(self, transport: WSTransport, frame: WSFrame):
         """Handle incoming WebSocket frames"""

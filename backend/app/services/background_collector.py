@@ -123,6 +123,9 @@ class BackgroundCollector:
             
             while self.running and not self._shutdown_requested:
                 try:
+
+                    logger.info("🔄 STATS COLLECTION LOOP RUNNING")
+                    
                     if not settings.USE_SURREALDB:
                         await asyncio.sleep(1)
                         continue
@@ -150,6 +153,8 @@ class BackgroundCollector:
             return
             
         try:
+            logger.info("🔥 COLLECTING SYSTEM STATS NOW")
+
             # CPU stats
             cpu_percent = psutil.cpu_percent(interval=None)  # Non-blocking
             

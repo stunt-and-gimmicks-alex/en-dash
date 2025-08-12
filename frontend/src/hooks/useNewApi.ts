@@ -5,6 +5,7 @@ import { useRefresh } from "@/contexts/RefreshContext";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { newApiService } from "@/services/newApiServices";
 import type { UnifiedStack } from "@/types/unified";
+import { useUnifiedStacks } from "./useWebSocketUnifiedStacks";
 
 // =============================================================================
 // WEBSOCKET-BASED HOOKS (Primary Data Source)
@@ -15,90 +16,25 @@ import type { UnifiedStack } from "@/types/unified";
  * This is the primary data source for stack information
  */
 export const useStacks = () => {
+  const { stacks, connected, error } = useUnifiedStacks();
   const { registerStacksRefresh } = useRefresh();
-  const [stacks, setStacks] = useState<UnifiedStack[]>([]);
-  const [connected, setConnected] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
 
-  const connect = useCallback(async () => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) return;
-
-    try {
-      setError(null);
-      setLoading(true);
-
-      const ws = newApiService.createUnifiedStacksStream(
-        (newStacks) => {
-          setStacks(newStacks);
-          setLoading(false);
-          setError(null);
-        },
-        (error) => {
-          setError(error);
-          setLoading(false);
-        }
-      );
-
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        setConnected(true);
-        setLoading(false);
-      };
-
-      ws.onclose = () => {
-        setConnected(false);
-      };
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to connect");
-      setLoading(false);
-    }
-  }, []);
-
-  const disconnect = useCallback(() => {
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
-    }
-    setConnected(false);
-  }, []);
-
-  // Stack actions (still REST-based)
+  // Stack actions (REST-based)
   const startStack = useCallback(async (stackName: string) => {
     try {
       await newApiService.stacks.startStack(stackName);
       return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to start stack");
       return false;
     }
   }, []);
 
   const stopStack = useCallback(async (stackName: string) => {
-    console.log("🛑 stopStack called with:", stackName);
-    console.log("🛑 stackName type:", typeof stackName);
-    console.log("🛑 stackName value:", JSON.stringify(stackName));
-
     try {
-      console.log("🛑 About to call newApiService.stacks.stopStack...");
       const result = await newApiService.stacks.stopStack(stackName);
-      console.log("🛑 Stop stack result:", result);
-      console.log("✅ Stack stopped successfully");
       return true;
     } catch (err) {
       console.error("❌ Stop stack error:", err);
-      console.error("❌ Error type:", typeof err);
-      console.error(
-        "❌ Error message:",
-        err instanceof Error ? err.message : String(err)
-      );
-      console.error(
-        "❌ Error stack:",
-        err instanceof Error ? err.stack : "No stack trace"
-      );
-      setError(err instanceof Error ? err.message : "Failed to stop stack");
       return false;
     }
   }, []);
@@ -108,29 +44,25 @@ export const useStacks = () => {
       await newApiService.stacks.restartStack(stackName);
       return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to restart stack");
       return false;
     }
   }, []);
 
   const manualRefresh = useCallback(async () => {
-    // Force reconnect to get fresh data
-    await connect();
-  }, [connect]);
+    // Refresh is handled by useUnifiedStacks internally
+    window.location.reload();
+  }, []);
+
   useEffect(() => {
     registerStacksRefresh(manualRefresh);
   }, [registerStacksRefresh, manualRefresh]);
-  useEffect(() => {
-    connect();
-    return () => disconnect();
-  }, [connect, disconnect]);
 
   return {
     stacks,
     connected,
-    loading,
+    loading: !connected && !error,
     error,
-    refresh: connect,
+    refresh: manualRefresh,
     startStack,
     stopStack,
     restartStack,

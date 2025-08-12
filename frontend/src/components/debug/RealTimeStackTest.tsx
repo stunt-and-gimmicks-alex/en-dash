@@ -4,9 +4,10 @@
 import React from "react";
 import { Box, Text, Stack, Badge, Card, HStack } from "@chakra-ui/react";
 import { useStacks } from "@/hooks/useNewApi";
+import { useUnifiedStacks } from "@/hooks/useWebSocketUnifiedStacks";
 
 export const RealtimeStacksTest: React.FC = () => {
-  const { stacks, connected, loading, error } = useStacks();
+  const { stacks, connected, loading, error } = useUnifiedStacks();
 
   return (
     <Card.Root bg="brand.surfaceContainer" p="4">
