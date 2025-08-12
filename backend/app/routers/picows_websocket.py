@@ -1,182 +1,260 @@
 # backend/app/routers/picows_websocket.py
 """
-New WebSocket router using picows for high-performance connections.
-Replaces the existing FastAPI websocket implementation.
+Safe WebSocket router that doesn't interfere with SurrealDB connections
+FIXED: No overrides, just direct broadcasting to FastAPI clients
 """
 
 import asyncio
 import logging
-from typing import Dict, Any
-from fastapi import APIRouter, Request, HTTPException
-from fastapi.responses import Response
+import json
+import uuid
+from typing import Dict, Set
+from datetime import datetime
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException
 
-try:
-    import picows
-except ImportError:
-    picows = None
-    
-from ..services.websocket_manager import ws_manager
 from ..services.data_broadcaster import data_broadcaster
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# Check if picows is available
-if not picows:
-    logger.error("❌ picows is not installed. Please install with: pip install picows")
-    # Fallback to FastAPI websockets for development
-    from fastapi import WebSocket, WebSocketDisconnect
-    USE_PICOWS = False
-else:
-    USE_PICOWS = True
+# Simple client management for FastAPI WebSockets (separate from ws_manager)
+class FastAPIWebSocketClient:
+    """Simple FastAPI WebSocket client"""
+    
+    def __init__(self, websocket: WebSocket, client_id: str, remote_addr: str):
+        self.websocket = websocket
+        self.client_id = client_id
+        self.remote_addr = remote_addr
+        self.connected_at = datetime.now()
+        
+    async def send_json(self, message: dict):
+        """Send JSON message"""
+        try:
+            await self.websocket.send_json(message)
+            return True
+        except Exception as e:
+            logger.debug(f"Failed to send to client {self.client_id}: {e}")
+            return False
+
+# Store FastAPI clients separately (don't interfere with ws_manager)
+fastapi_clients: Dict[str, FastAPIWebSocketClient] = {}
+live_data_task: asyncio.Task = None
 
 @router.get("/ws/status")
 async def websocket_status():
     """Get websocket service status"""
+    broadcaster_stats = data_broadcaster.get_stats()
     return {
-        "websocket_backend": "picows" if USE_PICOWS else "fastapi_fallback",
-        "picows_available": picows is not None,
-        "manager_stats": ws_manager.get_stats(),
-        "broadcaster_stats": data_broadcaster.get_stats()
+        "websocket_backend": "fastapi_safe",
+        "fastapi_clients": len(fastapi_clients),
+        "broadcaster_running": broadcaster_stats.get("running", False),
+        "live_queries": broadcaster_stats.get("live_queries", []),
+        "surrealdb_connected": broadcaster_stats.get("surrealdb_connected", False)
     }
 
-if USE_PICOWS:
-    # Picows implementation
-    @router.api_route("/ws/unified", methods=["GET"])
-    async def websocket_unified_picows(request: Request):
-        """
-        Picows WebSocket endpoint for unified data (system stats + docker stacks)
-        This replaces the old /ws/unified-stacks endpoint
-        """
-        try:
-            # Get client IP
-            client_ip = request.client.host if request.client else "unknown"
-            
-            # Upgrade to websocket using picows
-            ws = await picows.upgrade(
-                request.scope,
-                headers={"Sec-WebSocket-Protocol": "endash-v1"},
-                compression=None  # Disable compression for performance
-            )
-            
-            # Auto-subscribe to both data topics
-            await ws_manager.handle_connection(ws, client_ip)
-            
-        except Exception as e:
-            logger.error(f"Error in picows websocket endpoint: {e}")
-            raise HTTPException(status_code=500, detail="WebSocket upgrade failed")
-
-else:
-    # FastAPI fallback implementation (for development)
-    from fastapi import WebSocket, WebSocketDisconnect
+@router.websocket("/ws/unified")
+async def websocket_unified(websocket: WebSocket):
+    """
+    Safe WebSocket endpoint that doesn't interfere with SurrealDB
+    """
     
-    @router.websocket("/ws/unified")
-    async def websocket_unified_fallback(websocket: WebSocket):
-        """
-        FastAPI WebSocket fallback when picows is not available
-        """
-        logger.warning("⚠️ Using FastAPI websocket fallback - install picows for better performance")
-        
-        await websocket.accept()
-        client_id = f"fallback_{id(websocket)}"
-        
-        try:
-            # Subscribe to topics manually for fallback
-            async def send_data():
-                while True:
-                    try:
-                        # Get recent system stats
-                        from ..services.surreal_service import surreal_service
-                        recent_stats = await surreal_service.get_system_stats(hours_back=1)
-                        if recent_stats:
-                            await websocket.send_json({
-                                "type": "system_stats",
-                                "data": recent_stats[0],
-                                "trigger": "fallback_polling"
-                            })
-                        
-                        # Get Docker stacks
-                        from ..services.docker_unified import unified_stack_service
-                        stacks = await unified_stack_service.get_all_unified_stacks()
-                        await websocket.send_json({
-                            "type": "unified_stacks", 
-                            "data": {
-                                "available": True,
-                                "stacks": stacks,
-                                "total_stacks": len(stacks)
-                            },
-                            "trigger": "fallback_polling"
-                        })
-                        
-                        await asyncio.sleep(5)  # 5 second intervals
-                        
-                    except Exception as e:
-                        logger.error(f"Error in fallback data sending: {e}")
-                        break
-            
-            # Handle incoming messages
-            async def handle_messages():
-                while True:
-                    try:
-                        # Use timeout to prevent blocking
-                        message = await asyncio.wait_for(
-                            websocket.receive_json(), 
-                            timeout=1.0
-                        )
-                        
-                        # Handle basic message types
-                        if message.get("type") == "ping":
-                            await websocket.send_json({
-                                "type": "pong",
-                                "timestamp": "fallback"
-                            })
-                            
-                    except asyncio.TimeoutError:
-                        continue
-                    except WebSocketDisconnect:
-                        break
-                    except Exception as e:
-                        logger.error(f"Error handling fallback message: {e}")
-                        break
-            
-            # Run both tasks concurrently
-            await asyncio.gather(
-                send_data(),
-                handle_messages(),
-                return_exceptions=True
-            )
-            
-        except WebSocketDisconnect:
-            logger.info(f"Fallback client {client_id} disconnected")
-        except Exception as e:
-            logger.error(f"Error in fallback websocket: {e}")
-
-# Health check specifically for websockets
-@router.get("/ws/health")
-async def websocket_health():
-    """Websocket health check"""
+    await websocket.accept()
+    client_ip = websocket.client.host if websocket.client else "unknown"
+    client_id = str(uuid.uuid4())
+    
+    # Create and register client
+    client = FastAPIWebSocketClient(websocket, client_id, client_ip)
+    fastapi_clients[client_id] = client
+    
+    logger.info(f"🔗 FastAPI WebSocket client {client_id} connected from {client_ip}")
+    
+    # Start live data broadcasting if this is the first client
+    await _ensure_live_data_task()
+    
     try:
-        stats = ws_manager.get_stats()
-        broadcaster_stats = data_broadcaster.get_stats()
+        # Send welcome message
+        await websocket.send_json({
+            "type": "connected",
+            "client_id": client_id,
+            "timestamp": datetime.now().isoformat(),
+            "backend": "fastapi_safe"
+        })
         
-        return {
-            "status": "healthy",
-            "backend": "picows" if USE_PICOWS else "fastapi_fallback",
-            "connections": stats["total_connections"],
-            "topics": stats.get("topics", {}),
-            "data_sources": {
-                "live_queries": broadcaster_stats.get("live_queries", []),
-                "polling_fallbacks": broadcaster_stats.get("polling_fallbacks", [])
-            }
-        }
+        # Send immediate data
+        await _send_immediate_data(client)
+        
+        # Handle incoming messages
+        while True:
+            try:
+                # Non-blocking receive with timeout
+                message = await asyncio.wait_for(websocket.receive_json(), timeout=1.0)
+                await _handle_client_message(client, message)
+                
+            except asyncio.TimeoutError:
+                # Timeout is normal - prevents blocking
+                continue
+                
+            except WebSocketDisconnect:
+                break
+                
     except Exception as e:
-        return {
-            "status": "unhealthy",
-            "error": str(e),
-            "backend": "picows" if USE_PICOWS else "fastapi_fallback"
-        }
+        logger.error(f"WebSocket error for client {client_id}: {e}")
+    finally:
+        # Cleanup
+        if client_id in fastapi_clients:
+            del fastapi_clients[client_id]
+        logger.info(f"🔌 FastAPI WebSocket client {client_id} disconnected")
+        
+        # Stop live data task if no clients
+        if not fastapi_clients:
+            await _stop_live_data_task()
 
-# Legacy compatibility endpoints (redirect to new unified endpoint)
+async def _send_immediate_data(client: FastAPIWebSocketClient):
+    """Send immediate data when client connects"""
+    try:
+        # Send system stats
+        from ..services.surreal_service import surreal_service
+        recent_stats = await surreal_service.get_system_stats(hours_back=1)
+        if recent_stats:
+            await client.send_json({
+                "type": "system_stats",
+                "data": recent_stats[0],
+                "trigger": "immediate",
+                "timestamp": datetime.now().isoformat()
+            })
+        
+        # Send Docker stacks
+        from ..services.docker_unified import unified_stack_service
+        stacks = await unified_stack_service.get_all_unified_stacks()
+        await client.send_json({
+            "type": "unified_stacks",
+            "data": {
+                "available": True,
+                "stacks": stacks,
+                "total_stacks": len(stacks)
+            },
+            "trigger": "immediate",
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        logger.debug(f"📤 Sent immediate data to client {client.client_id}")
+        
+    except Exception as e:
+        logger.error(f"Error sending immediate data to {client.client_id}: {e}")
+
+async def _handle_client_message(client: FastAPIWebSocketClient, message: dict):
+    """Handle incoming client messages"""
+    try:
+        msg_type = message.get("type")
+        
+        if msg_type == "ping":
+            await client.send_json({
+                "type": "pong",
+                "timestamp": datetime.now().isoformat()
+            })
+            
+        elif msg_type == "set_update_interval":
+            interval = message.get("interval", 5.0)
+            await client.send_json({
+                "type": "config_updated",
+                "message": f"Update interval preference noted: {interval}s"
+            })
+            
+        elif msg_type == "force_refresh":
+            await _send_immediate_data(client)
+            
+    except Exception as e:
+        logger.error(f"Error handling message from {client.client_id}: {e}")
+
+async def _ensure_live_data_task():
+    """Start live data broadcasting task if not running"""
+    global live_data_task
+    
+    if live_data_task is None or live_data_task.done():
+        live_data_task = asyncio.create_task(_live_data_loop())
+        logger.info("🚀 Started live data broadcasting task")
+
+async def _stop_live_data_task():
+    """Stop live data broadcasting task"""
+    global live_data_task
+    
+    if live_data_task and not live_data_task.done():
+        live_data_task.cancel()
+        try:
+            await live_data_task
+        except asyncio.CancelledError:
+            pass
+        logger.info("🛑 Stopped live data broadcasting task")
+
+async def _live_data_loop():
+    """Background task to send live data updates"""
+    try:
+        while fastapi_clients:
+            try:
+                # Get fresh data every 5 seconds
+                await asyncio.sleep(5.0)
+                
+                if not fastapi_clients:
+                    break
+                
+                # Get system stats
+                from ..services.surreal_service import surreal_service
+                recent_stats = await surreal_service.get_system_stats(hours_back=1)
+                
+                # Get Docker stacks
+                from ..services.docker_unified import unified_stack_service
+                stacks = await unified_stack_service.get_all_unified_stacks()
+                
+                # Broadcast to all clients
+                if recent_stats:
+                    await _broadcast_to_fastapi_clients({
+                        "type": "system_stats",
+                        "data": recent_stats[0],
+                        "trigger": "live_update",
+                        "timestamp": datetime.now().isoformat()
+                    })
+                
+                await _broadcast_to_fastapi_clients({
+                    "type": "unified_stacks", 
+                    "data": {
+                        "available": True,
+                        "stacks": stacks,
+                        "total_stacks": len(stacks)
+                    },
+                    "trigger": "live_update",
+                    "timestamp": datetime.now().isoformat()
+                })
+                
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Error in live data loop: {e}")
+                await asyncio.sleep(5)  # Wait before retrying
+                
+    except asyncio.CancelledError:
+        pass
+    finally:
+        logger.info("📡 Live data loop stopped")
+
+async def _broadcast_to_fastapi_clients(message: dict):
+    """Broadcast message to all FastAPI WebSocket clients"""
+    if not fastapi_clients:
+        return
+    
+    # Add connection count
+    message["connection_count"] = len(fastapi_clients)
+    
+    # Send to all clients
+    tasks = []
+    for client in list(fastapi_clients.values()):
+        tasks.append(client.send_json(message))
+    
+    if tasks:
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        successful = sum(1 for r in results if r is True)
+        logger.debug(f"📡 Broadcast sent to {successful}/{len(tasks)} FastAPI clients")
+
+# Legacy compatibility
 @router.get("/ws/unified-stacks")
 async def redirect_to_unified():
     """Redirect old endpoint to new unified endpoint"""
@@ -186,32 +264,45 @@ async def redirect_to_unified():
         "note": "Please update your frontend to use the new endpoint"
     }
 
-# Custom message handlers for the websocket manager
-async def handle_legacy_set_update_interval(client, message):
-    """Handle legacy set_update_interval messages"""
-    interval = message.get("interval", 5.0)
-    # For now, just acknowledge - actual intervals are controlled by broadcaster
-    await client.send({
-        "type": "config_updated",
-        "message": f"Update interval preference noted: {interval}s (controlled by server)"
-    })
+# Health check
+@router.get("/ws/health")
+async def websocket_health():
+    """WebSocket health check"""
+    try:
+        broadcaster_stats = data_broadcaster.get_stats()
+        
+        return {
+            "status": "healthy",
+            "backend": "fastapi_safe",
+            "total_connections": len(fastapi_clients),
+            "live_data_task_running": live_data_task is not None and not live_data_task.done(),
+            "data_sources": {
+                "broadcaster_running": broadcaster_stats.get("running", False),
+                "live_queries": broadcaster_stats.get("live_queries", []),
+                "surrealdb_connected": broadcaster_stats.get("surrealdb_connected", False)
+            }
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "error": str(e)
+        }
 
-async def handle_subscribe_all(client, message):
-    """Auto-subscribe client to all available topics"""
-    topics = ["system_stats", "unified_stacks"]
-    
-    for topic in topics:
-        client.subscriptions.add(topic)
-        if topic not in ws_manager.topic_subscribers:
-            ws_manager.topic_subscribers[topic] = set()
-        ws_manager.topic_subscribers[topic].add(client.client_id)
-    
-    await client.send({
-        "type": "subscribed",
-        "topics": topics,
-        "message": "Auto-subscribed to all data feeds"
-    })
-
-# Register custom handlers
-ws_manager.register_handler("set_update_interval", handle_legacy_set_update_interval)
-ws_manager.register_handler("subscribe_all", handle_subscribe_all)
+# Force refresh endpoint
+@router.post("/ws/force-refresh")
+async def force_websocket_refresh():
+    """Force immediate data refresh to all WebSocket clients"""
+    try:
+        # Send fresh data to all connected clients
+        for client in list(fastapi_clients.values()):
+            await _send_immediate_data(client)
+        
+        return {
+            "success": True,
+            "message": "Fresh data sent to all clients",
+            "timestamp": datetime.now().isoformat(),
+            "connected_clients": len(fastapi_clients)
+        }
+    except Exception as e:
+        logger.error(f"Error forcing refresh: {e}")
+        raise HTTPException(status_code=500, detail=f"Error forcing refresh: {str(e)}")
