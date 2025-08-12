@@ -93,7 +93,7 @@ class UnifiedStackService {
     updateInterval?: number
   ): WebSocket {
     const interval = updateInterval || 3;
-    const ws = new WebSocket(`${WS_BASE}/docker/ws/unified-stacks`);
+    const ws = new WebSocket(`${WS_BASE}/docker/ws/unified`);
 
     ws.onopen = () => {
       ws.send(
@@ -392,7 +392,7 @@ class WebSocketService {
     updateInterval?: number
   ) {
     const interval = updateInterval || 3;
-    const ws = new WebSocket(`${WS_BASE}/docker/ws/unified-stacks`);
+    const ws = new WebSocket(`${WS_BASE}/docker/ws/unified`);
 
     ws.onopen = () => {
       ws.send(

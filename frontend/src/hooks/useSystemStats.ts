@@ -212,7 +212,7 @@ export const useLiveSystemStats = () => {
       setError(null);
 
       // Use the EXISTING unified WebSocket endpoint
-      const wsUrl = `${WS_BASE}/docker/ws/unified-stacks`; // CHANGED: Use unified endpoint
+      const wsUrl = `${WS_BASE}/docker/ws/unified`; // CHANGED: Use unified endpoint
       console.log("🔗 Connecting to unified WebSocket:", wsUrl);
 
       const ws = new WebSocket(wsUrl);

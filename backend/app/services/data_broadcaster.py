@@ -2,6 +2,7 @@
 """
 Data Broadcasting Service - Separates data collection from websocket management.
 Handles data updates and broadcasting through the websocket manager.
+FIXED: Use correct SurrealDB method names and ensure connection.
 """
 
 import asyncio
@@ -38,6 +39,18 @@ class DataBroadcaster:
             return
             
         self.running = True
+        
+        # Ensure SurrealDB is connected before starting live queries
+        logger.info("🔗 Ensuring SurrealDB connection for data broadcaster...")
+        try:
+            if not surreal_service.connected:
+                await surreal_service.connect()
+                logger.info("✅ SurrealDB connected for data broadcaster")
+            else:
+                logger.info("✅ SurrealDB already connected")
+        except Exception as e:
+            logger.error(f"❌ Failed to connect to SurrealDB: {e}")
+            logger.info("🔄 Will use polling fallback only")
         
         # Start monitoring services
         await self._start_system_stats_monitoring()
@@ -80,9 +93,9 @@ class DataBroadcaster:
     async def _start_system_stats_monitoring(self):
         """Start system stats monitoring (live query + polling fallback)"""
         try:
-            # Try to start live query first
-            live_id = await surreal_service.start_live_query(
-                "SELECT * FROM system_stats",
+            # Try to start live query first - FIXED: use correct method name
+            live_id = await surreal_service.create_live_query(
+                "LIVE SELECT * FROM system_stats",  # FIXED: Use proper LIVE SELECT syntax
                 self._handle_system_stats_update
             )
             
@@ -156,9 +169,9 @@ class DataBroadcaster:
     async def _start_docker_monitoring(self):
         """Start Docker stacks monitoring (live query + polling fallback)"""
         try:
-            # Try to start live query first
-            live_id = await surreal_service.start_live_query(
-                "SELECT * FROM unified_stack",
+            # Try to start live query first - FIXED: use correct method name
+            live_id = await surreal_service.create_live_query(
+                "LIVE SELECT * FROM unified_stack",  # FIXED: Use proper LIVE SELECT syntax
                 self._handle_docker_update
             )
             
@@ -245,7 +258,8 @@ class DataBroadcaster:
             "running": self.running,
             "live_queries": list(self.live_query_ids.keys()),
             "polling_fallbacks": list(self.polling_tasks.keys()),
-            "intervals": self.intervals
+            "intervals": self.intervals,
+            "surrealdb_connected": surreal_service.connected
         }
 
 # Global instance

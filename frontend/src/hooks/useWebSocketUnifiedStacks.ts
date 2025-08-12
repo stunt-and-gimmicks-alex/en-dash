@@ -54,7 +54,7 @@ const getWsBaseUrl = () => {
 };
 
 const WS_BASE = getWsBaseUrl();
-const WS_URL = WS_BASE + "/docker/ws/unified-stacks";
+const WS_URL = WS_BASE + "/docker/ws/unified";
 
 export const useWebSocketUnifiedStacks = (
   options: UseWebSocketUnifiedStacksOptions = {}

@@ -3,6 +3,7 @@
 En-Dash Home Server Management API - Updated with Picows WebSocket Support
 
 A FastAPI-based backend with high-performance websockets for real-time data streaming.
+FIXED: Use FastAPI lifespan events and ensure proper SurrealDB connection.
 """
 
 import os
@@ -11,6 +12,7 @@ import logging
 import signal
 import asyncio
 import sys
+from contextlib import asynccontextmanager
 
 # Try to use uvloop for better performance
 try:
@@ -81,13 +83,84 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Create FastAPI application
+# NEW: FastAPI lifespan event handler (replaces deprecated on_event)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan manager"""
+    
+    # STARTUP
+    logger.info("🚀 Starting En-Dash API v2.0.0 with enhanced websockets...")
+    
+    try:
+        # Connect to SurrealDB FIRST
+        logger.info("🔗 Connecting to SurrealDB...")
+        try:
+            await surreal_service.connect()
+            logger.info("✅ SurrealDB connected successfully")
+        except Exception as e:
+            logger.error(f"❌ SurrealDB connection failed: {e}")
+            logger.warning("⚠️ Continuing without SurrealDB - some features may be limited")
+        
+        # Start background data collection (keeps existing functionality)
+        await background_collector.start()
+        logger.info("✅ Background data collection started")
+        
+        # Start NEW websocket manager
+        await ws_manager.start()
+        logger.info("✅ WebSocket manager started")
+        
+        # Start NEW data broadcaster (replaces old websocket broadcasting)
+        await data_broadcaster.start()
+        logger.info("✅ Data broadcaster started")
+        
+        # Check picows availability
+        try:
+            import picows
+            logger.info("✅ picows is available for high-performance websockets")
+        except ImportError:
+            logger.warning("⚠️ picows not available - using FastAPI websocket fallback")
+        
+        logger.info("🎉 En-Dash API started successfully with separated websocket architecture")
+        
+        # Application is running
+        yield
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to start services: {e}")
+        raise
+    
+    # SHUTDOWN
+    logger.info("🛑 Shutting down En-Dash API v2.0.0...")
+    
+    try:
+        # Stop NEW services first
+        await data_broadcaster.stop()
+        logger.info("✅ Data broadcaster stopped")
+        
+        await ws_manager.stop()
+        logger.info("✅ WebSocket manager stopped")
+        
+        # Stop existing services
+        await background_collector.stop()
+        logger.info("✅ Background collector stopped")
+        
+        # Disconnect from SurrealDB
+        await surreal_service.disconnect()
+        logger.info("✅ SurrealDB disconnected")
+        
+        logger.info("🎉 En-Dash API stopped gracefully")
+        
+    except Exception as e:
+        logger.error(f"❌ Error during shutdown: {e}")
+
+# Create FastAPI application with lifespan
 app = FastAPI(
     title="En-Dash API",
     description="Home Server Management Platform API with High-Performance WebSockets",
     version="2.0.0",  # Updated version with picows support
     docs_url="/api/docs" if settings.DEBUG else None,
     redoc_url="/api/redoc" if settings.DEBUG else None,
+    lifespan=lifespan  # NEW: Use lifespan instead of on_event
 )
 
 # CORS Middleware
@@ -137,6 +210,7 @@ async def health_check():
             "websocket_backend": settings.WEBSOCKET_BACKEND,
             "active_connections": websocket_stats.get("total_connections", 0),
             "data_broadcasters": broadcaster_stats.get("running", False),
+            "surrealdb_connected": broadcaster_stats.get("surrealdb_connected", False),
             "features": {
                 "picows_available": True,  # Will be checked during startup
                 "uvloop_installed": "uvloop" in sys.modules,
@@ -175,65 +249,6 @@ async def root():
 static_dir = Path("static")
 if static_dir.exists():
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
-
-# Enhanced startup event
-@app.on_event("startup")
-async def startup_event():
-    """Start all services including new websocket services"""
-    try:
-        logger.info("🚀 Starting En-Dash API v2.0.0 with enhanced websockets...")
-        
-        # Start background data collection (keeps existing functionality)
-        await background_collector.start()
-        logger.info("✅ Background data collection started")
-        
-        # Start NEW websocket manager
-        await ws_manager.start()
-        logger.info("✅ WebSocket manager started")
-        
-        # Start NEW data broadcaster (replaces old websocket broadcasting)
-        await data_broadcaster.start()
-        logger.info("✅ Data broadcaster started")
-        
-        # Check picows availability
-        try:
-            import picows
-            logger.info("✅ picows is available for high-performance websockets")
-        except ImportError:
-            logger.warning("⚠️ picows not available - using FastAPI websocket fallback")
-        
-        logger.info("🎉 En-Dash API started successfully with separated websocket architecture")
-        
-    except Exception as e:
-        logger.error(f"❌ Failed to start services: {e}")
-        raise
-
-# Enhanced shutdown event  
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Stop all services gracefully"""
-    logger.info("🛑 Shutting down En-Dash API v2.0.0...")
-    
-    try:
-        # Stop NEW services first
-        await data_broadcaster.stop()
-        logger.info("✅ Data broadcaster stopped")
-        
-        await ws_manager.stop()
-        logger.info("✅ WebSocket manager stopped")
-        
-        # Stop existing services
-        await background_collector.stop()
-        logger.info("✅ Background collector stopped")
-        
-        # Disconnect from SurrealDB
-        await surreal_service.disconnect()
-        logger.info("✅ SurrealDB disconnected")
-        
-        logger.info("🎉 En-Dash API stopped gracefully")
-        
-    except Exception as e:
-        logger.error(f"❌ Error during shutdown: {e}")
 
 # Signal handlers for graceful shutdown
 def handle_sigint(signum, frame):
