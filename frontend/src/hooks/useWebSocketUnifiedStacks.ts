@@ -44,17 +44,16 @@ interface UseWebSocketUnifiedStacksResult {
 
 const getWsBaseUrl = () => {
   if (typeof window !== "undefined") {
-    const { hostname, protocol } = window.location;
-    const wsProtocol = protocol === "https:" ? "wss:" : "ws:";
+    const { hostname } = window.location;
+    const wsPort = "8002"; // Picows server port
     if (hostname !== "localhost" && hostname !== "127.0.0.1") {
-      return `${wsProtocol}//${hostname}:8001/api`;
+      return `ws://${hostname}:${wsPort}/`;
     }
   }
-  return "ws://localhost:8001/api";
+  return "ws://localhost:8002/";
 };
 
-const WS_BASE = getWsBaseUrl();
-const WS_URL = WS_BASE + "/docker/ws/unified";
+const WS_URL = getWsBaseUrl();
 
 export const useWebSocketUnifiedStacks = (
   options: UseWebSocketUnifiedStacksOptions = {}
@@ -99,6 +98,14 @@ export const useWebSocketUnifiedStacks = (
         setConnecting(false);
         setError(null);
         reconnectAttempts.current = 0;
+
+        // Subscribe to unified_stacks topic (NEW)
+        ws.send(
+          JSON.stringify({
+            type: "subscribe",
+            topic: "unified_stacks",
+          })
+        );
 
         // Set update interval
         ws.send(

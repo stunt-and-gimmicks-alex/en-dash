@@ -30,13 +30,13 @@ const API_BASE = (() => {
 
 const WS_BASE = (() => {
   if (typeof window !== "undefined") {
-    const { hostname, protocol } = window.location;
-    const wsProtocol = protocol === "https:" ? "wss:" : "ws:";
+    const { hostname } = window.location;
+    const wsPort = "8002"; // Picows server port
     if (hostname !== "localhost" && hostname !== "127.0.0.1") {
-      return `${wsProtocol}//${hostname}:8001/api`;
+      return `ws://${hostname}:${wsPort}`;
     }
   }
-  return "ws://localhost:8001/api";
+  return "ws://localhost:8002";
 })();
 
 // =============================================================================
@@ -392,9 +392,17 @@ class WebSocketService {
     updateInterval?: number
   ) {
     const interval = updateInterval || 3;
-    const ws = new WebSocket(`${WS_BASE}/docker/ws/unified`);
+    const ws = new WebSocket(`${WS_BASE}/`);
 
     ws.onopen = () => {
+      // Subscribe to unified_stacks topic
+      ws.send(
+        JSON.stringify({
+          type: "subscribe",
+          topic: "unified_stacks",
+        })
+      );
+
       ws.send(
         JSON.stringify({
           type: "set_update_interval",

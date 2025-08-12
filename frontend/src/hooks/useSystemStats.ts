@@ -212,7 +212,7 @@ export const useLiveSystemStats = () => {
       setError(null);
 
       // Use the EXISTING unified WebSocket endpoint
-      const wsUrl = `${WS_BASE}/docker/ws/unified`; // CHANGED: Use unified endpoint
+      const wsUrl = "ws://192.168.1.69:8002/"; // Direct picows connection
       console.log("🔗 Connecting to unified WebSocket:", wsUrl);
 
       const ws = new WebSocket(wsUrl);
@@ -225,13 +225,29 @@ export const useLiveSystemStats = () => {
         setError(null);
         reconnectAttempts.current = 0;
 
+        // Subscribe to system_stats topic (ADD THIS)
+        ws.send(
+          JSON.stringify({
+            type: "subscribe",
+            topic: "system_stats",
+          })
+        );
+
         // Send ping to confirm connection
         ws.send(JSON.stringify({ type: "ping" }));
       };
 
-      ws.onmessage = (event) => {
+      ws.onmessage = async (event) => {
         try {
-          const message = JSON.parse(event.data);
+          // Handle binary frames from picows
+          let messageText;
+          if (event.data instanceof Blob) {
+            messageText = await event.data.text();
+          } else {
+            messageText = event.data;
+          }
+
+          const message = JSON.parse(messageText);
           console.log("📊 Received from unified WebSocket:", message);
 
           switch (message.type) {
@@ -260,6 +276,18 @@ export const useLiveSystemStats = () => {
             case "error":
               console.error("❌ WebSocket error:", message.message);
               setError(message.message || "WebSocket error");
+              break;
+
+            case "connected":
+              console.log("🎉 Connected to picows server:", message);
+              break;
+
+            case "subscribed":
+              console.log("✅ Subscribed to topic:", message.topic);
+              break;
+
+            case "pong":
+              console.log("🏓 Pong received");
               break;
 
             default:

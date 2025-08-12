@@ -1,7 +1,5 @@
-# backend/app/services/websocket_manager.py
 """
-Optimized WebSocket Manager using picows for high-performance connections.
-Separates websocket handling from data collection/processing.
+Complete WebSocket Manager using picows for high-performance connections.
 """
 
 import asyncio
@@ -10,55 +8,157 @@ import uuid
 import orjson
 from typing import Dict, Set, Optional, Callable, Any
 from datetime import datetime, timezone
-from contextlib import asynccontextmanager
 
 try:
     import picows
+    from picows import WSFrame, WSTransport, WSListener, WSMsgType, WSUpgradeRequest, ws_create_server
+    PICOWS_AVAILABLE = True
 except ImportError:
     picows = None
+    PICOWS_AVAILABLE = False
     print("WARNING: picows not installed. Install with: pip install picows")
 
 logger = logging.getLogger(__name__)
 
-class WebSocketClient:
-    """Individual websocket client wrapper"""
+class PicowsWebSocketClient:
+    """Individual websocket client wrapper for picows"""
     
-    def __init__(self, client_id: str, ws, remote_addr: str):
+    def __init__(self, client_id: str, transport: WSTransport, remote_addr: str):
         self.client_id = client_id
-        self.ws = ws
+        self.transport = transport
         self.remote_addr = remote_addr
         self.connected_at = datetime.now(timezone.utc)
         self.last_ping = None
         self.subscriptions: Set[str] = set()
+        self.active = True
         
-    async def send(self, message: dict):
+    def send(self, message: dict):
         """Send message as binary frame with orjson"""
+        if not self.active:
+            return False
+            
         try:
             data = orjson.dumps(message)
-            await self.ws.send(data, picows.WSMsgType.BINARY)
+            self.transport.send(WSMsgType.BINARY, data)
             return True
         except Exception as e:
             logger.debug(f"Failed to send to client {self.client_id}: {e}")
+            self.active = False
             return False
     
-    async def ping(self):
+    def ping(self):
         """Send ping frame"""
         try:
-            await self.ws.ping()
-            self.last_ping = datetime.now(timezone.utc)
-            return True
+            if self.active:
+                self.transport.ping()
+                self.last_ping = datetime.now(timezone.utc)
+                return True
         except Exception:
-            return False
+            self.active = False
+        return False
+    
+    def disconnect(self):
+        """Disconnect the client"""
+        try:
+            if self.active:
+                self.transport.disconnect()
+                self.active = False
+        except Exception as e:
+            logger.debug(f"Error disconnecting client {self.client_id}: {e}")
+
+class EnDashWebSocketListener(WSListener):
+    """Picows WebSocket listener for En-Dash clients"""
+    
+    def __init__(self, manager: 'PicowsWebSocketManager'):
+        self.manager = manager
+        self.client: Optional[PicowsWebSocketClient] = None
+    
+    def on_ws_connected(self, transport: WSTransport):
+        """Called when a WebSocket connection is established"""
+        client_id = str(uuid.uuid4())
+        remote_addr = getattr(transport, 'remote_address', 'unknown')
+        
+        # Create client wrapper
+        self.client = PicowsWebSocketClient(client_id, transport, remote_addr)
+        
+        # Register with manager
+        self.manager.clients[client_id] = self.client
+        
+        logger.info(f"🔗 Picows client {client_id} connected from {remote_addr}")
+        
+        # Send welcome message
+        welcome_message = {
+            "type": "connected",
+            "client_id": client_id,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "backend": "picows"
+        }
+        
+        try:
+            self.client.send(welcome_message)
+        except Exception as e:
+            logger.error(f"Failed to send welcome message: {e}")
+    
+    def on_ws_frame(self, transport: WSTransport, frame: WSFrame):
+        """Handle incoming WebSocket frames"""
+        if not self.client:
+            return
+            
+        try:
+            if frame.msg_type == WSMsgType.BINARY:
+                # Parse JSON from binary frame
+                data = orjson.loads(frame.get_payload_as_bytes())
+                asyncio.create_task(self.manager._handle_message(self.client, data))
+                
+            elif frame.msg_type == WSMsgType.TEXT:
+                # Parse JSON from text frame
+                data = orjson.loads(frame.get_payload_as_ascii_text())
+                asyncio.create_task(self.manager._handle_message(self.client, data))
+                
+            elif frame.msg_type == WSMsgType.PING:
+                # Auto-respond to ping
+                transport.send_pong(frame.get_payload_as_bytes())
+                
+            elif frame.msg_type == WSMsgType.CLOSE:
+                # Handle close
+                self._on_disconnect()
+                
+        except Exception as e:
+            logger.error(f"Error handling frame from {self.client.client_id}: {e}")
+            self._on_disconnect()
+    
+    def on_ws_disconnected(self, transport: WSTransport):
+        """Called when WebSocket is disconnected"""
+        self._on_disconnect()
+    
+    def _on_disconnect(self):
+        """Handle client disconnection"""
+        if self.client and self.client.client_id in self.manager.clients:
+            logger.info(f"🔌 Picows client {self.client.client_id} disconnected")
+            
+            # Remove from topic subscriptions
+            for topic, subscribers in self.manager.topic_subscribers.items():
+                subscribers.discard(self.client.client_id)
+            
+            # Remove from clients
+            del self.manager.clients[self.client.client_id]
+            
+            self.client.active = False
 
 class PicowsWebSocketManager:
-    """High-performance WebSocket manager using picows"""
+    """High-performance WebSocket manager using picows native server"""
     
     def __init__(self):
-        self.clients: Dict[str, WebSocketClient] = {}
+        self.clients: Dict[str, PicowsWebSocketClient] = {}
         self.topic_subscribers: Dict[str, Set[str]] = {}
         self.message_handlers: Dict[str, Callable] = {}
         self.running = False
         self.cleanup_task: Optional[asyncio.Task] = None
+        self.picows_server: Optional[asyncio.Server] = None
+        
+        # WebSocket server configuration
+        self.host = "0.0.0.0"
+        self.port = 8002  # Separate port for picows
         
         # Register default message handlers
         self._register_default_handlers()
@@ -73,18 +173,58 @@ class PicowsWebSocketManager:
         })
     
     async def start(self):
-        """Start the websocket manager"""
+        """Start the picows websocket server"""
         if self.running:
             return
             
+        if not PICOWS_AVAILABLE:
+            logger.error("❌ Cannot start picows server - picows not installed")
+            return
+            
         self.running = True
-        # Start cleanup task for dead connections
-        self.cleanup_task = asyncio.create_task(self._cleanup_loop())
-        logger.info("🚀 PicowsWebSocketManager started")
+        
+        try:
+            # Create picows server
+            def listener_factory(request: WSUpgradeRequest):
+                """Factory function to create listeners for new connections"""
+                return EnDashWebSocketListener(self)
+            
+            self.picows_server = await ws_create_server(
+                listener_factory,
+                self.host,
+                self.port,
+                # Performance optimizations
+                enable_auto_ping=True,
+                auto_ping_idle_timeout=30.0,
+                auto_ping_reply_timeout=10.0,
+                enable_auto_pong=True,
+                max_frame_size=10 * 1024 * 1024,  # 10MB max frame
+                disconnect_on_exception=True,
+                logger_name='endash.picows'
+            )
+            
+            # Start cleanup task
+            self.cleanup_task = asyncio.create_task(self._cleanup_loop())
+            
+            logger.info(f"🚀 Picows WebSocket server started on {self.host}:{self.port}")
+            logger.info(f"📡 WebSocket endpoint: ws://{self.host}:{self.port}/")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to start picows server: {e}")
+            self.running = False
     
     async def stop(self):
-        """Stop the websocket manager"""
+        """Stop the picows websocket server"""
+        if not self.running:
+            return
+            
         self.running = False
+        
+        # Stop picows server
+        if self.picows_server:
+            self.picows_server.close()
+            await self.picows_server.wait_closed()
+            logger.info("🛑 Picows server closed")
         
         # Cancel cleanup task
         if self.cleanup_task:
@@ -94,170 +234,14 @@ class PicowsWebSocketManager:
             except asyncio.CancelledError:
                 pass
         
-        # Close all connections
+        # Disconnect all clients
         for client in list(self.clients.values()):
-            await self._disconnect_client(client.client_id)
+            client.disconnect()
+        
+        self.clients.clear()
+        self.topic_subscribers.clear()
         
         logger.info("🛑 PicowsWebSocketManager stopped")
-    
-    async def handle_connection(self, ws, remote_addr: str = "unknown"):
-        """Handle new websocket connection"""
-        client_id = str(uuid.uuid4())
-        client = WebSocketClient(client_id, ws, remote_addr)
-        
-        self.clients[client_id] = client
-        logger.info(f"🔗 Client {client_id} connected from {remote_addr}")
-        
-        try:
-            # Send welcome message
-            await client.send({
-                "type": "connected",
-                "client_id": client_id,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "compression_disabled": True,
-                "binary_frames": True
-            })
-            
-            # Handle messages with timeout
-            while self.running:
-                try:
-                    # Non-blocking receive with 1s timeout
-                    msg = await asyncio.wait_for(ws.recv(), timeout=1.0)
-                    
-                    if msg.msg_type == picows.WSMsgType.BINARY:
-                        await self._handle_binary_message(client, msg.data)
-                    elif msg.msg_type == picows.WSMsgType.TEXT:
-                        await self._handle_text_message(client, msg.data)
-                    elif msg.msg_type == picows.WSMsgType.PING:
-                        await ws.pong(msg.data)
-                    elif msg.msg_type == picows.WSMsgType.CLOSE:
-                        break
-                        
-                except asyncio.TimeoutError:
-                    # Timeout is normal - allows cleanup and prevents blocking
-                    continue
-                except picows.WSError as e:
-                    if "close" not in str(e).lower():
-                        logger.debug(f"WebSocket error for {client_id}: {e}")
-                    break
-                except Exception as e:
-                    logger.error(f"Error handling client {client_id}: {e}")
-                    break
-                    
-        finally:
-            await self._disconnect_client(client_id)
-    
-    async def _handle_binary_message(self, client: WebSocketClient, data: bytes):
-        """Handle binary message (preferred format)"""
-        try:
-            message = orjson.loads(data)
-            await self._process_message(client, message)
-        except orjson.JSONDecodeError:
-            await client.send({
-                "type": "error",
-                "message": "Invalid JSON in binary message"
-            })
-    
-    async def _handle_text_message(self, client: WebSocketClient, data: str):
-        """Handle text message (fallback)"""
-        try:
-            message = orjson.loads(data)
-            await self._process_message(client, message)
-        except orjson.JSONDecodeError:
-            await client.send({
-                "type": "error", 
-                "message": "Invalid JSON in text message"
-            })
-    
-    async def _process_message(self, client: WebSocketClient, message: dict):
-        """Process parsed message"""
-        msg_type = message.get("type")
-        if not msg_type:
-            await client.send({
-                "type": "error",
-                "message": "Message missing 'type' field"
-            })
-            return
-        
-        handler = self.message_handlers.get(msg_type)
-        if handler:
-            try:
-                await handler(client, message)
-            except Exception as e:
-                logger.error(f"Error in handler for {msg_type}: {e}")
-                await client.send({
-                    "type": "error",
-                    "message": f"Handler error: {str(e)}"
-                })
-        else:
-            logger.warning(f"No handler for message type: {msg_type}")
-    
-    # Default message handlers
-    async def _handle_ping(self, client: WebSocketClient, message: dict):
-        """Handle ping message"""
-        await client.send({
-            "type": "pong", 
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        })
-    
-    async def _handle_subscribe(self, client: WebSocketClient, message: dict):
-        """Handle subscription to topics"""
-        topics = message.get("topics", [])
-        if isinstance(topics, str):
-            topics = [topics]
-        
-        for topic in topics:
-            client.subscriptions.add(topic)
-            if topic not in self.topic_subscribers:
-                self.topic_subscribers[topic] = set()
-            self.topic_subscribers[topic].add(client.client_id)
-        
-        await client.send({
-            "type": "subscribed",
-            "topics": list(client.subscriptions)
-        })
-    
-    async def _handle_unsubscribe(self, client: WebSocketClient, message: dict):
-        """Handle unsubscription from topics"""
-        topics = message.get("topics", [])
-        if isinstance(topics, str):
-            topics = [topics]
-        
-        for topic in topics:
-            client.subscriptions.discard(topic)
-            if topic in self.topic_subscribers:
-                self.topic_subscribers[topic].discard(client.client_id)
-        
-        await client.send({
-            "type": "unsubscribed", 
-            "topics": topics
-        })
-    
-    async def _handle_update_interval(self, client: WebSocketClient, message: dict):
-        """Handle update interval change (legacy compatibility)"""
-        interval = message.get("interval", 3.0)
-        # Store interval preference for client
-        # This is handled by data broadcaster, not websocket layer
-        await client.send({
-            "type": "config_updated",
-            "message": f"Update interval preference set to {interval} seconds"
-        })
-    
-    async def _disconnect_client(self, client_id: str):
-        """Disconnect and cleanup client"""
-        client = self.clients.get(client_id)
-        if not client:
-            return
-        
-        # Remove from topic subscriptions
-        for topic in client.subscriptions:
-            if topic in self.topic_subscribers:
-                self.topic_subscribers[topic].discard(client_id)
-        
-        # Remove client
-        del self.clients[client_id]
-        
-        logger.info(f"🔌 Client {client_id} disconnected")
     
     async def _cleanup_loop(self):
         """Periodic cleanup of dead connections"""
@@ -265,16 +249,22 @@ class PicowsWebSocketManager:
             try:
                 await asyncio.sleep(30)  # Check every 30 seconds
                 
+                # Find and remove dead clients
                 dead_clients = []
                 for client_id, client in self.clients.items():
-                    # Try to ping client
-                    if not await client.ping():
+                    if not client.active:
                         dead_clients.append(client_id)
                 
                 # Remove dead clients
                 for client_id in dead_clients:
-                    await self._disconnect_client(client_id)
-                    
+                    if client_id in self.clients:
+                        # Remove from topic subscriptions
+                        for topic, subscribers in self.topic_subscribers.items():
+                            subscribers.discard(client_id)
+                        
+                        # Remove from clients
+                        del self.clients[client_id]
+                
                 if dead_clients:
                     logger.info(f"🧹 Cleaned up {len(dead_clients)} dead connections")
                     
@@ -282,6 +272,72 @@ class PicowsWebSocketManager:
                 break
             except Exception as e:
                 logger.error(f"Error in cleanup loop: {e}")
+    
+    async def _handle_message(self, client: PicowsWebSocketClient, message: dict):
+        """Handle incoming messages from clients"""
+        try:
+            msg_type = message.get('type', 'unknown')
+            handler = self.message_handlers.get(msg_type)
+            
+            if handler:
+                await handler(client, message)
+            else:
+                logger.debug(f"Unknown message type: {msg_type}")
+                
+        except Exception as e:
+            logger.error(f"Error handling message from {client.client_id}: {e}")
+    
+    # Message handlers
+    async def _handle_ping(self, client: PicowsWebSocketClient, message: dict):
+        """Handle ping messages"""
+        client.send({
+            "type": "pong",
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        })
+    
+    async def _handle_subscribe(self, client: PicowsWebSocketClient, message: dict):
+        """Handle subscription requests"""
+        topic = message.get('topic')
+        if topic:
+            if topic not in self.topic_subscribers:
+                self.topic_subscribers[topic] = set()
+            
+            self.topic_subscribers[topic].add(client.client_id)
+            client.subscriptions.add(topic)
+            
+            logger.debug(f"Client {client.client_id} subscribed to {topic}")
+            
+            client.send({
+                "type": "subscribed",
+                "topic": topic,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            })
+    
+    async def _handle_unsubscribe(self, client: PicowsWebSocketClient, message: dict):
+        """Handle unsubscription requests"""
+        topic = message.get('topic')
+        if topic and topic in self.topic_subscribers:
+            self.topic_subscribers[topic].discard(client.client_id)
+            client.subscriptions.discard(topic)
+            
+            logger.debug(f"Client {client.client_id} unsubscribed from {topic}")
+            
+            client.send({
+                "type": "unsubscribed",
+                "topic": topic,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            })
+    
+    async def _handle_update_interval(self, client: PicowsWebSocketClient, message: dict):
+        """Handle update interval changes"""
+        interval = message.get('interval', 5.0)
+        logger.debug(f"Client {client.client_id} requested interval: {interval}s")
+        
+        client.send({
+            "type": "interval_updated",
+            "interval": interval,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        })
     
     # Public API methods
     async def broadcast(self, message: dict, topic: str = None):
@@ -298,32 +354,43 @@ class PicowsWebSocketManager:
             return
         
         # Add metadata
-        message.update({
+        enhanced_message = message.copy()
+        enhanced_message.update({
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "connection_count": len(self.clients)
+            "connection_count": len(self.clients),
+            "backend": "picows"
         })
         
-        # Send to all clients concurrently
-        tasks = [client.send(message) for client in clients]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        # Send to all clients
+        successful = 0
+        for client in clients:
+            if client.send(enhanced_message):
+                successful += 1
         
-        # Count successful sends
-        successful = sum(1 for r in results if r is True)
-        logger.debug(f"📡 Broadcast sent to {successful}/{len(clients)} clients")
+        if successful > 0:
+            logger.debug(f"📡 Picows broadcast sent to {successful}/{len(clients)} clients")
     
     async def send_to_client(self, client_id: str, message: dict):
         """Send message to specific client"""
         client = self.clients.get(client_id)
         if client:
-            return await client.send(message)
+            return client.send(message)
         return False
     
     def get_stats(self) -> dict:
         """Get websocket manager statistics"""
         return {
+            "backend": "picows",
+            "available": PICOWS_AVAILABLE,
+            "running": self.running,
+            "server_info": {
+                "host": self.host,
+                "port": self.port,
+                "endpoint": f"ws://{self.host}:{self.port}/"
+            },
             "total_connections": len(self.clients),
-            "topics": {topic: len(subs) for topic, subs in self.topic_subscribers.items()},
-            "running": self.running
+            "active_clients": sum(1 for c in self.clients.values() if c.active),
+            "topics": {topic: len(subs) for topic, subs in self.topic_subscribers.items()}
         }
     
     def register_handler(self, message_type: str, handler: Callable):

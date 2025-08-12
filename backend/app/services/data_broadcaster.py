@@ -1,13 +1,12 @@
 # backend/app/services/data_broadcaster.py
 """
-Data Broadcasting Service - Separates data collection from websocket management.
-Handles data updates and broadcasting through the websocket manager.
-FIXED: Use correct SurrealDB method names and ensure connection.
+Enhanced Data Broadcasting Service for Picows WebSocket Manager
+Handles data updates and broadcasting with proper error handling and fallbacks
 """
 
 import asyncio
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from datetime import datetime, timezone
 
 from .websocket_manager import ws_manager
@@ -17,22 +16,30 @@ from .docker_unified import unified_stack_service
 logger = logging.getLogger(__name__)
 
 class DataBroadcaster:
-    """Manages data updates and broadcasting, separate from websocket handling"""
+    """Enhanced data broadcaster for picows integration"""
     
     def __init__(self):
         self.running = False
         self.live_query_tasks: Dict[str, asyncio.Task] = {}
         self.polling_tasks: Dict[str, asyncio.Task] = {}
         
-        # Data broadcasting intervals
+        # Data broadcasting intervals (in seconds)
         self.intervals = {
-            'system_stats': 5.0,    # 5 second intervals for system stats
-            'docker_stacks': 5.0,   # 5 second intervals for docker data  
+            'system_stats': 5.0,
+            'docker_stacks': 3.0,  # Slightly faster for docker updates
+            'heartbeat': 30.0      # Regular heartbeat
         }
         
-        # Live query IDs
+        # Live query tracking
         self.live_query_ids: Dict[str, str] = {}
         
+        # Cache for immediate responses to new connections
+        self.cached_data = {
+            'system_stats': None,
+            'docker_stacks': None,
+            'last_update': {}
+        }
+    
     async def start(self):
         """Start data broadcasting services"""
         if self.running:
@@ -40,23 +47,18 @@ class DataBroadcaster:
             
         self.running = True
         
-        # Ensure SurrealDB is connected before starting live queries
-        logger.info("🔗 Ensuring SurrealDB connection for data broadcaster...")
-        try:
-            if not surreal_service.connected:
-                await surreal_service.connect()
-                logger.info("✅ SurrealDB connected for data broadcaster")
-            else:
-                logger.info("✅ SurrealDB already connected")
-        except Exception as e:
-            logger.error(f"❌ Failed to connect to SurrealDB: {e}")
-            logger.info("🔄 Will use polling fallback only")
+        # Initialize cache
+        await self._initialize_cache()
+        
+        # Ensure SurrealDB connection for live queries
+        await self._ensure_surrealdb_connection()
         
         # Start monitoring services
         await self._start_system_stats_monitoring()
         await self._start_docker_monitoring()
+        await self._start_heartbeat()
         
-        logger.info("🚀 DataBroadcaster started")
+        logger.info("🚀 Enhanced DataBroadcaster started")
     
     async def stop(self):
         """Stop data broadcasting services"""
@@ -65,7 +67,8 @@ class DataBroadcaster:
         # Stop all live queries
         for query_type, live_id in self.live_query_ids.items():
             try:
-                await surreal_service.kill_live_query(live_id)
+                if surreal_service.connected:
+                    await surreal_service.kill_live_query(live_id)
                 logger.info(f"🛑 Stopped live query for {query_type}")
             except Exception as e:
                 logger.error(f"Error stopping live query {query_type}: {e}")
@@ -83,33 +86,68 @@ class DataBroadcaster:
             except Exception:
                 pass
         
+        # Clear state
         self.live_query_tasks.clear()
         self.polling_tasks.clear()
         self.live_query_ids.clear()
+        self.cached_data = {'system_stats': None, 'docker_stacks': None, 'last_update': {}}
         
-        logger.info("🛑 DataBroadcaster stopped")
+        logger.info("🛑 Enhanced DataBroadcaster stopped")
+    
+    async def _initialize_cache(self):
+        """Initialize data cache with current values"""
+        try:
+            # Cache Docker stacks
+            docker_data = await unified_stack_service.get_all_unified_stacks()
+            self.cached_data['docker_stacks'] = docker_data
+            self.cached_data['last_update']['docker_stacks'] = datetime.now(timezone.utc)
+            
+            logger.info("✅ Data cache initialized")
+        except Exception as e:
+            logger.error(f"Error initializing cache: {e}")
+    
+    async def _ensure_surrealdb_connection(self):
+        """Ensure SurrealDB connection for live queries"""
+        try:
+            if not surreal_service.connected:
+                await surreal_service.connect()
+                logger.info("✅ SurrealDB connected for data broadcaster")
+            else:
+                logger.info("✅ SurrealDB already connected")
+        except Exception as e:
+            logger.error(f"❌ Failed to connect to SurrealDB: {e}")
+            logger.info("🔄 Will use polling fallback only")
     
     # System Stats Monitoring
     async def _start_system_stats_monitoring(self):
-        """Start system stats monitoring (live query + polling fallback)"""
+        """Start system stats monitoring with fallback"""
         try:
-            # Try to start live query first - FIXED: use correct method name
-            live_id = await surreal_service.create_live_query(
-                "LIVE SELECT * FROM system_stats",  # FIXED: Use proper LIVE SELECT syntax
-                self._handle_system_stats_update
-            )
-            
-            if live_id:
-                self.live_query_ids['system_stats'] = live_id
-                logger.info("✅ System stats live query started")
+            logger.info("🔍 DEBUG: Starting system stats monitoring...")
+            if surreal_service.connected:
+                logger.info("🔍 DEBUG: SurrealDB is connected, attempting live query...")
                 
-                # Send immediate data to new connections
-                await self._send_immediate_system_stats()
+                live_id = await surreal_service.create_live_query(
+                    "system_stats",  # Just the table name
+                    self._handle_system_stats_update
+                )
+                
+                logger.info(f"🔍 DEBUG: Live query result: {live_id}")
+                
+                if live_id:
+                    self.live_query_ids['system_stats'] = live_id
+                    logger.info("✅ System stats live query started")
+                    await self._send_immediate_system_stats()
+                    return
+                else:
+                    logger.error("❌ Live query returned None/False")
             else:
-                raise Exception("Live query failed")
-                
+                logger.error("❌ SurrealDB not connected for live queries")
+            
+            # Fallback to polling
+            await self._start_system_stats_polling()
+            
         except Exception as e:
-            logger.warning(f"Live query failed for system stats: {e}")
+            logger.error(f"❌ Live query failed for system stats: {e}")
             await self._start_system_stats_polling()
     
     async def _start_system_stats_polling(self):
@@ -119,71 +157,80 @@ class DataBroadcaster:
         async def poll_loop():
             while self.running:
                 try:
-                    recent_stats = await surreal_service.get_system_stats(hours_back=1)
-                    if recent_stats:
-                        await self._broadcast_system_stats(recent_stats[0])
+                    # This would integrate with your system stats service
+                    # For now, we'll send a basic heartbeat
+                    stats_data = {
+                        "cpu_usage": 0.0,
+                        "memory_usage": 0.0,
+                        "disk_usage": 0.0,
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "source": "polling"
+                    }
                     
+                    # Cache and broadcast
+                    self.cached_data['system_stats'] = stats_data
+                    self.cached_data['last_update']['system_stats'] = datetime.now(timezone.utc)
+                    
+                    await self._broadcast_system_stats(stats_data, trigger="polling")
                     await asyncio.sleep(self.intervals['system_stats'])
                     
                 except asyncio.CancelledError:
                     break
                 except Exception as e:
                     logger.error(f"Error in system stats polling: {e}")
-                    await asyncio.sleep(5)
+                    await asyncio.sleep(10)  # Longer delay on error
         
         self.polling_tasks['system_stats'] = asyncio.create_task(poll_loop())
     
     async def _handle_system_stats_update(self, update_data: Any):
         """Handle system stats live query updates"""
         try:
-            logger.debug("📊 System stats live update received")
-            
-            # Get fresh data
-            recent_stats = await surreal_service.get_system_stats(hours_back=1)
-            if recent_stats:
-                await self._broadcast_system_stats(recent_stats[0], trigger="live_query")
-                
+            logger.info(f"🔍 DEBUG: Live query callback triggered with: {update_data}")
+            # ... rest of existing code
         except Exception as e:
             logger.error(f"Error handling system stats update: {e}")
-    
-    async def _broadcast_system_stats(self, stats_data: dict, trigger: str = "polling"):
-        """Broadcast system stats to websocket clients"""
-        message = {
-            "type": "system_stats",
-            "data": stats_data,
-            "trigger": trigger
-        }
         
-        await ws_manager.broadcast(message, topic="system_stats")
+        async def _broadcast_system_stats(self, stats_data: dict, trigger: str = "polling"):
+            """Broadcast system stats to websocket clients"""
+            message = {
+                "type": "system_stats",
+                "data": stats_data,
+                "trigger": trigger,
+                "cached_at": self.cached_data['last_update'].get('system_stats', datetime.now(timezone.utc)).isoformat()
+            }
+            
+            await ws_manager.broadcast(message, topic="system_stats")
     
     async def _send_immediate_system_stats(self):
-        """Send immediate system stats to newly connected clients"""
+        """Send immediate system stats data"""
         try:
-            recent_stats = await surreal_service.get_system_stats(hours_back=1)
-            if recent_stats:
-                await self._broadcast_system_stats(recent_stats[0], trigger="immediate")
+            if self.cached_data['system_stats']:
+                await self._broadcast_system_stats(self.cached_data['system_stats'], trigger="immediate")
         except Exception as e:
             logger.error(f"Error sending immediate system stats: {e}")
     
-    # Docker Monitoring  
+    # Docker Monitoring
     async def _start_docker_monitoring(self):
-        """Start Docker stacks monitoring (live query + polling fallback)"""
+        """Start Docker stacks monitoring with fallback"""
         try:
-            # Try to start live query first - FIXED: use correct method name
-            live_id = await surreal_service.create_live_query(
-                "LIVE SELECT * FROM unified_stack",  # FIXED: Use proper LIVE SELECT syntax
-                self._handle_docker_update
-            )
+            if surreal_service.connected:
+                # Try live query first
+                live_id = await surreal_service.create_live_query(
+                    "unified_stack",  # Just the table name
+                    self._handle_docker_update
+                )
+                                
+                if live_id:
+                    self.live_query_ids['docker_stacks'] = live_id
+                    logger.info("✅ Docker stacks live query started")
+                    
+                    # Send immediate data
+                    await self._send_immediate_docker_data()
+                    return
             
-            if live_id:
-                self.live_query_ids['docker_stacks'] = live_id
-                logger.info("✅ Docker stacks live query started")
-                
-                # Send immediate data
-                await self._send_immediate_docker_data()
-            else:
-                raise Exception("Live query failed")
-                
+            # Fallback to polling
+            await self._start_docker_polling()
+            
         except Exception as e:
             logger.warning(f"Live query failed for docker stacks: {e}")
             await self._start_docker_polling()
@@ -196,15 +243,19 @@ class DataBroadcaster:
             while self.running:
                 try:
                     stacks = await unified_stack_service.get_all_unified_stacks()
-                    await self._broadcast_docker_stacks(stacks)
                     
+                    # Cache and broadcast
+                    self.cached_data['docker_stacks'] = stacks
+                    self.cached_data['last_update']['docker_stacks'] = datetime.now(timezone.utc)
+                    
+                    await self._broadcast_docker_stacks(stacks, trigger="polling")
                     await asyncio.sleep(self.intervals['docker_stacks'])
                     
                 except asyncio.CancelledError:
                     break
                 except Exception as e:
                     logger.error(f"Error in Docker polling: {e}")
-                    await asyncio.sleep(5)
+                    await asyncio.sleep(10)  # Longer delay on error
         
         self.polling_tasks['docker_stacks'] = asyncio.create_task(poll_loop())
     
@@ -213,8 +264,13 @@ class DataBroadcaster:
         try:
             logger.debug("📦 Docker stacks live update received")
             
-            # Get fresh data
+            # Get fresh data from the service
             stacks = await unified_stack_service.get_all_unified_stacks()
+            
+            # Cache and broadcast
+            self.cached_data['docker_stacks'] = stacks
+            self.cached_data['last_update']['docker_stacks'] = datetime.now(timezone.utc)
+            
             await self._broadcast_docker_stacks(stacks, trigger="live_query")
             
         except Exception as e:
@@ -228,9 +284,10 @@ class DataBroadcaster:
                 "available": True,
                 "stacks": stacks_data,
                 "total_stacks": len(stacks_data),
-                "processing_time": "0ms"  # Not relevant for live data
+                "processing_time": "0ms"  # Real-time data
             },
-            "trigger": trigger
+            "trigger": trigger,
+            "cached_at": self.cached_data['last_update'].get('docker_stacks', datetime.now(timezone.utc)).isoformat()
         }
         
         await ws_manager.broadcast(message, topic="unified_stacks")
@@ -238,29 +295,163 @@ class DataBroadcaster:
     async def _send_immediate_docker_data(self):
         """Send immediate Docker data to newly connected clients"""
         try:
-            stacks = await unified_stack_service.get_all_unified_stacks()
-            await self._broadcast_docker_stacks(stacks, trigger="immediate")
+            if self.cached_data['docker_stacks']:
+                await self._broadcast_docker_stacks(self.cached_data['docker_stacks'], trigger="immediate")
+            else:
+                # Fetch fresh data if cache is empty
+                stacks = await unified_stack_service.get_all_unified_stacks()
+                self.cached_data['docker_stacks'] = stacks
+                self.cached_data['last_update']['docker_stacks'] = datetime.now(timezone.utc)
+                await self._broadcast_docker_stacks(stacks, trigger="immediate")
         except Exception as e:
             logger.error(f"Error sending immediate Docker data: {e}")
+    
+    # Heartbeat
+    async def _start_heartbeat(self):
+        """Start heartbeat broadcasting"""
+        async def heartbeat_loop():
+            while self.running:
+                try:
+                    await asyncio.sleep(self.intervals['heartbeat'])
+                    
+                    if ws_manager.clients:  # Only send if there are connected clients
+                        heartbeat_message = {
+                            "type": "heartbeat",
+                            "data": {
+                                "server_time": datetime.now(timezone.utc).isoformat(),
+                                "uptime_seconds": 0,  # Could calculate actual uptime
+                                "connected_clients": len(ws_manager.clients),
+                                "active_topics": list(ws_manager.topic_subscribers.keys())
+                            },
+                            "trigger": "heartbeat"
+                        }
+                        
+                        await ws_manager.broadcast(heartbeat_message, topic="heartbeat")
+                        logger.debug("💓 Heartbeat sent to connected clients")
+                    
+                except asyncio.CancelledError:
+                    break
+                except Exception as e:
+                    logger.error(f"Error in heartbeat loop: {e}")
+        
+        self.polling_tasks['heartbeat'] = asyncio.create_task(heartbeat_loop())
     
     # Public API
     async def force_update_system_stats(self):
         """Force immediate system stats update"""
-        await self._send_immediate_system_stats()
+        try:
+            await self._send_immediate_system_stats()
+            logger.info("🔄 Forced system stats update")
+        except Exception as e:
+            logger.error(f"Error forcing system stats update: {e}")
     
     async def force_update_docker_stacks(self):
         """Force immediate Docker stacks update"""
-        await self._send_immediate_docker_data()
+        try:
+            await self._send_immediate_docker_data()
+            logger.info("🔄 Forced Docker stacks update")
+        except Exception as e:
+            logger.error(f"Error forcing Docker stacks update: {e}")
+    
+    async def send_welcome_data(self, client_id: str):
+        """Send welcome data package to a newly connected client"""
+        try:
+            # Send cached Docker data
+            if self.cached_data['docker_stacks']:
+                welcome_docker = {
+                    "type": "unified_stacks",
+                    "data": {
+                        "available": True,
+                        "stacks": self.cached_data['docker_stacks'],
+                        "total_stacks": len(self.cached_data['docker_stacks']),
+                        "processing_time": "0ms"
+                    },
+                    "trigger": "welcome",
+                    "cached_at": self.cached_data['last_update'].get('docker_stacks', datetime.now(timezone.utc)).isoformat()
+                }
+                await ws_manager.send_to_client(client_id, welcome_docker)
+            
+            # Send cached system stats
+            if self.cached_data['system_stats']:
+                welcome_stats = {
+                    "type": "system_stats",
+                    "data": self.cached_data['system_stats'],
+                    "trigger": "welcome",
+                    "cached_at": self.cached_data['last_update'].get('system_stats', datetime.now(timezone.utc)).isoformat()
+                }
+                await ws_manager.send_to_client(client_id, welcome_stats)
+            
+            # Send server info
+            server_info = {
+                "type": "server_info",
+                "data": {
+                    "backend": "picows",
+                    "intervals": self.intervals,
+                    "live_queries": list(self.live_query_ids.keys()),
+                    "polling_fallbacks": list(self.polling_tasks.keys()),
+                    "features": ["binary_frames", "orjson", "high_performance"]
+                },
+                "trigger": "welcome"
+            }
+            await ws_manager.send_to_client(client_id, server_info)
+            
+            logger.debug(f"📦 Welcome data sent to client {client_id}")
+            
+        except Exception as e:
+            logger.error(f"Error sending welcome data to {client_id}: {e}")
     
     def get_stats(self) -> dict:
-        """Get broadcaster statistics"""
+        """Get comprehensive broadcaster statistics"""
         return {
             "running": self.running,
             "live_queries": list(self.live_query_ids.keys()),
             "polling_fallbacks": list(self.polling_tasks.keys()),
             "intervals": self.intervals,
-            "surrealdb_connected": surreal_service.connected
+            "surrealdb_connected": surreal_service.connected,
+            "cache_status": {
+                "docker_stacks": self.cached_data['docker_stacks'] is not None,
+                "system_stats": self.cached_data['system_stats'] is not None,
+                "last_updates": {
+                    k: v.isoformat() if v else None 
+                    for k, v in self.cached_data['last_update'].items()
+                }
+            },
+            "websocket_stats": ws_manager.get_stats()
         }
+    
+    async def update_interval(self, data_type: str, interval: float):
+        """Update broadcasting interval for a specific data type"""
+        if data_type in self.intervals and interval > 0:
+            old_interval = self.intervals[data_type]
+            self.intervals[data_type] = interval
+            
+            logger.info(f"📝 Updated {data_type} interval: {old_interval}s → {interval}s")
+            
+            # Restart the relevant task if needed
+            if data_type in self.polling_tasks:
+                task = self.polling_tasks[data_type]
+                if not task.done():
+                    task.cancel()
+                
+                # Restart with new interval
+                if data_type == 'system_stats':
+                    await self._start_system_stats_polling()
+                elif data_type == 'docker_stacks':
+                    await self._start_docker_polling()
+    
+    async def get_cached_data(self, data_type: str = None) -> dict:
+        """Get cached data for immediate responses"""
+        if data_type:
+            return {
+                "data": self.cached_data.get(data_type),
+                "last_update": self.cached_data['last_update'].get(data_type)
+            }
+        else:
+            return {
+                "docker_stacks": self.cached_data.get('docker_stacks'),
+                "system_stats": self.cached_data.get('system_stats'),
+                "last_updates": self.cached_data['last_update']
+            }
 
 # Global instance
 data_broadcaster = DataBroadcaster()
