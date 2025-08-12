@@ -21,9 +21,14 @@ import {
 } from "react-icons/pi";
 
 // CHANGED - Using new API hooks and navigation context
-import { useDockerStats, useStacks } from "@/hooks/useNewApi";
+import { useDockerStats } from "@/hooks/useNewApi";
+import { useStacks } from "@/hooks/v06-useStacks";
 import { useNavigation } from "@/contexts/NavigationContext";
 import { RealtimeStacksTest } from "@/components/debug/RealTimeStackTest";
+import type {
+  EnhancedUnifiedService,
+  EnhancedUnifiedStack,
+} from "@/types/unified";
 
 export const DockerOverviewPage: React.FC = () => {
   // NEW - Using navigation context instead of props
@@ -31,16 +36,19 @@ export const DockerOverviewPage: React.FC = () => {
 
   // CHANGED - Using new API hooks
   const { stats, loading: statsLoading } = useDockerStats();
-  const { stacks, loading: stacksLoading } = useStacks();
+  const { stacks, connected, error } = useStacks();
 
   // Calculate quick stats
-  const runningStacks = stacks.filter((s) => s.status === "running").length;
+  const runningStacks = stacks.filter(
+    (s: EnhancedUnifiedStack) => s.status === "running"
+  ).length;
   const totalContainers = stacks.reduce(
-    (total, stack) => total + (stack.containers?.containers?.length || 0),
+    (total: number, stack: EnhancedUnifiedStack) =>
+      total + (stack.containers?.total || 0),
     0
   );
   const runningContainers = stacks.reduce(
-    (total, stack) =>
+    (total: number, stack: EnhancedUnifiedStack) =>
       total +
       (stack.containers?.containers?.filter((c) => c.status === "running")
         ?.length || 0),
@@ -53,14 +61,12 @@ export const DockerOverviewPage: React.FC = () => {
       valueRunning: runningStacks,
       valueTotal: stacks.length,
       icon: PiStackFill,
-      loading: stacksLoading,
     },
     {
       label: "running container",
       valueRunning: runningContainers,
       valueTotal: totalContainers,
       icon: PiShippingContainerFill,
-      loading: stacksLoading,
     },
   ];
 
@@ -124,16 +130,7 @@ export const DockerOverviewPage: React.FC = () => {
                 <GridItem key={stat.label}>
                   <HStack justify="space-between" gap="5">
                     <stat.icon size="24" />
-                    <Stack>
-                      <Text fontSize="md" fontWeight="normal">
-                        {stat.loading
-                          ? "..."
-                          : stat.valueRunning +
-                            "/" +
-                            stat.valueTotal +
-                            " running"}
-                      </Text>
-                    </Stack>
+                    <Stack></Stack>
                   </HStack>
                 </GridItem>
               ))}

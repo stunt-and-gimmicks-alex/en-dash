@@ -638,7 +638,7 @@ export interface UseUnifiedStackResult {
   refresh: () => Promise<void>;
 }
 
-export interface UseUnifiedStacksResult {
+export interface useStackResult {
   stacks: UnifiedStack[];
   loading: boolean;
   error: string | null;

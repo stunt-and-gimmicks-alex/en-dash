@@ -1,7 +1,7 @@
 // frontend/src/components/stacks/StackDetail.tsx
 // MIGRATED - Original StackDetail layout restored using UnifiedStack + ChakraUI v3
 
-import React, { useMemo } from "react";
+import React from "react";
 import {
   Button,
   Card,
@@ -23,12 +23,11 @@ import type { UnifiedStack } from "@/types/unified";
 import { stringify } from "yaml";
 import { EditableCodeViewDialog } from "@/components/ui/small/EditableCodeViewDialog";
 import { StackControlButtons } from "@/components/ui/small/StackControlButtons";
-import { ServicesPane } from "../services/ServicesPane";
+import { ServicesPane } from "@/components/docker/components/services/ServicesPane";
 import { StackValidationAccordion } from "./StackValidationAccordion";
 import {
   PiAppWindow,
   PiArrowsClockwise,
-  PiFileMagnifyingGlass,
   PiPencilSimpleLine,
 } from "react-icons/pi";
 import { UsageCard } from "@/components/ui/small/UsageCard";
@@ -54,7 +53,6 @@ export const StackDetail: React.FC<StackDetailProps> = ({
   onStart,
   onStop,
   onRestart,
-  loading = false,
   disabled = false,
 }) => {
   const services = Object.values(stack.services || {});
@@ -115,7 +113,6 @@ export const StackDetail: React.FC<StackDetailProps> = ({
                   onStop={() => onStop(stack.name)}
                   onRestart={() => onRestart(stack.name)}
                   disabled={disabled}
-                  loading={loading}
                   orientation="horizontal"
                 />
               </Card.Header>
@@ -189,7 +186,6 @@ export const StackDetail: React.FC<StackDetailProps> = ({
                           language="yaml"
                           title={stack.compose_file}
                           triggerText="View Compose"
-                          triggerIcon={<PiFileMagnifyingGlass />}
                           onSave={handleSaveCompose}
                           editable={true}
                           editButtonText="Edit YAML"
@@ -256,7 +252,7 @@ export const StackDetail: React.FC<StackDetailProps> = ({
                 <Stack gap="0">
                   <Card.Description>Sync Status</Card.Description>
                   <Card.Title textStyle="xl">
-                    {stack.stats.syncStatus || "100%"} Synced{" "}
+                    "100%" Synced
                     {/* TODO = Need to add a global sync state property to UnifiedStacks */}
                   </Card.Title>
                 </Stack>

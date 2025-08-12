@@ -25,7 +25,8 @@ import { UserProfile } from "./UserProfile";
 import { ModuleDropdown } from "./ModuleDropdown";
 
 // USING NEW WEBSOCKET API with unified backend processing
-import { useStacks } from "@/hooks/useNewApi";
+import { useStacks } from "@/hooks/v06-useStacks";
+import { useStackActions } from "@/hooks/v06-useStackActions";
 
 import type {
   NavigationProps,
@@ -33,6 +34,7 @@ import type {
   ModuleGroup,
   PageKey,
 } from "@/types/navigation";
+import type { UnifiedStack } from "@/types/unified";
 
 // Server management navigation items
 const serverLinks: NavigationItem[] = [
@@ -95,7 +97,7 @@ export const Sidebar: React.FC<NavigationProps> = ({
   const [openModule, setOpenModule] = useState<string | null>(null);
 
   // Get live Docker stacks using NEW WebSocket API with unified processing
-  const { stacks, connected, loading, error } = useStacks();
+  const { stacks, connected, error } = useStacks();
 
   const handleModuleToggle = (moduleLabel: string) => {
     setOpenModule(openModule === moduleLabel ? null : moduleLabel);
@@ -122,7 +124,7 @@ export const Sidebar: React.FC<NavigationProps> = ({
     }
 
     return stacks.reduce(
-      (counts, stack) => {
+      (counts, stack: UnifiedStack) => {
         const runningContainers = stack.stats?.containers?.running || 0;
         const totalContainers = stack.stats?.containers?.total || 0;
 
@@ -159,11 +161,7 @@ export const Sidebar: React.FC<NavigationProps> = ({
     // 1. Still loading, OR
     // 2. Connected but no stacks loaded yet (could be loading), OR
     // 3. Error but still attempting to connect
-    if (
-      loading ||
-      (connected && stacks.length === 0 && !error) ||
-      (error && !connected)
-    ) {
+    if ((connected && stacks.length === 0 && !error) || (error && !connected)) {
       return (
         <HStack gap="2">
           <Text>Docker</Text>

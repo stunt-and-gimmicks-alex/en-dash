@@ -21,7 +21,7 @@ import {
 } from "react-icons/pi";
 
 // CHANGED - Using new API hooks and navigation context
-import { useDockerStats, useStacks } from "@/hooks/useNewApi";
+import { useDockerStats } from "@/hooks/useNewApi";
 import { useNavigation } from "@/contexts/NavigationContext";
 import { RealtimeStacksTest } from "@/components/debug/RealTimeStackTest";
 import { useLiveSystemStats } from "@/hooks/useSystemStats";

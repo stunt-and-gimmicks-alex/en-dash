@@ -66,7 +66,7 @@ import type { PageKey, NavigationProps } from "@/types/navigation";
 ```typescript
 // Component-ready data (no transformation needed)
 const { containers } = useStackContainers(stackName);
-const { stacks } = useWebSocketUnifiedStacks();
+const { stacks } = useStacks();
 
 // Real-time updates
 const { stats } = useRealtimeSystemStats();

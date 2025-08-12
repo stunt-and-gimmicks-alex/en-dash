@@ -3,11 +3,10 @@
 
 import React from "react";
 import { Box, Text, Stack, Badge, Card, HStack } from "@chakra-ui/react";
-import { useStacks } from "@/hooks/useNewApi";
-import { useUnifiedStacks } from "@/hooks/useWebSocketUnifiedStacks";
+import { useStacks } from "@/hooks/v06-useStacks";
 
 export const RealtimeStacksTest: React.FC = () => {
-  const { stacks, connected, loading, error } = useUnifiedStacks();
+  const { stacks, connected, error } = useStacks();
 
   return (
     <Card.Root bg="brand.surfaceContainer" p="4">
@@ -34,9 +33,6 @@ export const RealtimeStacksTest: React.FC = () => {
             </Text>
             <Text fontSize="sm" color="brand.onSurfaceVariant">
               WebSocket: {connected ? "✅ Connected" : "❌ Disconnected"}
-            </Text>
-            <Text fontSize="sm" color="brand.onSurfaceVariant">
-              Loading: {loading ? "📡 Loading..." : "✅ Ready"}
             </Text>
             {error && (
               <Text fontSize="sm" color="red.500">

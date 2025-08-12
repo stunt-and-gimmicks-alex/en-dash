@@ -32,11 +32,8 @@ import {
 // import { validateStack } from "@/utils/stackValidation";
 
 import { useSelectedStackStore } from "@/stores/selectedStackStore";
-import { useStacks } from "@/hooks/useNewApi";
-import {
-  useUnifiedStack,
-  useUnifiedStacks,
-} from "@/hooks/useWebSocketUnifiedStacks";
+import { useStackActions } from "@/hooks/v06-useStackActions";
+import { useStack } from "@/hooks/v06-useStacks";
 
 export const DockerAppDetailMenu: React.FC = () => {
   const selectedStackName = useSelectedStackStore(
@@ -61,8 +58,8 @@ export const DockerAppDetailMenu: React.FC = () => {
       </EmptyState.Root>
     );
   }
-  const { startStack, stopStack, restartStack, loading } = useStacks();
-  const { stack } = useUnifiedStack(selectedStackName);
+  const { startStack, stopStack, restartStack } = useStackActions();
+  const { stack } = useStack(selectedStackName);
 
   if (!stack) {
     return (

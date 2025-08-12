@@ -63,9 +63,10 @@ import {
 // import { validateStack } from "@/utils/stackValidation";
 
 import { useSelectedStackStore } from "@/stores/selectedStackStore";
-import { useStacks } from "@/hooks/useNewApi";
+import { useStackActions } from "@/hooks/v06-useStackActions";
 import { useStackData } from "@/hooks/useStackData";
 import { DockerAppDetailMenu } from "../components/applications/DockerAppMenu";
+import type { UnifiedNetworkItem } from "@/types/unified";
 
 export const DockerStackDetailPage: React.FC = () => {
   const selectedStackName = useSelectedStackStore(
@@ -92,12 +93,7 @@ export const DockerStackDetailPage: React.FC = () => {
   }
 
   // Stack actions (keep this for start/stop/restart functionality)
-  const {
-    startStack,
-    stopStack,
-    restartStack,
-    loading: actionsLoading,
-  } = useStacks();
+  const { startStack, stopStack, restartStack } = useStackActions();
 
   // Enhanced stack data with analytics
   const {
@@ -312,7 +308,7 @@ export const DockerStackDetailPage: React.FC = () => {
                           <List.Root gap="2" variant="plain" align="center">
                             {stack?.aggregated_configs?.networks ? (
                               stack.aggregated_configs.networks.map(
-                                (n, index) => (
+                                (n, index: number) => (
                                   <List.Item key={index} w="100%">
                                     <List.Indicator asChild color="green.500">
                                       <Badge
@@ -359,25 +355,27 @@ export const DockerStackDetailPage: React.FC = () => {
                           </HoverCard.Arrow>
                           <List.Root gap="2" variant="plain" align="center">
                             {stack?.aggregated_configs?.ports ? (
-                              stack.aggregated_configs.ports.map((p, index) => (
-                                <List.Item key={index} w="100%">
-                                  <List.Indicator asChild color="green.500">
-                                    <Badge
-                                      colorPalette="secondaryBrand"
-                                      variant="outline"
-                                    >
-                                      <Text color="secondaryBrand.fg">
-                                        {p.level}
-                                      </Text>
-                                    </Badge>
-                                  </List.Indicator>
-                                  <Text color="secondaryBrand.emphasized">
-                                    {p.host}
-                                  </Text>
-                                  <Text>:</Text>
-                                  <Text color="brand.fg">{p.container}</Text>
-                                </List.Item>
-                              ))
+                              stack.aggregated_configs.ports.map(
+                                (p, index: number) => (
+                                  <List.Item key={index} w="100%">
+                                    <List.Indicator asChild color="green.500">
+                                      <Badge
+                                        colorPalette="secondaryBrand"
+                                        variant="outline"
+                                      >
+                                        <Text color="secondaryBrand.fg">
+                                          {p.level}
+                                        </Text>
+                                      </Badge>
+                                    </List.Indicator>
+                                    <Text color="secondaryBrand.emphasized">
+                                      {p.host}
+                                    </Text>
+                                    <Text>:</Text>
+                                    <Text color="brand.fg">{p.container}</Text>
+                                  </List.Item>
+                                )
+                              )
                             ) : (
                               <Text color="brand.error">No ports found.</Text>
                             )}
@@ -408,7 +406,7 @@ export const DockerStackDetailPage: React.FC = () => {
                           <List.Root gap="2" variant="plain" align="center">
                             {stack?.aggregated_configs?.volumes ? (
                               stack.aggregated_configs.volumes.map(
-                                (v, index) => (
+                                (v, index: number) => (
                                   <List.Item key={index} w="100%">
                                     <List.Indicator asChild color="green.500">
                                       <Badge
@@ -461,25 +459,27 @@ export const DockerStackDetailPage: React.FC = () => {
                               Running: {stack.containers.running}
                             </Text>
                             {stack?.containers.containers ? (
-                              stack.containers.containers.map((c, index) => (
-                                <List.Item key={index} w="100%">
-                                  <List.Indicator asChild color="green.500">
-                                    <Badge
-                                      colorPalette="secondaryBrand"
-                                      variant="outline"
-                                    >
-                                      <Text color="secondaryBrand.fg">
-                                        {c.status === "running"
-                                          ? c.short_id
-                                          : "-"}
-                                      </Text>
-                                    </Badge>
-                                  </List.Indicator>
-                                  <Text>
-                                    {c.status === "running" ? c.name : "-"}
-                                  </Text>
-                                </List.Item>
-                              ))
+                              stack.containers.containers.map(
+                                (c, index: number) => (
+                                  <List.Item key={index} w="100%">
+                                    <List.Indicator asChild color="green.500">
+                                      <Badge
+                                        colorPalette="secondaryBrand"
+                                        variant="outline"
+                                      >
+                                        <Text color="secondaryBrand.fg">
+                                          {c.status === "running"
+                                            ? c.short_id
+                                            : "-"}
+                                        </Text>
+                                      </Badge>
+                                    </List.Indicator>
+                                    <Text>
+                                      {c.status === "running" ? c.name : "-"}
+                                    </Text>
+                                  </List.Item>
+                                )
+                              )
                             ) : (
                               <Text color="brand.muted">
                                 No running containers.
@@ -493,25 +493,27 @@ export const DockerStackDetailPage: React.FC = () => {
                               Paused: {stack.containers.paused}
                             </Text>
                             {stack?.containers.containers ? (
-                              stack.containers.containers.map((c, index) => (
-                                <List.Item key={index} w="100%">
-                                  <List.Indicator asChild color="green.500">
-                                    <Badge
-                                      colorPalette="secondaryBrand"
-                                      variant="outline"
-                                    >
-                                      <Text color="secondaryBrand.fg">
-                                        {c.status === "paused"
-                                          ? c.short_id
-                                          : "-"}
-                                      </Text>
-                                    </Badge>
-                                  </List.Indicator>
-                                  <Text>
-                                    {c.status === "paused" ? c.name : "-"}
-                                  </Text>
-                                </List.Item>
-                              ))
+                              stack.containers.containers.map(
+                                (c, index: number) => (
+                                  <List.Item key={index} w="100%">
+                                    <List.Indicator asChild color="green.500">
+                                      <Badge
+                                        colorPalette="secondaryBrand"
+                                        variant="outline"
+                                      >
+                                        <Text color="secondaryBrand.fg">
+                                          {c.status === "paused"
+                                            ? c.short_id
+                                            : "-"}
+                                        </Text>
+                                      </Badge>
+                                    </List.Indicator>
+                                    <Text>
+                                      {c.status === "paused" ? c.name : "-"}
+                                    </Text>
+                                  </List.Item>
+                                )
+                              )
                             ) : (
                               <Text color="brand.muted">
                                 No paused containers.
@@ -525,25 +527,27 @@ export const DockerStackDetailPage: React.FC = () => {
                               Stopped: {stack.containers.stopped}
                             </Text>
                             {stack?.containers.containers ? (
-                              stack.containers.containers.map((c, index) => (
-                                <List.Item key={index} w="100%">
-                                  <List.Indicator asChild color="green.500">
-                                    <Badge
-                                      colorPalette="secondaryBrand"
-                                      variant="outline"
-                                    >
-                                      <Text color="secondaryBrand.fg">
-                                        {c.status === "stopped"
-                                          ? c.short_id
-                                          : "-"}
-                                      </Text>
-                                    </Badge>
-                                  </List.Indicator>
-                                  <Text>
-                                    {c.status === "stopped" ? c.name : "-"}
-                                  </Text>
-                                </List.Item>
-                              ))
+                              stack.containers.containers.map(
+                                (c, index: number) => (
+                                  <List.Item key={index} w="100%">
+                                    <List.Indicator asChild color="green.500">
+                                      <Badge
+                                        colorPalette="secondaryBrand"
+                                        variant="outline"
+                                      >
+                                        <Text color="secondaryBrand.fg">
+                                          {c.status === "stopped"
+                                            ? c.short_id
+                                            : "-"}
+                                        </Text>
+                                      </Badge>
+                                    </List.Indicator>
+                                    <Text>
+                                      {c.status === "stopped" ? c.name : "-"}
+                                    </Text>
+                                  </List.Item>
+                                )
+                              )
                             ) : (
                               <Text color="brand.muted">
                                 No stopped containers.
@@ -576,7 +580,7 @@ export const DockerStackDetailPage: React.FC = () => {
                           <List.Root gap="2" variant="plain" align="center">
                             {stack?.aggregated_configs?.environment ? (
                               stack.aggregated_configs.environment.map(
-                                (e, index) => (
+                                (e, index: number) => (
                                   <List.Item key={index} w="100%">
                                     <List.Indicator asChild color="green.500">
                                       <Badge

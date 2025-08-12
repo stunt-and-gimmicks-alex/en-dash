@@ -5,7 +5,7 @@ import { useRefresh } from "@/contexts/RefreshContext";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { newApiService } from "@/services/newApiServices";
 import type { UnifiedStack } from "@/types/unified";
-import { useUnifiedStacks } from "./useWebSocketUnifiedStacks";
+import { useStacks } from "@/hooks/v06-useStacks";
 
 // =============================================================================
 // WEBSOCKET-BASED HOOKS (Primary Data Source)
@@ -15,72 +15,18 @@ import { useUnifiedStacks } from "./useWebSocketUnifiedStacks";
  * Real-time unified stacks via WebSocket
  * This is the primary data source for stack information
  */
-export const useStacks = () => {
-  const { stacks, connected, error } = useUnifiedStacks();
-  const { registerStacksRefresh } = useRefresh();
-
-  // Stack actions (REST-based)
-  const startStack = useCallback(async (stackName: string) => {
-    try {
-      await newApiService.stacks.startStack(stackName);
-      return true;
-    } catch (err) {
-      return false;
-    }
-  }, []);
-
-  const stopStack = useCallback(async (stackName: string) => {
-    try {
-      const result = await newApiService.stacks.stopStack(stackName);
-      return true;
-    } catch (err) {
-      console.error("❌ Stop stack error:", err);
-      return false;
-    }
-  }, []);
-
-  const restartStack = useCallback(async (stackName: string) => {
-    try {
-      await newApiService.stacks.restartStack(stackName);
-      return true;
-    } catch (err) {
-      return false;
-    }
-  }, []);
-
-  const manualRefresh = useCallback(async () => {
-    // Refresh is handled by useUnifiedStacks internally
-    window.location.reload();
-  }, []);
-
-  useEffect(() => {
-    registerStacksRefresh(manualRefresh);
-  }, [registerStacksRefresh, manualRefresh]);
-
-  return {
-    stacks,
-    connected,
-    loading: !connected && !error,
-    error,
-    refresh: manualRefresh,
-    startStack,
-    stopStack,
-    restartStack,
-  };
-};
 
 /**
  * Get a specific stack by name from real-time data
  */
 export const useStack = (stackName: string) => {
-  const { stacks, connected, loading, error } = useStacks();
+  const { stacks, connected, error } = useStacks();
 
   const stack = stacks.find((s) => s.name === stackName) || null;
 
   return {
     stack,
     connected,
-    loading,
     error,
   };
 };
@@ -107,30 +53,6 @@ export const useStackContainers = (stackName: string) => {
 /**
  * API health check
  */
-export const useApiHealth = () => {
-  const [healthy, setHealthy] = useState(false);
-  const [checking, setChecking] = useState(true);
-
-  const checkHealth = useCallback(async () => {
-    try {
-      setChecking(true);
-      const isHealthy = await newApiService.healthCheck();
-      setHealthy(isHealthy);
-    } catch {
-      setHealthy(false);
-    } finally {
-      setChecking(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    checkHealth();
-    const interval = setInterval(checkHealth, 30000);
-    return () => clearInterval(interval);
-  }, [checkHealth]);
-
-  return { healthy, checking, checkHealth };
-};
 
 /**
  * Docker stats summary (REST fallback)
@@ -144,8 +66,6 @@ export const useDockerStats = () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await newApiService.getDockerStats();
-      setStats(data);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to fetch Docker stats"
@@ -162,42 +82,4 @@ export const useDockerStats = () => {
   }, [fetchStats]);
 
   return { stats, loading, error, refresh: fetchStats };
-};
-
-// =============================================================================
-// BACKWARDS COMPATIBILITY
-// =============================================================================
-
-/**
- * Drop-in replacement for old useDockgeStacks
- */
-export const useDockgeStacksCompat = () => {
-  const {
-    stacks,
-    connected,
-    loading,
-    error,
-    startStack,
-    stopStack,
-    restartStack,
-  } = useStacks();
-
-  // Transform to match old interface
-  const compatStacks = stacks.map((stack) => ({
-    name: stack.name,
-    status: stack.status as "running" | "stopped" | "error",
-    containers: stack.containers?.containers || [],
-    path: stack.path,
-    lastUpdated: stack.last_modified,
-  }));
-
-  return {
-    stacks: compatStacks,
-    loading,
-    error,
-    refreshStacks: () => {}, // WebSocket auto-refreshes
-    startStack,
-    stopStack,
-    restartStack,
-  };
 };

@@ -22,7 +22,8 @@ import {
 } from "@chakra-ui/react";
 
 // NEW - Using migrated API hooks with unified stack data
-import { useStacks } from "@/hooks/useNewApi";
+import { useStacks } from "@/hooks/v06-useStacks";
+import { useStackActions } from "@/hooks/v06-useStackActions";
 import type { UnifiedStack } from "@/types/unified";
 import { useSelectedStackStore } from "@/stores/selectedStackStore";
 
@@ -34,15 +35,9 @@ import { useNavigation } from "@/contexts/NavigationContext";
 
 export const DockerStacksPage: React.FC = () => {
   // NEW - Real-time unified stacks via WebSocket
-  const {
-    stacks,
-    connected,
-    loading,
-    error,
-    startStack,
-    stopStack,
-    restartStack,
-  } = useStacks();
+  const { stacks, connected, error } = useStacks();
+  const { startStack, stopStack, restartStack, isPerformingAction } =
+    useStackActions();
 
   const { onNavigate } = useNavigation();
 
@@ -153,15 +148,13 @@ export const DockerStacksPage: React.FC = () => {
             <Tabs.List>
               {stackFilter.map((filter) => (
                 <Tabs.Trigger key={filter.status} value={filter.status}>
-                  <Skeleton asChild loading={loading}>
-                    <Badge
-                      colorPalette={filter.colorPalette}
-                      size="lg"
-                      variant="plain"
-                    >
-                      {filter.status}&emsp;{filter.count}
-                    </Badge>
-                  </Skeleton>
+                  <Badge
+                    colorPalette={filter.colorPalette}
+                    size="lg"
+                    variant="plain"
+                  >
+                    {filter.status}&emsp;{filter.count}
+                  </Badge>
                 </Tabs.Trigger>
               ))}
 
@@ -196,14 +189,7 @@ export const DockerStacksPage: React.FC = () => {
                 mt="0"
                 pt="0"
               >
-                {loading ? (
-                  // Loading skeleton
-                  <Stack gap="4" mt="2">
-                    {[...Array(3)].map((_, i) => (
-                      <Skeleton key={i} height="120px" />
-                    ))}
-                  </Stack>
-                ) : filter.content.length === 0 ? (
+                {filter.content.length === 0 ? (
                   // Empty state
                   <Box
                     textAlign="center"
@@ -225,7 +211,6 @@ export const DockerStacksPage: React.FC = () => {
                     onStart={startStack}
                     onStop={stopStack}
                     onRestart={restartStack}
-                    loading={loading}
                   />
                 )}
               </Tabs.Content>

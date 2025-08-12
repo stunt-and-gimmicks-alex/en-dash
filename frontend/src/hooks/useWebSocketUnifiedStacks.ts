@@ -273,8 +273,8 @@ export const useWebSocketUnifiedStacks = (
  * Simple hook for basic unified stacks usage
  * Now returns EnhancedUnifiedStack[] with aggregatedConfigs
  */
-export const useUnifiedStacks = () => {
-  const { stacks, connected, error } = useWebSocketUnifiedStacks();
+export const useStack = () => {
+  const { stacks, connected, error } = useStacks();
 
   return {
     stacks, // Now EnhancedUnifiedStack[]
@@ -289,7 +289,7 @@ export const useUnifiedStacks = () => {
  * Now returns EnhancedUnifiedStack | null with aggregatedConfigs
  */
 export const useUnifiedStack = (stackName: string) => {
-  const { stacks, connected, error } = useWebSocketUnifiedStacks();
+  const { stacks, connected, error } = useStacks();
 
   const stack = stacks.find((s) => s.name === stackName) || null;
 
@@ -305,7 +305,7 @@ export const useUnifiedStack = (stackName: string) => {
  * Hook for getting containers from a specific stack
  */
 export const useStackContainers = (stackName: string) => {
-  const { stack } = useUnifiedStack(stackName);
+  const { stack } = useStack(stackName);
 
   return {
     containers: stack?.containers?.containers || [],
@@ -319,7 +319,7 @@ export const useStackContainers = (stackName: string) => {
  * NEW: Hook for getting aggregated configs from a specific stack
  */
 export const useStackAggregatedConfigs = (stackName: string) => {
-  const { stack } = useUnifiedStack(stackName);
+  const { stack } = useStack(stackName);
 
   return {
     aggregatedConfigs: stack?.aggregated_configs || null,
