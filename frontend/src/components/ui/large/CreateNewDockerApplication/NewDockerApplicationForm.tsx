@@ -18,7 +18,7 @@ import {
   Text,
 } from "@chakra-ui/react";
 import { PiGhost } from "react-icons/pi";
-import { NewDockDrawerStart } from "./NewDockerApplicationDrawer1";
+import { NewDockDrawerStart } from "./NewDockerAppDrawerBasic";
 import { NewDockDrawerServices } from "./NewDockerApplicationDrawerServices";
 import { AppConfigCard } from "./NewDockerAppItemCard";
 

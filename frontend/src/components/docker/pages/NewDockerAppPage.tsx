@@ -17,7 +17,6 @@ import {
   CodeBlock,
   Flex,
   Float,
-  HStack,
   Icon,
   IconButton,
   Stack,
@@ -30,19 +29,11 @@ import { createShikiAdapter } from "@chakra-ui/react";
 // ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
 // ▓▓▒▒░░      Icon Imports     ░░▒▒▓▓
 // ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
-import {
-  PiAppWindow,
-  PiCarrot,
-  PiFileCode,
-  PiLightning,
-  PiPlus,
-} from "react-icons/pi";
+import { PiFileCode, PiLightning } from "react-icons/pi";
 
 // ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
 // ▓▓▒▒░░      App Imports      ░░▒▒▓▓
 // ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
-import { useStacks, useStackActions } from "@/hooks/v06-stackHooks";
-import type { UnifiedStack } from "@/types/unified";
 // import { StackBlocks } from "@/components/docker/components/applications/StackBlocks";
 // import { StackDetail } from "@/components/docker/components/applications/StackDetail";
 // import { useNavigation } from "@/contexts/NavigationContext";
@@ -214,7 +205,7 @@ networks:
           </Card.Footer>
         </Card.Root>
         <Box w="1/2" display="inline-block">
-          <Float placement="middle-start" maxW="43dvw">
+          <Flex maxW="43dvw">
             <CodeBlock.AdapterProvider value={shikiAdapter}>
               <ClientOnly>
                 {() => (
@@ -253,7 +244,7 @@ networks:
                 )}
               </ClientOnly>
             </CodeBlock.AdapterProvider>
-          </Float>
+          </Flex>
         </Box>
       </Flex>
     </Box>

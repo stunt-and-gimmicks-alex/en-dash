@@ -18,7 +18,7 @@ import { SystemMonitorPage } from "@/pages/SystemMonitorPage";
 import { DockerOverviewPage } from "@/components/docker/pages/DockerOverviewPage";
 import { DockerStacksPage } from "@/components/docker/pages/DockerStacksPage";
 import { DockerStackDetailPage } from "@/components/docker/pages/DockerStackDetailPage";
-import { NewDockerApplication } from "@/components/docker/pages/CreateNewDockerApplicationPage";
+import { NewDockerApplication } from "@/components/docker/pages/NewDockerAppPage";
 import { StoragePage } from "@/pages/StoragePage";
 import { ProcessesPage } from "@/pages/ProcessPage";
 import { NetworkPage } from "@/pages/NetworkPage";
