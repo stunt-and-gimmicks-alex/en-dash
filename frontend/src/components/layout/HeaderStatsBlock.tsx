@@ -58,7 +58,6 @@ export const HeaderStatsBlock: React.FC<HeaderStatsBlockProps> = ({
 
   // ✨ NEW - Modern livequery system stats
   const { currentStats, connected, error } = useSystemStats();
-  console.log("the stats are:", currentStats?.cpu_percent);
 
   // State for tracking network rates with trailing average
   const [networkHistory, setNetworkHistory] = useState<
@@ -357,48 +356,6 @@ export const HeaderStatsBlock: React.FC<HeaderStatsBlockProps> = ({
                 </ProgressCircle.Root>
               </Group>
             )
-          )}
-          {/* Connection Status - Subtle indicator */}
-          {!connected && (
-            <Badge
-              bg="brandPrimary.100"
-              color="brandGray.900"
-              textStyle="xs"
-              justifyContent="space-between"
-              p="1.5"
-              w="6dvw"
-              minW="120px"
-            >
-              <Status.Root colorPalette="redBrand" size="lg">
-                <StatusIndicator />
-                <Text textStyle="sm" fontFamily="adwide" fontWeight="thin">
-                  {error ? `E: ${error}` : "Disconnected"}
-                </Text>
-              </Status.Root>
-            </Badge>
-          )}
-          {connected && currentStats && (
-            <Badge
-              bg="brandPrimary.100"
-              color="brandGray.900"
-              textStyle="xs"
-              p="1.5"
-              w="6dvw"
-              minW="120px"
-            >
-              <Status.Root
-                colorPalette="brand"
-                size="lg"
-                justifyContent="space-between"
-                w="full"
-                px="3"
-              >
-                <StatusIndicator />
-                <Text textStyle="sm" fontFamily="adwide" fontWeight="thin">
-                  {new Date(currentStats.timestamp).toLocaleTimeString()}
-                </Text>
-              </Status.Root>
-            </Badge>
           )}
         </Flex>
       </Flex>

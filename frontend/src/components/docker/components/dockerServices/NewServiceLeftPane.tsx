@@ -9,6 +9,7 @@ import {
   DataList,
   Heading,
   HStack,
+  SimpleGrid,
   Stack,
   Status,
   StatusRoot,
@@ -49,9 +50,9 @@ export const NewServiceLeftPane: React.FC<ServicesTabsProps> = ({
   };
 
   return (
-    <Container py="4" maxW="md">
+    <SimpleGrid columns={4} columnGap="2" rowGap="4" minChildWidth="sm">
       {services.map((s, i) => (
-        <Card.Root p="6" key={i}>
+        <Card.Root px="6" pb="6" key={i} maxW="sm">
           <Stack gap="4">
             <Card.Header>
               <Card.Title textStyle="xl" fontWeight="medium">
@@ -98,18 +99,18 @@ export const NewServiceLeftPane: React.FC<ServicesTabsProps> = ({
               </Button>
             </HStack>
 
-            <DataList.Root orientation="horizontal" mt="2">
+            <DataList.Root orientation="vertical" mt="2">
               <DataList.Item>
-                <DataList.ItemLabel>Phone</DataList.ItemLabel>
-                <DataList.ItemValue>{data.phone}</DataList.ItemValue>
+                <DataList.ItemLabel>Image</DataList.ItemLabel>
+                <DataList.ItemValue>{s.image}</DataList.ItemValue>
               </DataList.Item>
               <DataList.Item>
-                <DataList.ItemLabel>Email</DataList.ItemLabel>
-                <DataList.ItemValue>{data.email}</DataList.ItemValue>
+                <DataList.ItemLabel>Restart Policy</DataList.ItemLabel>
+                <DataList.ItemValue>{s.restart}</DataList.ItemValue>
               </DataList.Item>
               <DataList.Item>
                 <DataList.ItemLabel>Location</DataList.ItemLabel>
-                <DataList.ItemValue>{data.location}</DataList.ItemValue>
+                <DataList.ItemValue>Something</DataList.ItemValue>
               </DataList.Item>
               <DataList.Item>
                 <DataList.ItemLabel>Domain</DataList.ItemLabel>
@@ -136,6 +137,6 @@ export const NewServiceLeftPane: React.FC<ServicesTabsProps> = ({
           </Stack>
         </Card.Root>
       ))}
-    </Container>
+    </SimpleGrid>
   );
 };

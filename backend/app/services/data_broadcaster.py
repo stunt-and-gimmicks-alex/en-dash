@@ -127,9 +127,9 @@ class DataBroadcaster:
                 logger.info("🔍 DEBUG: SurrealDB is connected, attempting live query...")
                 
                 live_id = await surreal_service.create_live_query(
-                "system_stats",  # Just the table name
-                self._handle_system_stats_update
-            )
+                    "system_stats",  # Just the table name
+                    self._handle_system_stats_update
+                )
                 
                 logger.info(f"🔍 DEBUG: Live query result: {live_id}")
                 
@@ -182,15 +182,13 @@ class DataBroadcaster:
         
         self.polling_tasks['system_stats'] = asyncio.create_task(poll_loop())
     
-# REPLACE the incomplete _handle_system_stats_update method with this:
-
     async def _handle_system_stats_update(self, update_data: Any):
         """Handle system stats live query updates"""
         try:
             logger.debug("📊 System stats live update received")
             
-            # Get fresh data from SurrealDB (just like Docker does from unified_stack_service)
-            recent_stats = await surreal_service.get_system_stats(hours_back=1)
+            # Get fresh data from SurrealDB 
+            recent_stats = await surreal_service.get_system_stats(hours_back=1)  # We'll fix this method call in step 2
             
             if recent_stats and len(recent_stats) > 0:
                 # Get the most recent stat entry
@@ -206,17 +204,17 @@ class DataBroadcaster:
                 
         except Exception as e:
             logger.error(f"Error handling system stats update: {e}")
+
+    async def _broadcast_system_stats(self, stats_data: dict, trigger: str = "polling"):
+        """Broadcast system stats to websocket clients"""
+        message = {
+            "type": "system_stats",
+            "data": stats_data,
+            "trigger": trigger,
+            "cached_at": self.cached_data['last_update'].get('system_stats', datetime.now(timezone.utc)).isoformat()
+        }
         
-        async def _broadcast_system_stats(self, stats_data: dict, trigger: str = "polling"):
-            """Broadcast system stats to websocket clients"""
-            message = {
-                "type": "system_stats",
-                "data": stats_data,
-                "trigger": trigger,
-                "cached_at": self.cached_data['last_update'].get('system_stats', datetime.now(timezone.utc)).isoformat()
-            }
-            
-            await ws_manager.broadcast(message, topic="system_stats")
+        await ws_manager.broadcast(message, topic="system_stats")
     
     async def _send_immediate_system_stats(self):
         """Send immediate system stats data"""
@@ -233,7 +231,7 @@ class DataBroadcaster:
             if surreal_service.connected:
                 # Try live query first
                 live_id = await surreal_service.create_live_query(
-                    "system_stats",  # Just the table name
+                    "unified_stack",  # Just the table name
                     self._handle_system_stats_update
                 )
                                 

@@ -558,7 +558,7 @@ export const DockerStackDetailPage: React.FC = () => {
                         <Link>
                           <PiTerminal />
                           <Text>
-                            {stack.aggregated_configs?.environment.length}
+                            {stack.environment.compose_version.length}
                           </Text>{" "}
                           Found
                         </Link>
@@ -570,7 +570,7 @@ export const DockerStackDetailPage: React.FC = () => {
                           </HoverCard.Arrow>
                           <List.Root gap="2" variant="plain" align="center">
                             {stack?.aggregated_configs?.environment ? (
-                              stack.aggregated_configs.environment.map(
+                              stack.environment.configs.map(
                                 (e, index: number) => (
                                   <List.Item key={index} w="100%">
                                     <List.Indicator asChild color="green.500">
