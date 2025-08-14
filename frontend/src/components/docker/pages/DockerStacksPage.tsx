@@ -31,15 +31,6 @@ import { useNavigation } from "@/contexts/NavigationContext";
 export const DockerStacksPage: React.FC = () => {
   // NEW - Real-time unified stacks via WebSocket
   const { stacks, connected, error } = useStacks();
-  console.log(
-    "🐛 DockerStacksPage - stacks:",
-    stacks.length,
-    "connected:",
-    connected,
-    "error:",
-    error
-  );
-  console.log("🐛 DockerStacksPage - actual stacks:", stacks);
   const { startStack, stopStack, restartStack /* isPerformingAction */ } =
     useStackActions();
 

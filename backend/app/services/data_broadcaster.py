@@ -230,7 +230,7 @@ class DataBroadcaster:
     # =============================================================================
     # USER EVENT TABLE BIFURCATION
     # =============================================================================    
-    
+
     async def _start_docker_monitoring(self):
         """Start Docker stacks monitoring with fallback"""
         try:
@@ -243,7 +243,6 @@ class DataBroadcaster:
                                 
                 if live_id:
                     self.live_query_ids['docker_stacks'] = live_id
-                    logger.info("✅ Docker stacks live query started")
                     
                     # Send immediate data
                     await self._send_immediate_docker_data()
@@ -257,7 +256,6 @@ class DataBroadcaster:
     async def _handle_docker_update(self, update_data: Any):
         """Handle significant Docker stacks live query updates"""
         try:
-            print(f"🐛 SIGNIFICANT DOCKER CHANGE - Broadcasting update")
             
             # Re-fetch and broadcast (only called for significant changes now)
             stacks = await unified_stack_service.get_all_unified_stacks()
@@ -272,11 +270,9 @@ class DataBroadcaster:
     async def _handle_user_event(self, event_data: Any):
         """Handle user events from the events table"""
         try:
-            print(f"🐛 USER EVENT RECEIVED: {str(event_data)[:200]}")
             
             # Only broadcast for Docker-related events
             if "docker" in str(event_data).lower():
-                print(f"🐛 DOCKER EVENT - Broadcasting stack update")
                 
                 # Get fresh stack data and broadcast
                 stacks = await unified_stack_service.get_all_unified_stacks()

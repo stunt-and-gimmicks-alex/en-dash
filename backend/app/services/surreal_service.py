@@ -404,7 +404,6 @@ class SurrealDBService:
             }
             
             await self.db.create("user_events", event_data)
-            print(f"🐛 USER EVENT STORED: {event_type} for {stack_name}")
             return True
             
         except Exception as e:
