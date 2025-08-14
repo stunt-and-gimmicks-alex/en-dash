@@ -194,8 +194,8 @@ networks:
                     newStack.name &&
                     newStack.services &&
                     Object.keys(newStack.services).length > 0 &&
-                    newStack.networks.length > 0 &&
-                    newStack.volumes.length > 0
+                    Object.keys(newStack.networks || {}).length > 0 &&
+                    Object.keys(newStack.volumes || {}).length > 0
                   )
                 }
               >

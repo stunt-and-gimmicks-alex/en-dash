@@ -1,6 +1,6 @@
-// NewDockerApplicationForm.tsx - Updated wizard with card display for basic config
+// NewDockerApplicationForm.tsx - Enhanced wizard with real-time YAML preview
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { useNewStackStore } from "@/stores/useNewStackStore";
 import {
   Button,
@@ -8,24 +8,31 @@ import {
   Center,
   Container,
   Drawer,
-  Flex,
   Heading,
   HStack,
   Icon,
   Portal,
   Stack,
-  Steps,
   Text,
+  Grid,
+  Badge,
+  Separator,
 } from "@chakra-ui/react";
-import { PiGhost } from "react-icons/pi";
+import { PiGhost, PiPlus, PiCheckCircle, PiWarning } from "react-icons/pi";
 import { NewDockDrawerStart } from "./NewDockerAppDrawerBasic";
 import { NewDockDrawerServices } from "./NewDockerApplicationDrawerServices";
+import { NewDockDrawerNetworks } from "./NewDockerApplicationDrawerNetworks";
 import { AppConfigCard } from "./NewDockerAppItemCard";
+import { YamlPreview } from "./YamlPreview";
 
 export const NewDockerAppWizard = () => {
-  const { newStack, setNewStack } = useNewStackStore();
+  const { newStack, setNewStack, validateStack, addService, removeService } =
+    useNewStackStore();
   const [open, setOpen] = useState(false);
   const [drawerStep, setDrawer] = useState("1");
+  const [editingServiceId, setEditingServiceId] = useState<
+    string | undefined
+  >();
 
   // Helper functions to check completion status
   const hasBasicInfo = !!newStack.name;
@@ -33,14 +40,37 @@ export const NewDockerAppWizard = () => {
     newStack.services && Object.keys(newStack.services).length > 0;
   const hasNetworks =
     newStack.networks && Object.keys(newStack.networks).length > 0;
+  const hasVolumes =
+    newStack.volumes && Object.keys(newStack.volumes).length > 0;
 
-  const handleOpenDrawer = (step: string) => {
+  // Validation
+  const validation = validateStack();
+  const isReadyToDeploy =
+    validation.errors.length === 0 && hasBasicInfo && hasServices;
+
+  const handleOpenDrawer = (step: string, serviceId?: string) => {
     setDrawer(step);
+    setEditingServiceId(serviceId);
     setOpen(true);
   };
 
   const handleCloseDrawer = () => {
     setOpen(false);
+    setEditingServiceId(undefined);
+  };
+
+  const handleAddService = () => {
+    const serviceId = `service-${Object.keys(newStack.services).length + 1}`;
+    addService(serviceId);
+    handleOpenDrawer("2", serviceId);
+  };
+
+  const handleEditService = (serviceId: string) => {
+    handleOpenDrawer("2", serviceId);
+  };
+
+  const handleDeleteService = (serviceId: string) => {
+    removeService(serviceId);
   };
 
   const renderDrawerContent = () => {
@@ -48,7 +78,25 @@ export const NewDockerAppWizard = () => {
       case "1":
         return <NewDockDrawerStart onClose={handleCloseDrawer} />;
       case "2":
-        return <NewDockDrawerServices onClose={handleCloseDrawer} />;
+        return (
+          <NewDockDrawerServices
+            serviceId={editingServiceId}
+            onClose={handleCloseDrawer}
+          />
+        );
+      case "3":
+        return <NewDockDrawerNetworks onClose={handleCloseDrawer} />;
+      case "4":
+        return (
+          <Center p="8">
+            <Stack gap="4" textAlign="center">
+              <Icon size="xl" color="brandGray.600">
+                <PiGhost />
+              </Icon>
+              <Text>Volumes configuration coming soon!</Text>
+            </Stack>
+          </Center>
+        );
       default:
         return (
           <Center p="8">
@@ -64,55 +112,130 @@ export const NewDockerAppWizard = () => {
   };
 
   return (
-    <Container maxW="7xl" py="20" colorPalette="secondaryBrand">
-      <Stack gap="10">
-        {/* Step 1: Basic Configuration */}
-        <Flex
-          direction="row"
-          justify="space-between"
-          align="center"
-          gap="6"
-          py="0"
-        >
-          <HStack gap="6" w="1/2">
-            <Stack>
-              <Steps.Item title="Step 1" index={0}>
-                <Steps.Indicator />
-                <Steps.Separator />
-              </Steps.Item>
-            </Stack>
-            <Stack gap="0.5" justify="left">
-              <Heading as="h3">Basic Configuration</Heading>
-              <Text>Name your application and provide basic details.</Text>
-            </Stack>
-          </HStack>
+    <Container maxW="full" py="6" colorPalette="secondaryBrand">
+      <Grid templateColumns="1fr 400px" gap="8" minH="80vh">
+        {/* Main Wizard Content */}
+        <Stack gap="8">
+          <Stack gap="6">
+            <Heading as="h2" size="lg">
+              Create New Docker Application
+            </Heading>
 
-          <Card.Root w="1/2">
-            <Card.Header
-              gap="6"
-              flexDirection={{ base: "column", md: "row" }}
-              justifyContent="center"
-              alignItems="center"
-              p="3"
+            {/* Progress Overview */}
+            <HStack
+              gap="4"
+              p="4"
+              bg="bg.subtle"
+              borderRadius="md"
+              borderWidth="1px"
             >
-              <Card.Title textStyle="xs" pb="0">
-                {hasBasicInfo
-                  ? `Application: ${newStack.name}`
-                  : "Application Setup"}
-              </Card.Title>
+              <HStack gap="2">
+                <Icon color={hasBasicInfo ? "green.500" : "gray.400"}>
+                  {hasBasicInfo ? <PiCheckCircle /> : <PiGhost />}
+                </Icon>
+                <Text
+                  textStyle="sm"
+                  color={hasBasicInfo ? "green.600" : "fg.muted"}
+                >
+                  Basic Info
+                </Text>
+              </HStack>
+
+              <Separator orientation="vertical" height="4" />
+
+              <HStack gap="2">
+                <Icon color={hasServices ? "green.500" : "gray.400"}>
+                  {hasServices ? <PiCheckCircle /> : <PiGhost />}
+                </Icon>
+                <Text
+                  textStyle="sm"
+                  color={hasServices ? "green.600" : "fg.muted"}
+                >
+                  Services ({Object.keys(newStack.services).length})
+                </Text>
+              </HStack>
+
+              <Separator orientation="vertical" height="4" />
+
+              <HStack gap="2">
+                <Icon color={hasNetworks ? "green.500" : "gray.400"}>
+                  {hasNetworks ? <PiCheckCircle /> : <PiGhost />}
+                </Icon>
+                <Text
+                  textStyle="sm"
+                  color={hasNetworks ? "green.600" : "fg.muted"}
+                >
+                  Networks ({Object.keys(newStack.networks).length})
+                </Text>
+              </HStack>
+
+              <Separator orientation="vertical" height="4" />
+
+              <HStack gap="2">
+                <Icon color={hasVolumes ? "green.500" : "gray.400"}>
+                  {hasVolumes ? <PiCheckCircle /> : <PiGhost />}
+                </Icon>
+                <Text
+                  textStyle="sm"
+                  color={hasVolumes ? "green.600" : "fg.muted"}
+                >
+                  Volumes ({Object.keys(newStack.volumes).length})
+                </Text>
+              </HStack>
+
+              {validation.errors.length > 0 && (
+                <>
+                  <Separator orientation="vertical" height="4" />
+                  <HStack gap="2">
+                    <Icon color="red.500">
+                      <PiWarning />
+                    </Icon>
+                    <Text textStyle="sm" color="red.600">
+                      {validation.errors.length} error
+                      {validation.errors.length !== 1 ? "s" : ""}
+                    </Text>
+                  </HStack>
+                </>
+              )}
+            </HStack>
+          </Stack>
+
+          {/* Step 1: Basic Configuration */}
+          <Card.Root>
+            <Card.Header>
+              <HStack justify="space-between">
+                <Stack gap="1">
+                  <HStack gap="2">
+                    <Badge colorPalette="blue" size="sm">
+                      Step 1
+                    </Badge>
+                    <Heading as="h3" size="md">
+                      Basic Configuration
+                    </Heading>
+                    {hasBasicInfo && (
+                      <Icon color="green.500" size="sm">
+                        <PiCheckCircle />
+                      </Icon>
+                    )}
+                  </HStack>
+                  <Text color="fg.muted" textStyle="sm">
+                    Name your application and provide basic details
+                  </Text>
+                </Stack>
+              </HStack>
             </Card.Header>
 
-            <Card.Body gap="4" px="6" pt="1">
+            <Card.Body>
               {hasBasicInfo ? (
                 <AppConfigCard
-                  labels={newStack.name}
-                  onEdit={() => handleOpenDrawer("1")} // Opens basic config drawer
+                  labels={`${newStack.name}${
+                    newStack.description ? ` - ${newStack.description}` : ""
+                  }`}
+                  onEdit={() => handleOpenDrawer("1")}
                   onDelete={() => {
-                    // Clear the basic config
                     setNewStack((stack) => {
                       stack.name = "";
                       stack.description = "";
-                      // Maybe clear other basic fields too
                     });
                   }}
                 />
@@ -122,11 +245,15 @@ export const NewDockerAppWizard = () => {
                   borderWidth="2px"
                   borderStyle="dashed"
                   rounded="lg"
-                  padding="2"
+                  padding="8"
+                  minH="20"
                 >
-                  <Icon size="md" color="brandGray.600">
-                    <PiGhost />
-                  </Icon>
+                  <Stack gap="2" textAlign="center">
+                    <Icon size="lg" color="gray.400">
+                      <PiGhost />
+                    </Icon>
+                    <Text color="fg.muted">No basic configuration yet</Text>
+                  </Stack>
                 </Center>
               )}
             </Card.Body>
@@ -134,182 +261,348 @@ export const NewDockerAppWizard = () => {
             <Card.Footer>
               <Button
                 w="full"
-                variant="ghost"
+                variant="outline"
                 onClick={() => handleOpenDrawer("1")}
               >
-                {hasBasicInfo ? "Edit Basics" : "Start Here"}
+                {hasBasicInfo ? "Edit Basic Info" : "Start Here"}
               </Button>
             </Card.Footer>
           </Card.Root>
-        </Flex>
 
-        {/* Step 2: Services */}
-        <Flex
-          direction="row"
-          justify="space-between"
-          align="center"
-          gap="6"
-          py="0"
-        >
-          <HStack gap="6" w="1/2">
-            <Stack>
-              <Steps.Item title="Step 2" index={1}>
-                <Steps.Indicator />
-                <Steps.Separator />
-              </Steps.Item>
-            </Stack>
-            <Stack gap="0.5" justify="left">
-              <Heading as="h3">Docker Services</Heading>
-              <Text>Configure the containers for your application.</Text>
-            </Stack>
-          </HStack>
+          {/* Step 2: Services */}
+          <Card.Root>
+            <Card.Header>
+              <HStack justify="space-between">
+                <Stack gap="1">
+                  <HStack gap="2">
+                    <Badge colorPalette="green" size="sm">
+                      Step 2
+                    </Badge>
+                    <Heading as="h3" size="md">
+                      Docker Services
+                    </Heading>
+                    {hasServices && (
+                      <Badge colorPalette="blue" size="sm">
+                        {Object.keys(newStack.services).length}
+                      </Badge>
+                    )}
+                  </HStack>
+                  <Text color="fg.muted" textStyle="sm">
+                    Configure the containers for your application
+                  </Text>
+                </Stack>
 
-          <Card.Root w="1/2">
-            <Card.Header
-              gap="6"
-              flexDirection={{ base: "column", md: "row" }}
-              justifyContent="center"
-              alignItems="center"
-              p="3"
-            >
-              <Card.Title textStyle="xs" pb="0">
-                {hasServices
-                  ? `${
-                      Object.keys(newStack.services).length
-                    } Service(s) Configured`
-                  : "No Services Yet"}
-              </Card.Title>
+                <Button
+                  size="sm"
+                  colorPalette="green"
+                  onClick={handleAddService}
+                  disabled={!hasBasicInfo}
+                >
+                  <PiPlus />
+                  Add Service
+                </Button>
+              </HStack>
             </Card.Header>
 
-            <Card.Body gap="4" px="6" pt="1">
+            <Card.Body>
               {hasServices ? (
-                Object.entries(newStack.services).map(
-                  ([serviceId, service]) => (
-                    <AppConfigCard
-                      key={serviceId}
-                      labels={service.name}
-                      onEdit={() => {
-                        // Handle edit - maybe set serviceId and open drawer
-                      }}
-                      onDelete={() => {
-                        // Handle delete - remove from store
-                        setNewStack((stack) => {
-                          delete stack.services[serviceId];
-                        });
-                      }}
-                    />
-                  )
-                )
+                <Stack gap="3">
+                  {Object.entries(newStack.services).map(
+                    ([serviceId, service]) => (
+                      <AppConfigCard
+                        key={serviceId}
+                        labels={[
+                          `${serviceId}: ${service.image}`,
+                          ...(service.ports?.length
+                            ? [
+                                `${service.ports.length} port${
+                                  service.ports.length !== 1 ? "s" : ""
+                                }`,
+                              ]
+                            : []),
+                          ...(service.environment &&
+                          Object.keys(service.environment).length
+                            ? [
+                                `${
+                                  Object.keys(service.environment).length
+                                } env var${
+                                  Object.keys(service.environment).length !== 1
+                                    ? "s"
+                                    : ""
+                                }`,
+                              ]
+                            : []),
+                          ...(service.volumes?.length
+                            ? [
+                                `${service.volumes.length} volume${
+                                  service.volumes.length !== 1 ? "s" : ""
+                                }`,
+                              ]
+                            : []),
+                        ]}
+                        onEdit={() => handleEditService(serviceId)}
+                        onDelete={() => handleDeleteService(serviceId)}
+                      />
+                    )
+                  )}
+                </Stack>
               ) : (
                 <Center
                   userSelect="none"
                   borderWidth="2px"
                   borderStyle="dashed"
                   rounded="lg"
-                  padding="2"
+                  padding="8"
+                  minH="20"
                 >
-                  <Icon size="lg" color="brandGray.600">
-                    <PiGhost />
-                  </Icon>
+                  <Stack gap="2" textAlign="center">
+                    <Icon size="lg" color="gray.400">
+                      <PiGhost />
+                    </Icon>
+                    <Text color="fg.muted">No services configured yet</Text>
+                    <Text color="fg.muted" textStyle="xs">
+                      {!hasBasicInfo
+                        ? "Complete basic configuration first"
+                        : "Click 'Add Service' to get started"}
+                    </Text>
+                  </Stack>
                 </Center>
               )}
             </Card.Body>
-
-            <Card.Footer>
-              <Button
-                w="full"
-                disabled={!hasBasicInfo}
-                variant="ghost"
-                onClick={() => handleOpenDrawer("2")}
-              >
-                {hasServices ? "Add Another Service" : "Add Services"}
-              </Button>
-            </Card.Footer>
           </Card.Root>
-        </Flex>
 
-        {/* Step 3: Networks (placeholder) */}
-        <Flex
-          direction="row"
-          justify="space-between"
-          align="center"
-          gap="6"
-          py="0"
-        >
-          <HStack gap="6" w="1/2">
-            <Stack>
-              <Steps.Item title="Step 3" index={2}>
-                <Steps.Indicator />
-                <Steps.Separator />
-              </Steps.Item>
-            </Stack>
-            <Stack gap="0.5" justify="left">
-              <Heading as="h3">Network Configuration</Heading>
-              <Text>Set up networking for container communication.</Text>
-            </Stack>
-          </HStack>
+          {/* Step 3: Networks */}
+          <Card.Root>
+            <Card.Header>
+              <HStack justify="space-between">
+                <Stack gap="1">
+                  <HStack gap="2">
+                    <Badge colorPalette="purple" size="sm">
+                      Step 3
+                    </Badge>
+                    <Heading as="h3" size="md">
+                      Network Configuration
+                    </Heading>
+                    {hasNetworks && (
+                      <Badge colorPalette="purple" size="sm">
+                        {Object.keys(newStack.networks).length}
+                      </Badge>
+                    )}
+                  </HStack>
+                  <Text color="fg.muted" textStyle="sm">
+                    Set up networking for container communication (Optional)
+                  </Text>
+                </Stack>
 
-          <Card.Root w="1/2">
-            <Card.Header
-              gap="6"
-              flexDirection={{ base: "column", md: "row" }}
-              justifyContent="center"
-              alignItems="center"
-              p="3"
-            >
-              <Card.Title textStyle="xs" pb="0">
-                Coming Soon
-              </Card.Title>
+                <Button
+                  size="sm"
+                  colorPalette="purple"
+                  variant="outline"
+                  onClick={() => handleOpenDrawer("3")}
+                  disabled={!hasServices}
+                >
+                  <PiPlus />
+                  Configure Networks
+                </Button>
+              </HStack>
             </Card.Header>
 
-            <Card.Body gap="4" px="6" pt="1">
-              <Center
-                userSelect="none"
-                borderWidth="2px"
-                borderStyle="dashed"
-                rounded="lg"
-                padding="2"
-              >
-                {hasNetworks ? (
-                  Object.entries(newStack.networks).map(
+            <Card.Body>
+              {hasNetworks ? (
+                <Stack gap="3">
+                  {Object.entries(newStack.networks).map(
                     ([networkId, network]) => (
                       <AppConfigCard
                         key={networkId}
-                        labels={network.name || networkId}
-                        onEdit={() => handleOpenDrawer("3")} // Opens network drawer
+                        labels={`${networkId}: ${network.driver || "bridge"}`}
+                        onEdit={() => handleOpenDrawer("3")}
                         onDelete={() => {
-                          // Remove network from store
                           setNewStack((stack) => {
                             delete stack.networks[networkId];
                           });
                         }}
                       />
                     )
-                  )
-                ) : (
-                  <Icon size="lg" color="brandGray.600">
+                  )}
+                </Stack>
+              ) : (
+                <Center
+                  userSelect="none"
+                  borderWidth="2px"
+                  borderStyle="dashed"
+                  rounded="lg"
+                  padding="6"
+                  minH="16"
+                >
+                  <Stack gap="2" textAlign="center">
+                    <Icon size="md" color="gray.400">
+                      <PiGhost />
+                    </Icon>
+                    <Text color="fg.muted" textStyle="sm">
+                      Using default network
+                    </Text>
+                    <Text color="fg.muted" textStyle="xs">
+                      {!hasServices
+                        ? "Add services first"
+                        : "Custom networks are optional"}
+                    </Text>
+                  </Stack>
+                </Center>
+              )}
+            </Card.Body>
+          </Card.Root>
+
+          {/* Step 4: Volumes */}
+          <Card.Root opacity={!hasServices ? 0.6 : 1}>
+            <Card.Header>
+              <HStack justify="space-between">
+                <Stack gap="1">
+                  <HStack gap="2">
+                    <Badge colorPalette="orange" size="sm">
+                      Step 4
+                    </Badge>
+                    <Heading as="h3" size="md">
+                      Volume Configuration
+                    </Heading>
+                    {hasVolumes && (
+                      <Badge colorPalette="orange" size="sm">
+                        {Object.keys(newStack.volumes).length}
+                      </Badge>
+                    )}
+                  </HStack>
+                  <Text color="fg.muted" textStyle="sm">
+                    Create named volumes for persistent data (Optional)
+                  </Text>
+                </Stack>
+
+                <Button
+                  size="sm"
+                  colorPalette="orange"
+                  variant="outline"
+                  onClick={() => handleOpenDrawer("4")}
+                  disabled={!hasServices}
+                >
+                  <PiPlus />
+                  Configure Volumes
+                </Button>
+              </HStack>
+            </Card.Header>
+
+            <Card.Body>
+              <Center
+                userSelect="none"
+                borderWidth="2px"
+                borderStyle="dashed"
+                rounded="lg"
+                padding="6"
+                minH="16"
+              >
+                <Stack gap="2" textAlign="center">
+                  <Icon size="md" color="gray.400">
                     <PiGhost />
                   </Icon>
-                )}
+                  <Text color="fg.muted" textStyle="sm">
+                    Coming Soon
+                  </Text>
+                  <Text color="fg.muted" textStyle="xs">
+                    Named volumes configuration will be available soon
+                  </Text>
+                </Stack>
               </Center>
             </Card.Body>
-
-            <Card.Footer>
-              <Button
-                w="full"
-                disabled={!hasServices} // Networks depend on having services
-                variant="ghost"
-                onClick={() => handleOpenDrawer("3")}
-              >
-                {hasNetworks ? "Edit Networks" : "Configure Networks"}
-              </Button>
-            </Card.Footer>
           </Card.Root>
-        </Flex>
-      </Stack>
+
+          {/* Deploy Actions */}
+          <Card.Root
+            borderColor={isReadyToDeploy ? "green.200" : "border.muted"}
+          >
+            <Card.Header>
+              <HStack justify="space-between" align="center">
+                <Stack gap="1">
+                  <HStack gap="2">
+                    <Badge
+                      colorPalette={isReadyToDeploy ? "green" : "gray"}
+                      size="sm"
+                    >
+                      {isReadyToDeploy ? "Ready" : "Not Ready"}
+                    </Badge>
+                    <Heading as="h3" size="md">
+                      Deploy Application
+                    </Heading>
+                  </HStack>
+                  <Text color="fg.muted" textStyle="sm">
+                    {isReadyToDeploy
+                      ? "Your application is ready to deploy"
+                      : "Complete the required steps to deploy"}
+                  </Text>
+                </Stack>
+
+                <HStack gap="2">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      // Reset the form
+                      setNewStack(() => ({
+                        name: "",
+                        description: "",
+                        version: "3.8",
+                        services: {},
+                        networks: {},
+                        volumes: {},
+                        secrets: {},
+                        configs: {},
+                        environment: {},
+                      }));
+                    }}
+                  >
+                    Reset
+                  </Button>
+                  <Button
+                    colorPalette="green"
+                    disabled={!isReadyToDeploy}
+                    onClick={() => {
+                      // Handle deployment
+                      console.log("Deploying stack:", newStack);
+                      // You would integrate with your deployment API here
+                    }}
+                  >
+                    Deploy Stack
+                  </Button>
+                </HStack>
+              </HStack>
+            </Card.Header>
+
+            {validation.errors.length > 0 && (
+              <Card.Body pt="0">
+                <Stack gap="2">
+                  <Text textStyle="sm" fontWeight="medium" color="red.600">
+                    Please fix these issues before deploying:
+                  </Text>
+                  <Stack gap="1" ml="4">
+                    {validation.errors.map((error, index) => (
+                      <Text key={index} textStyle="sm" color="red.600">
+                        • {error}
+                      </Text>
+                    ))}
+                  </Stack>
+                </Stack>
+              </Card.Body>
+            )}
+          </Card.Root>
+        </Stack>
+
+        {/* YAML Preview Sidebar */}
+        <Stack gap="4" position="sticky" top="6" height="fit-content">
+          <YamlPreview
+            showValidation={true}
+            showActions={true}
+            maxHeight="70vh"
+          />
+        </Stack>
+      </Grid>
 
       {/* Drawer for all configuration steps */}
-      <Drawer.Root open={open} onOpenChange={(e) => setOpen(e.open)} size="lg">
+      <Drawer.Root open={open} onOpenChange={(e) => setOpen(e.open)} size="xl">
         <Portal>
           <Drawer.Backdrop />
           <Drawer.Positioner>

@@ -4,15 +4,25 @@ import {
   Badge,
   Box,
   Button,
+  ButtonGroup,
   Card,
+  ColorSwatch,
   Container,
   DataList,
+  Flex,
+  Group,
   Heading,
+  HoverCard,
   HStack,
+  Icon,
+  IconButton,
+  Link,
+  List,
   SimpleGrid,
   Stack,
   Status,
   StatusRoot,
+  Table,
   Tabs,
   Text,
 } from "@chakra-ui/react";
@@ -20,9 +30,16 @@ import {
 import type { EnhancedUnifiedService } from "@/types/unified";
 import {
   PiAcorn,
+  PiArrowsCounterClockwise,
   PiCallBell,
+  PiDotsThreeVertical,
+  PiDownload,
+  PiFirstAid,
   PiHardDrives,
+  PiMagnifyingGlass,
   PiNetwork,
+  PiPencilSimpleLine,
+  PiPower,
   PiShippingContainer,
 } from "react-icons/pi";
 
@@ -50,14 +67,47 @@ export const NewServiceLeftPane: React.FC<ServicesTabsProps> = ({
   };
 
   return (
-    <SimpleGrid columns={4} columnGap="2" rowGap="4" minChildWidth="sm">
-      {services.map((s, i) => (
-        <Card.Root px="6" pb="6" key={i} maxW="sm">
-          <Stack gap="4">
-            <Card.Header>
-              <Card.Title textStyle="xl" fontWeight="medium">
-                <Stack gap="0.5">
-                  {s.name}
+    <Container p="0" m="0" fluid>
+      <Table.Root size="md" w="full" interactive colorPalette="gray">
+        <Table.Header>
+          <Table.Row>
+            <Table.ColumnHeader></Table.ColumnHeader>
+            <Table.ColumnHeader>Service</Table.ColumnHeader>
+            <Table.ColumnHeader>Category</Table.ColumnHeader>
+            <Table.ColumnHeader>Description</Table.ColumnHeader>
+            <Table.ColumnHeader>Tags</Table.ColumnHeader>
+            <Table.ColumnHeader>Health</Table.ColumnHeader>
+            <Table.ColumnHeader>CPU</Table.ColumnHeader>
+            <Table.ColumnHeader>RAM</Table.ColumnHeader>
+            <Table.ColumnHeader>Restart Policy</Table.ColumnHeader>
+            <Table.ColumnHeader>Containers</Table.ColumnHeader>
+            <Table.ColumnHeader></Table.ColumnHeader>
+          </Table.Row>
+        </Table.Header>
+        <Table.Body>
+          {services.map((s, i) => (
+            <Table.Row key={s.name}>
+              <Table.Cell>
+                <ButtonGroup variant="ghost" colorPalette="gray">
+                  <IconButton>
+                    <Icon>
+                      <PiPower />
+                    </Icon>
+                  </IconButton>
+                  <IconButton>
+                    <Icon>
+                      <PiArrowsCounterClockwise />
+                    </Icon>
+                  </IconButton>
+                  <IconButton>
+                    <Icon>
+                      <PiDownload />
+                    </Icon>
+                  </IconButton>
+                </ButtonGroup>
+              </Table.Cell>
+              <Table.Cell>
+                <HStack colorPalette="brand">
                   <Status.Root
                     color={
                       s.status === "running"
@@ -68,75 +118,163 @@ export const NewServiceLeftPane: React.FC<ServicesTabsProps> = ({
                     }
                   >
                     <Status.Indicator />
-                    {s.status}&ensp;/&ensp;{s.health_summary.status}
+                    <Text color="fg">{s.name}</Text>
                   </Status.Root>
-                </Stack>
-              </Card.Title>
-              <Card.Description>
-                Service Type:&emsp;
-                <Badge variant="solid" colorPalette="gray">
-                  AI/ML
-                </Badge>
-              </Card.Description>
-            </Card.Header>
-
-            <HStack>
-              <Button size="xs" colorPalette="green">
-                <PiAcorn />
-                Call
-              </Button>
-              <Button size="xs">
-                <PiAcorn />
-                Chat
-              </Button>
-              <Button size="xs" variant="subtle" colorPalette="gray">
-                <PiAcorn />
-                Mute
-              </Button>
-              <Button size="xs" variant="subtle" colorPalette="gray">
-                <PiAcorn />
-                Share
-              </Button>
-            </HStack>
-
-            <DataList.Root orientation="vertical" mt="2">
-              <DataList.Item>
-                <DataList.ItemLabel>Image</DataList.ItemLabel>
-                <DataList.ItemValue>{s.image}</DataList.ItemValue>
-              </DataList.Item>
-              <DataList.Item>
-                <DataList.ItemLabel>Restart Policy</DataList.ItemLabel>
-                <DataList.ItemValue>{s.restart}</DataList.ItemValue>
-              </DataList.Item>
-              <DataList.Item>
-                <DataList.ItemLabel>Location</DataList.ItemLabel>
-                <DataList.ItemValue>Something</DataList.ItemValue>
-              </DataList.Item>
-              <DataList.Item>
-                <DataList.ItemLabel>Domain</DataList.ItemLabel>
-                <DataList.ItemValue>
-                  <Badge variant="outline">{data.domain}</Badge>
-                </DataList.ItemValue>
-              </DataList.Item>
-              <DataList.Item>
-                <DataList.ItemLabel alignItems="flex-start">
-                  Skills
-                </DataList.ItemLabel>
-                <DataList.ItemValue>
-                  {" "}
-                  <HStack wrap="wrap">
-                    {data.skills.map((skill) => (
-                      <Badge key={skill} colorPalette="gray">
-                        {skill}
-                      </Badge>
+                </HStack>
+              </Table.Cell>
+              <Table.Cell>{s.category || "No Category"}</Table.Cell>
+              <Table.Cell>{s.description || "No Description"}</Table.Cell>
+              <Table.Cell maxW="sm">
+                {(s.tags && (
+                  <Flex>
+                    {s.tags.map((t, i) => (
+                      <Badge colorPalette="yellowBrand">{t}</Badge>
+                    ))}
+                  </Flex>
+                )) || <Badge colorPalette="yellowBrand">No Tags</Badge>}
+              </Table.Cell>
+              <Table.Cell>
+                <Group
+                  attached
+                  colorPalette={
+                    s.health_summary.status === "healthy"
+                      ? "brand"
+                      : s.health_summary.status === "unhealthy"
+                      ? "redBrand"
+                      : "gray"
+                  }
+                >
+                  <Badge variant="solid">
+                    <Icon>
+                      <PiFirstAid />
+                    </Icon>
+                  </Badge>
+                  <Badge variant="outline">{s.health_summary.status}</Badge>
+                </Group>
+              </Table.Cell>
+              <Table.Cell>
+                <HStack gap="2">
+                  <Group attached>
+                    <Badge colorPalette="secondaryBrand" variant="solid">
+                      Now:
+                    </Badge>
+                    <Badge colorPalette="secondaryBrand" variant="outline">
+                      {s.cpu?.now || "??%"}
+                    </Badge>
+                  </Group>
+                  <Group attached>
+                    <Badge colorPalette="secondaryBrand" variant="solid">
+                      Avg:
+                    </Badge>
+                    <Badge colorPalette="secondaryBrand" variant="outline">
+                      {s.cpu?.avg || "??%"}
+                    </Badge>
+                  </Group>
+                </HStack>
+              </Table.Cell>
+              <Table.Cell>
+                <HStack gap="2">
+                  <Group attached>
+                    <Badge colorPalette="secondaryBrand" variant="solid">
+                      Now:
+                    </Badge>
+                    <Badge colorPalette="secondaryBrand" variant="outline">
+                      {s.cpu?.now || "??%"}
+                    </Badge>
+                  </Group>
+                  <Group attached>
+                    <Badge colorPalette="secondaryBrand" variant="solid">
+                      Avg:
+                    </Badge>
+                    <Badge colorPalette="secondaryBrand" variant="outline">
+                      {s.cpu?.now || "??%"}
+                    </Badge>
+                  </Group>
+                </HStack>
+              </Table.Cell>
+              <Table.Cell>{s.restart}</Table.Cell>
+              <Table.Cell>
+                <Stack>
+                  <HStack>
+                    {s.containers.map((c, i) => (
+                      <HoverCard.Root key={i}>
+                        <HoverCard.Trigger asChild>
+                          <Link>
+                            <ColorSwatch
+                              key={c.short_id}
+                              value={
+                                c.health.status === "healthy"
+                                  ? "#038c3e"
+                                  : c.status === "unhealthy"
+                                  ? "#ba1a1a"
+                                  : "#ecb306"
+                              }
+                            />
+                          </Link>
+                        </HoverCard.Trigger>
+                        <HoverCard.Positioner>
+                          <HoverCard.Content>
+                            <HoverCard.Arrow>
+                              <HoverCard.ArrowTip />
+                            </HoverCard.Arrow>
+                            <DataList.Root orientation="horizontal">
+                              <DataList.Item>
+                                <DataList.ItemLabel>Name:</DataList.ItemLabel>
+                                <DataList.ItemValue>
+                                  {c.name}
+                                </DataList.ItemValue>
+                              </DataList.Item>
+                              <DataList.Item>
+                                <DataList.ItemLabel>Short:</DataList.ItemLabel>
+                                <DataList.ItemValue>
+                                  {c.short_id}
+                                </DataList.ItemValue>
+                              </DataList.Item>
+                              <DataList.Item>
+                                <DataList.ItemLabel>
+                                  Created:
+                                </DataList.ItemLabel>
+                                <DataList.ItemValue>
+                                  {new Date(c.created).toLocaleString()}
+                                </DataList.ItemValue>
+                              </DataList.Item>
+                              <DataList.Item>
+                                <DataList.ItemLabel>State:</DataList.ItemLabel>
+                                <DataList.ItemValue>
+                                  {c.state}
+                                </DataList.ItemValue>
+                              </DataList.Item>
+                            </DataList.Root>
+                          </HoverCard.Content>
+                        </HoverCard.Positioner>
+                      </HoverCard.Root>
                     ))}
                   </HStack>
-                </DataList.ItemValue>
-              </DataList.Item>
-            </DataList.Root>
-          </Stack>
-        </Card.Root>
-      ))}
-    </SimpleGrid>
+                </Stack>
+              </Table.Cell>
+              <Table.Cell textAlign="end">
+                <ButtonGroup variant="ghost" colorPalette="gray">
+                  <IconButton>
+                    <Icon>
+                      <PiPencilSimpleLine />
+                    </Icon>
+                  </IconButton>
+                  <IconButton>
+                    <Icon>
+                      <PiMagnifyingGlass />
+                    </Icon>
+                  </IconButton>
+                  <IconButton>
+                    <Icon>
+                      <PiDotsThreeVertical />
+                    </Icon>
+                  </IconButton>
+                </ButtonGroup>
+              </Table.Cell>
+            </Table.Row>
+          ))}
+        </Table.Body>
+      </Table.Root>
+    </Container>
   );
 };

@@ -8,8 +8,11 @@ import {
   AbsoluteCenter,
   Badge,
   Box,
+  Button,
+  ButtonGroup,
   Card,
   CloseButton,
+  ColorSwatchMix,
   Container,
   DataList,
   Drawer,
@@ -18,11 +21,14 @@ import {
   Group,
   Heading,
   HoverCard,
+  HStack,
   Icon,
+  IconButton,
   Link,
   List,
   Portal,
   ProgressCircle,
+  SegmentGroup,
   Spinner,
   Stack,
   Status,
@@ -34,6 +40,7 @@ import {
   PiArrowsLeftRight,
   PiArrowSquareIn,
   PiCalendar,
+  PiCards,
   PiCloudX,
   PiCpu,
   PiFileCode,
@@ -43,8 +50,10 @@ import {
   PiMemory,
   PiNetwork,
   PiShippingContainer,
+  PiTable,
   PiTagSimple,
   PiTerminal,
+  PiTreeStructure,
 } from "react-icons/pi";
 
 // Keep container-block components as-is for now
@@ -60,7 +69,11 @@ import { useStackData } from "@/hooks/v06-useStackData";
 
 import { DockerAppDetailMenu } from "../components/dockerApplications/DockerAppMenu";
 import { ServicesPane } from "../components/dockerServices/ServicesPane";
-import type { EnhancedUnifiedService } from "@/types/unified";
+import type {
+  EnhancedUnifiedService,
+  EnhancedUnifiedStack,
+} from "@/types/unified";
+import { EditableDrawerTable } from "@/components/ui/medium/EditableDrawerTable";
 
 export const DockerStackDetailPage: React.FC = () => {
   const selectedStackName = useSelectedStackStore(
@@ -102,6 +115,271 @@ export const DockerStackDetailPage: React.FC = () => {
     //    hasIssues,
     //    containerRatio,
   } = useStackData(selectedStackName);
+
+  const appHealthColors = () => {
+    switch (true) {
+      case healthSummary.score == 100:
+        return (
+          <Group attached>
+            <ColorSwatchMix
+              items={["#038c3e", "#038c3e", "#038c3e", "#038c3e"]}
+            />
+            <ColorSwatchMix
+              items={["#038c3e", "#038c3e", "#038c3e", "#038c3e"]}
+            />
+            <ColorSwatchMix
+              items={["#038c3e", "#038c3e", "#038c3e", "#038c3e"]}
+            />
+            <ColorSwatchMix
+              items={["#038c3e", "#038c3e", "#038c3e", "#038c3e"]}
+            />
+            <ColorSwatchMix
+              items={["#038c3e", "#038c3e", "#038c3e", "#038c3e"]}
+            />
+          </Group>
+        );
+      case healthSummary.score >= 90:
+        return (
+          <Group attached>
+            <ColorSwatchMix
+              items={["#ecb306", "#038c3e", "#ecb306", "#038c3e"]}
+            />
+            <ColorSwatchMix
+              items={["#038c3e", "#038c3e", "#038c3e", "#038c3e"]}
+            />
+            <ColorSwatchMix
+              items={["#038c3e", "#038c3e", "#038c3e", "#038c3e"]}
+            />
+            <ColorSwatchMix
+              items={["#038c3e", "#038c3e", "#038c3e", "#038c3e"]}
+            />
+            <ColorSwatchMix
+              items={["#038c3e", "#038c3e", "#038c3e", "#038c3e"]}
+            />
+          </Group>
+        );
+      case healthSummary.score >= 80:
+        return (
+          <Group attached>
+            <ColorSwatchMix
+              items={["#ecb306", "#ecb306", "#ecb306", "#ecb306"]}
+            />
+            <ColorSwatchMix
+              items={["#038c3e", "#038c3e", "#038c3e", "#038c3e"]}
+            />
+            <ColorSwatchMix
+              items={["#038c3e", "#038c3e", "#038c3e", "#038c3e"]}
+            />
+            <ColorSwatchMix
+              items={["#038c3e", "#038c3e", "#038c3e", "#038c3e"]}
+            />
+            <ColorSwatchMix
+              items={["#038c3e", "#038c3e", "#038c3e", "#038c3e"]}
+            />
+          </Group>
+        );
+      case healthSummary.score >= 70:
+        return (
+          <Group attached>
+            <ColorSwatchMix
+              items={["#ba1a1a", "#ecb306", "#ba1a1a", "#ecb306"]}
+            />
+            <ColorSwatchMix
+              items={["#ecb306", "#038c3e", "#ecb306", "#038c3e"]}
+            />
+            <ColorSwatchMix
+              items={["#038c3e", "#038c3e", "#038c3e", "#038c3e"]}
+            />
+            <ColorSwatchMix
+              items={["#038c3e", "#038c3e", "#038c3e", "#038c3e"]}
+            />
+            <ColorSwatchMix
+              items={["#038c3e", "#038c3e", "#038c3e", "#038c3e"]}
+            />
+          </Group>
+        );
+      case healthSummary.score >= 60:
+        return (
+          <Group attached>
+            <ColorSwatchMix
+              items={["#ba1a1a", "#ba1a1a", "#ba1a1a", "#ba1a1a"]}
+            />
+            <ColorSwatchMix
+              items={["#ecb306", "#ecb306", "#ecb306", "#ecb306"]}
+            />
+            <ColorSwatchMix
+              items={["#038c3e", "#038c3e", "#038c3e", "#038c3e"]}
+            />
+            <ColorSwatchMix
+              items={["#038c3e", "#038c3e", "#038c3e", "#038c3e"]}
+            />
+            <ColorSwatchMix
+              items={["#038c3e", "#038c3e", "#038c3e", "#038c3e"]}
+            />
+          </Group>
+        );
+      case healthSummary.score >= 50:
+        return (
+          <Group attached>
+            <ColorSwatchMix
+              items={["#ba1a1a", "#ba1a1a", "#ba1a1a", "#ba1a1a"]}
+            />
+            <ColorSwatchMix
+              items={["#ba1a1a", "#ecb306", "#ba1a1a", "#ecb306"]}
+            />
+            <ColorSwatchMix
+              items={["#ecb306", "#038c3e", "#ecb306", "#038c3e"]}
+            />
+            <ColorSwatchMix
+              items={["#038c3e", "#038c3e", "#038c3e", "#038c3e"]}
+            />
+            <ColorSwatchMix
+              items={["#038c3e", "#038c3e", "#038c3e", "#038c3e"]}
+            />
+          </Group>
+        );
+      case healthSummary.score >= 40:
+        return (
+          <Group attached>
+            <ColorSwatchMix
+              items={["#ba1a1a", "#ba1a1a", "#ba1a1a", "#ba1a1a"]}
+            />
+            <ColorSwatchMix
+              items={["#ba1a1a", "#ba1a1a", "#ba1a1a", "#ba1a1a"]}
+            />
+            <ColorSwatchMix
+              items={["#ecb306", "#ecb306", "#ecb306", "#ecb306"]}
+            />
+            <ColorSwatchMix
+              items={["#038c3e", "#038c3e", "#038c3e", "#038c3e"]}
+            />
+            <ColorSwatchMix
+              items={["#038c3e", "#038c3e", "#038c3e", "#038c3e"]}
+            />
+          </Group>
+        );
+      case healthSummary.score >= 30:
+        return (
+          <Group attached>
+            <ColorSwatchMix
+              items={["#ba1a1a", "#ba1a1a", "#ba1a1a", "#ba1a1a"]}
+            />
+            <ColorSwatchMix
+              items={["#ba1a1a", "#ba1a1a", "#ba1a1a", "#ba1a1a"]}
+            />
+            <ColorSwatchMix
+              items={["#ba1a1a", "#ecb306", "#ba1a1a", "#ecb306"]}
+            />
+            <ColorSwatchMix
+              items={["#ecb306", "#038c3e", "#038c3e", "#ecb306"]}
+            />
+            <ColorSwatchMix
+              items={["#038c3e", "#038c3e", "#038c3e", "#038c3e"]}
+            />
+          </Group>
+        );
+      case healthSummary.score >= 20:
+        return (
+          <Group attached>
+            <ColorSwatchMix
+              items={["#ba1a1a", "#ba1a1a", "#ba1a1a", "#ba1a1a"]}
+            />
+            <ColorSwatchMix
+              items={["#ba1a1a", "#ba1a1a", "#ba1a1a", "#ba1a1a"]}
+            />
+            <ColorSwatchMix
+              items={["#ba1a1a", "#ba1a1a", "#ba1a1a", "#ba1a1a"]}
+            />
+            <ColorSwatchMix
+              items={["#ecb306", "#ecb306", "#ecb306", "#ecb306"]}
+            />
+            <ColorSwatchMix
+              items={["#038c3e", "#038c3e", "#038c3e", "#038c3e"]}
+            />
+          </Group>
+        );
+      case healthSummary.score >= 10:
+        return (
+          <Group attached>
+            <ColorSwatchMix
+              items={["#ba1a1a", "#ba1a1a", "#ba1a1a", "#ba1a1a"]}
+            />
+            <ColorSwatchMix
+              items={["#ba1a1a", "#ba1a1a", "#ba1a1a", "#ba1a1a"]}
+            />
+            <ColorSwatchMix
+              items={["#ba1a1a", "#ba1a1a", "#ba1a1a", "#ba1a1a"]}
+            />
+            <ColorSwatchMix
+              items={["#ba1a1a", "#ecb306", "#ba1a1a", "#ecb306"]}
+            />
+            <ColorSwatchMix
+              items={["#ecb306", "#038c3e", "#ecb306", "#038c3e"]}
+            />
+          </Group>
+        );
+      case healthSummary.score > 0:
+        return (
+          <Group attached>
+            <ColorSwatchMix
+              items={["#ba1a1a", "#ba1a1a", "#ba1a1a", "#ba1a1a"]}
+            />
+            <ColorSwatchMix
+              items={["#ba1a1a", "#ba1a1a", "#ba1a1a", "#ba1a1a"]}
+            />
+            <ColorSwatchMix
+              items={["#ba1a1a", "#ba1a1a", "#ba1a1a", "#ba1a1a"]}
+            />
+            <ColorSwatchMix
+              items={["#ba1a1a", "#ba1a1a", "#ba1a1a", "#ba1a1a"]}
+            />
+            <ColorSwatchMix
+              items={["#ecb306", "#ecb306", "#ecb306", "#ecb306"]}
+            />
+          </Group>
+        );
+      case healthSummary.score > 0:
+        return (
+          <Group attached>
+            <ColorSwatchMix
+              items={["#ba1a1a", "#ba1a1a", "#ba1a1a", "#ba1a1a"]}
+            />
+            <ColorSwatchMix
+              items={["#ba1a1a", "#ba1a1a", "#ba1a1a", "#ba1a1a"]}
+            />
+            <ColorSwatchMix
+              items={["#ba1a1a", "#ba1a1a", "#ba1a1a", "#ba1a1a"]}
+            />
+            <ColorSwatchMix
+              items={["#ba1a1a", "#ba1a1a", "#ba1a1a", "#ba1a1a"]}
+            />
+            <ColorSwatchMix
+              items={["#ba1a1a", "#ba1a1a", "#ba1a1a", "#ba1a1a"]}
+            />
+          </Group>
+        );
+      default:
+        return (
+          <Group attached>
+            <ColorSwatchMix
+              items={["#3d3d3d", "#4f4f4f", "#3d3d3d", "#4f4f4f"]}
+            />
+            <ColorSwatchMix
+              items={["#3d3d3d", "#4f4f4f", "#3d3d3d", "#4f4f4f"]}
+            />
+            <ColorSwatchMix
+              items={["#3d3d3d", "#4f4f4f", "#3d3d3d", "#4f4f4f"]}
+            />
+            <ColorSwatchMix
+              items={["#3d3d3d", "#4f4f4f", "#3d3d3d", "#4f4f4f"]}
+            />
+            <ColorSwatchMix
+              items={["#3d3d3d", "#4f4f4f", "#3d3d3d", "#4f4f4f"]}
+            />
+          </Group>
+        );
+    }
+  };
 
   if (error) {
     return (
@@ -247,14 +525,8 @@ export const DockerStackDetailPage: React.FC = () => {
                 <DataList.Item>
                   <DataList.ItemLabel>App Health</DataList.ItemLabel>
                   {isHealthy ? (
-                    <DataList.ItemValue
-                      alignItems="center"
-                      flex="unset"
-                      color="brand.fg"
-                    >
-                      <PiHeart />
-                      &ensp;
-                      {healthSummary.score}/100
+                    <DataList.ItemValue alignItems="center" flex="unset">
+                      {appHealthColors()}
                     </DataList.ItemValue>
                   ) : (
                     <DataList.ItemValue
@@ -558,7 +830,7 @@ export const DockerStackDetailPage: React.FC = () => {
                         <Link>
                           <PiTerminal />
                           <Text>
-                            {stack.environment.compose_version.length}
+                            {stack.aggregated_configs.environment.length}
                           </Text>{" "}
                           Found
                         </Link>
@@ -570,7 +842,7 @@ export const DockerStackDetailPage: React.FC = () => {
                           </HoverCard.Arrow>
                           <List.Root gap="2" variant="plain" align="center">
                             {stack?.aggregated_configs?.environment ? (
-                              stack.environment.configs.map(
+                              stack.aggregated_configs.environment.map(
                                 (e, index: number) => (
                                   <List.Item key={index} w="100%">
                                     <List.Indicator asChild color="green.500">
@@ -618,90 +890,19 @@ export const DockerStackDetailPage: React.FC = () => {
                         <Drawer.Backdrop />
                         <Drawer.Positioner>
                           <Drawer.Content>
-                            <Drawer.Header>
-                              <Drawer.Title>{stack.name} Labels</Drawer.Title>
-                            </Drawer.Header>
-                            <Drawer.Body>
-                              <Flex gap="2" direction="column">
-                                {stack.aggregated_configs?.labels.map(
-                                  (l, i) => (
-                                    <Card.Root key={i} borderRadius="0">
-                                      <Card.Header py="4">
-                                        <DataList.Root
-                                          orientation="horizontal"
-                                          justifyContent="space-between"
-                                          flex="content"
-                                          variant="bold"
-                                        >
-                                          <Flex
-                                            direction="column"
-                                            justifyContent="space-between"
-                                            gap="1"
-                                          >
-                                            <DataList.Item>
-                                              <DataList.ItemLabel>
-                                                Key:
-                                              </DataList.ItemLabel>
-                                              <DataList.ItemValue color="brand.fg">
-                                                {l.key}
-                                              </DataList.ItemValue>
-                                            </DataList.Item>
-                                            <DataList.Item>
-                                              <DataList.ItemLabel>
-                                                Value:
-                                              </DataList.ItemLabel>
-                                              <DataList.ItemValue color="yellowBrand.fg">
-                                                {l.value}
-                                              </DataList.ItemValue>
-                                            </DataList.Item>
-                                          </Flex>
-                                        </DataList.Root>
-                                      </Card.Header>
-                                      <Card.Body py="2">
-                                        <DataList.Root
-                                          orientation="vertical"
-                                          justifyContent="space-between"
-                                          flex="content"
-                                          variant="bold"
-                                          size="sm"
-                                        >
-                                          <Flex
-                                            direction="row"
-                                            justifyContent="space-between"
-                                          >
-                                            <DataList.Item>
-                                              <DataList.ItemLabel>
-                                                Label Level
-                                              </DataList.ItemLabel>
-                                              <DataList.ItemValue>
-                                                {l.level}
-                                              </DataList.ItemValue>
-                                            </DataList.Item>
-                                            <DataList.Item>
-                                              <DataList.ItemLabel>
-                                                Label Category
-                                              </DataList.ItemLabel>
-                                              <DataList.ItemValue>
-                                                {l.category}
-                                              </DataList.ItemValue>
-                                            </DataList.Item>
-                                            <DataList.Item>
-                                              <DataList.ItemLabel>
-                                                Label Source
-                                              </DataList.ItemLabel>
-                                              <DataList.ItemValue>
-                                                {l.source}
-                                              </DataList.ItemValue>
-                                            </DataList.Item>
-                                          </Flex>
-                                        </DataList.Root>
-                                      </Card.Body>
-                                    </Card.Root>
-                                  )
-                                )}
-                              </Flex>
-                            </Drawer.Body>
-                            <Drawer.Footer />
+                            <EditableDrawerTable
+                              tabletitle={stack.name + " Labels"}
+                              items={stack.aggregated_configs?.labels || []}
+                            />
+
+                            <Drawer.Footer bg="bg.panel" py="3">
+                              <ButtonGroup size="sm">
+                                <Button colorPalette="brand">Save</Button>
+                                <Button colorPalette="redBrand" variant="ghost">
+                                  Discard
+                                </Button>
+                              </ButtonGroup>
+                            </Drawer.Footer>
                             <Drawer.CloseTrigger asChild>
                               <CloseButton size="sm" />
                             </Drawer.CloseTrigger>
@@ -717,9 +918,50 @@ export const DockerStackDetailPage: React.FC = () => {
           <Card.Footer p="0" />
         </Card.Root>
       </Container>
-      <Container maxW={{ base: "3xl", md: "full" }} pt="4" bg="bg.subtle">
+      <Container maxW={{ base: "2xl", md: "full" }} pt="4" bg="bg">
         <Stack gap="8">
-          <Heading>Application Services</Heading>
+          <Flex justify="space-between" align="center">
+            <Heading size="2xl">Application Services</Heading>
+            <SegmentGroup.Root defaultValue="table">
+              <SegmentGroup.Indicator />
+              <SegmentGroup.Items
+                items={[
+                  {
+                    value: "table",
+                    label: (
+                      <HStack>
+                        <Icon size="lg">
+                          <PiTable />
+                        </Icon>
+                      </HStack>
+                    ),
+                  },
+                  {
+                    value: "cards",
+                    label: (
+                      <HStack>
+                        <Icon size="lg">
+                          <PiCards />
+                        </Icon>
+                      </HStack>
+                    ),
+                    disabled: true,
+                  },
+                  {
+                    value: "tree",
+                    label: (
+                      <HStack>
+                        <Icon size="lg">
+                          <PiTreeStructure />
+                        </Icon>
+                      </HStack>
+                    ),
+                    disabled: true,
+                  },
+                ]}
+              />
+            </SegmentGroup.Root>
+          </Flex>
           <ServicesPane services={services} />
         </Stack>
       </Container>
