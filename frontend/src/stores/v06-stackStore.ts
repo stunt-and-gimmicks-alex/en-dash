@@ -156,24 +156,10 @@ export const useStackStore = create<StackStore>()(
           timestamp: message.timestamp,
         });
 
-        // DEBUG: Add detailed logging to understand the data structure
-        console.log("🔍 v06-stackStore - Full message:", message);
-        console.log("🔍 v06-stackStore - Data parameter:", data);
-        console.log("🔍 v06-stackStore - message.data:", message.data);
-
         switch (message.type) {
           case "unified_stacks":
             // Try both data patterns since there might be inconsistency
             const stacksData = data || message.data;
-            console.log("🔍 v06-stackStore - Using stacksData:", stacksData);
-            console.log(
-              "🔍 v06-stackStore - stacksData.available:",
-              stacksData?.available
-            );
-            console.log(
-              "🔍 v06-stackStore - stacksData.stacks:",
-              stacksData?.stacks
-            );
 
             if (stacksData?.available && stacksData.stacks) {
               // FIXED: Just pass through the data - backend already provides status field
@@ -182,9 +168,6 @@ export const useStackStore = create<StackStore>()(
                 stacksData.total_stacks || 0,
                 message.timestamp,
                 message.connection_count || 0
-              );
-              console.log(
-                `✅ v06-stackStore: Updated ${stacksData.stacks.length} stacks (backend provides status field)`
               );
             } else if (stacksData?.error) {
               console.error("❌ v06-stackStore: Data error:", stacksData.error);
@@ -337,8 +320,6 @@ export const useStackStore = create<StackStore>()(
       };
 
       try {
-        console.log(`🎬 v06-stackStore: ${action} ${stackName}`);
-
         const response = await fetch(
           `${getApiBaseUrl()}/docker/stacks/${stackName}/${action}`,
           {
@@ -357,7 +338,6 @@ export const useStackStore = create<StackStore>()(
 
         if (result.success) {
           actionRecord.success = true;
-          console.log(`✅ v06-stackStore: ${action} ${stackName} succeeded`);
         } else {
           actionRecord.error = result.message || `${action} operation failed`;
           console.error(
@@ -383,11 +363,6 @@ export const useStackStore = create<StackStore>()(
           lastAction: actionRecord,
           actionHistory: [...state.actionHistory, actionRecord],
         }));
-
-        console.log(`🏁 v06-stackStore: ${action} ${stackName} completed`, {
-          success: actionRecord.success,
-          error: actionRecord.error,
-        });
       }
     },
 

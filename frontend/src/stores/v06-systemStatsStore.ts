@@ -615,6 +615,7 @@ export const initializeSystemStatsStore = async (): Promise<void> => {
   try {
     const store = useSystemStatsStore.getState();
     await store.connect();
+    store.setUpdateInterval(5);
     console.log("✅ v06-systemStatsStore initialized successfully");
   } catch (error) {
     console.error("❌ Failed to initialize v06-systemStatsStore:", error);

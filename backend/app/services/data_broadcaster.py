@@ -153,6 +153,7 @@ class DataBroadcaster:
     async def _start_system_stats_polling(self):
         """Fallback polling for system stats"""
         logger.info("🔄 Starting system stats polling fallback")
+        print(f"🐛 Fallback polling mechanism initiated. This is a problem!!!")
         
         async def poll_loop():
             while self.running:
@@ -170,7 +171,8 @@ class DataBroadcaster:
                     # Cache and broadcast
                     self.cached_data['system_stats'] = stats_data
                     self.cached_data['last_update']['system_stats'] = datetime.now(timezone.utc)
-                    
+                    print(f"🐛 Falling falling falling back, this should not be here!")
+
                     await self._broadcast_system_stats(stats_data, trigger="polling")
                     await asyncio.sleep(self.intervals['system_stats'])
                     

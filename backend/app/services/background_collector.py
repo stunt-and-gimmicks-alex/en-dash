@@ -111,7 +111,7 @@ class BackgroundCollector:
                         logger.debug(f"✅ Docker state unchanged - skipped database write")
                     
                     # Wait 30 seconds before next check (with early exit on shutdown)
-                    for _ in range(30):
+                    for _ in range(60):
                         if self._shutdown_requested:
                             break
                         await asyncio.sleep(1)
