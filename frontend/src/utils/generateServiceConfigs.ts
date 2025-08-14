@@ -432,13 +432,33 @@ export function generateServiceConfigs(s: UnifiedService): ServiceConfig {
       });
     });
 
-  // Dependencies
-  const dependencies: DependencyConfig[] = s.depends_on.map((dep) => ({
-    service_name: dep,
-    compose_dependency: true,
-    runtime_dependency: true, // Hard to determine from runtime
-    sync_status: "synced", // Assume synced for now
-  }));
+  // Dependencies - FIXED to handle all Docker Compose depends_on formats
+  const dependencies: DependencyConfig[] = (() => {
+    if (!s.depends_on) {
+      return []; // No dependencies
+    }
+
+    if (Array.isArray(s.depends_on)) {
+      return s.depends_on.map((dep) => ({
+        service_name: dep,
+        compose_dependency: true,
+        runtime_dependency: true, // Hard to determine from runtime
+        sync_status: "synced", // Assume synced for now
+      }));
+    }
+
+    if (typeof s.depends_on === "object") {
+      return Object.keys(s.depends_on).map((dep) => ({
+        service_name: dep,
+        compose_dependency: true,
+        runtime_dependency: true, // Hard to determine from runtime
+        sync_status: "synced", // Assume synced for now
+      }));
+    }
+
+    // Fallback for any other format
+    return [];
+  })();
 
   return [
     {

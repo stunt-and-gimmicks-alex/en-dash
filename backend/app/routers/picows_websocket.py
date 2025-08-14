@@ -326,21 +326,20 @@ async def websocket_health():
 @router.websocket("/ws/unified")
 async def websocket_unified_redirect():
     """
-    Legacy WebSocket endpoint that redirects to picows
-    This should not be used - clients should connect directly to picows server
+    Legacy WebSocket endpoint that informs clients about the move
     """
     logger.warning("Client attempting to connect to legacy FastAPI WebSocket endpoint")
     
-    # Note: This will actually fail because FastAPI websockets can't redirect
-    # We include this for documentation purposes
-    # Clients should connect directly to the picows server endpoint
+    # Get server info from stats instead of direct attribute access
+    ws_stats = ws_manager.get_stats()
+    endpoint = ws_stats.get("server_info", {}).get("endpoint", "ws://localhost:8002/")
     
     raise HTTPException(
         status_code=426, 
         detail={
             "error": "WebSocket endpoint moved",
             "message": "This endpoint is deprecated. Use native picows server.",
-            "new_endpoint": f"ws://{ws_manager.host}:{ws_manager.port}/",
+            "new_endpoint": endpoint,
             "upgrade_required": True
         }
     )

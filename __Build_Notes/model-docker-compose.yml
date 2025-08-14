@@ -1,0 +1,212 @@
+# ============================================================================
+# AI Stack
+# OPENWEBUI + KOKORO TTS (OpenAI-compatible) - En-Dash Stack
+# Served via Caddy on the 'localweb' network
+# MODEL FILE NOTES:
+# 1. All files should have a top-level project name that is descriptive and memorable
+# 2. The file should be saved as <project-name>.docker-compose.yml
+# 3. Service names should be readable and function-oriented rather than image-oriented.
+#    The idea is that you should be able to replace any service in a project/app with
+#    any other similar service and it should work perfectly fine.
+# 4. The x-meta field is how we keep things sane and useful for human readers. It should
+#    at the very least contain a name, category, description, and link to documentation.
+# ============================================================================
+
+name: ai-stack
+
+services:
+  # --------------------------------------------------------------------------
+  # OPEN WEBUI — Chat + RAG + Audio I/O
+  # --------------------------------------------------------------------------
+  frontend:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: openwebui
+    restart: unless-stopped
+    expose:
+      - "8080" # Caddy will proxy via service DNS; no host port required
+
+    x-meta:
+      name: openwebui
+      category: application
+      description: "Open WebUI with persistent data & model dirs on bind-backed volumes"
+      documentation: "https://docs.openwebui.com/"
+      provides: ["chat", "RAG", "speech", "whisper"]
+      tags: ["ai", "chat", "work", "personal"]
+      dependencies: ["kokoro-web"]
+      internal_url: "https://llama.home"
+
+    environment:
+      # Core runtime
+      ENV: prod
+      PORT: 8080
+      TZ: ${TZ:-America/New_York}
+
+      # Model backends
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      USE_OLLAMA_DOCKER: "false"
+      USE_CUDA_DOCKER: "false"
+      USE_CUDA_DOCKER_VER: cu128
+
+      # Embeddings / Rerank (defaults ok)
+      USE_EMBEDDING_MODEL_DOCKER: sentence-transformers/all-MiniLM-L6-v2
+      USE_RERANKING_MODEL_DOCKER: ""
+
+      # Optional OpenAI compat (not used for TTS; Kokoro provides its own endpoint)
+      OPENAI_API_BASE_URL: ""
+      OPENAI_API_KEY: ""
+
+      # Privacy
+      SCARF_NO_ANALYTICS: "true"
+      DO_NOT_TRACK: "true"
+      ANONYMIZED_TELEMETRY: "false"
+
+      # Whisper + caches pinned into data volume
+      WHISPER_MODEL: base
+      WHISPER_MODEL_DIR: /app/backend/data/cache/whisper/models
+      RAG_EMBEDDING_MODEL: sentence-transformers/all-MiniLM-L6-v2
+      RAG_RERANKING_MODEL: ""
+      SENTENCE_TRANSFORMERS_HOME: /app/backend/data/cache/embedding/models
+      HF_HOME: /app/backend/data/cache/embedding/models
+      TIKTOKEN_ENCODING_NAME: cl100k_base
+      TIKTOKEN_CACHE_DIR: /app/backend/data/cache/tiktoken
+
+      # WebUI auth/session secret (set in .env)
+      WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY:?set WEBUI_SECRET_KEY in .env}
+
+    volumes:
+      - openwebui_data:/app/backend/data
+      - openwebui_models:/app/backend/models
+
+    depends_on:
+      text-to-speech:
+        condition: service_started
+
+    healthcheck:
+      test:
+        ["CMD-SHELL", "wget -qO- http://localhost:8080/ >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    networks:
+      - localweb
+
+    labels:
+      - "endash.stack=ai-stack"
+      - "endash.service=ai-frontend"
+      - "endash.category=application"
+      - "endash.backup=critical"
+      - "endash.internal_url=https://llama.home"
+
+  # --------------------------------------------------------------------------
+  # KOKORO WEB — OpenAI-compatible TTS sidecar
+  # --------------------------------------------------------------------------
+  text-to-speech:
+    image: ghcr.io/eduardolat/kokoro-web:latest
+    container_name: kokoro-web
+    restart: unless-stopped
+    expose:
+      - "3000" # reachable by Open WebUI & Caddy on localweb
+
+    x-meta:
+      name: kokoro-web
+      category: application
+      description: "Low-latency, high-quality local TTS (OpenAI-compatible)"
+      documentation: "https://github.com/eduardolat/kokoro-web"
+      provides: ["text-to-speech", "openai-compatible-tts"]
+      internal_url: "http://kokoro-web:3000/api/v1"
+
+    environment:
+      # Set in .env — Open WebUI will use this as the Bearer token
+      KW_SECRET_API_KEY: ${KOKORO_API_KEY:?set KOKORO_API_KEY in .env}
+      TZ: ${TZ:-America/New_York}
+
+    volumes:
+      - kokoro_cache:/kokoro/cache
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    networks:
+      - localweb
+
+    labels:
+      - "endash.stack=ai-stack"
+      - "endash.service=text-to-speech"
+      - "endash.category=application"
+      - "endash.backup=optional"
+
+# -----------------------------------------------------------------------------
+# NETWORKS
+# -----------------------------------------------------------------------------
+networks:
+  localweb:
+    external: true
+    name: localweb
+
+# -----------------------------------------------------------------------------
+# VOLUMES — bind-backed named volumes under /mnt/data/openweb/…
+# -----------------------------------------------------------------------------
+volumes:
+  openwebui_data:
+    driver: local
+    labels:
+      - "endash.volume=application"
+      - "endash.backup=critical"
+      - "endash.ssd_safe=true"
+    driver_opts:
+      type: none
+      o: bind
+      device: /mnt/data/openweb/openwebui-data
+
+  openwebui_models:
+    driver: local
+    labels:
+      - "endash.volume=models"
+      - "endash.backup=important"
+      - "endash.ssd_safe=true"
+    driver_opts:
+      type: none
+      o: bind
+      device: /mnt/data/openweb/openwebui-models
+
+  kokoro_cache:
+    driver: local
+    labels:
+      - "endash.volume=cache"
+      - "endash.backup=optional"
+      - "endash.ssd_safe=true"
+    driver_opts:
+      type: none
+      o: bind
+      device: /mnt/data/openweb/kokoro-cache
+
+# -----------------------------------------------------------------------------
+# EN-DASH STACK METADATA / CADDY HINTS
+# -----------------------------------------------------------------------------
+x-endash-config:
+  stack_name: "ai-stack"
+  stack_version: "1.0.0-2025"
+  reverse_proxy: "caddy"
+  network: "localweb"
+  ssl_mode: "internal"
+  service_endpoints:
+    openwebui: "http://openwebui:8080"
+    kokoro_tts: "http://kokoro-web:3000"
+  caddy_sites:
+    - domain: "ai.home"
+      upstream: "http://openwebui:8080"
+      notes: "Primary Open WebUI UI/API"
+    - domain: "tts.home" # optional (normally not exposed)
+      upstream: "http://kokoro-web:3000"
+      notes: "Kokoro API (OpenAI-compatible); keep internal if possible"

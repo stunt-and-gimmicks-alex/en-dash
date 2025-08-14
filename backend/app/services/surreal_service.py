@@ -295,6 +295,59 @@ class SurrealDBService:
                 logger.error(f"❌ Failed to get system stats: {e}")
             return []
 
+    async def create_filtered_live_query(
+        self, 
+        table_name: str, 
+        callback: Callable,
+        significance_filter: List[str] = None
+    ) -> str:
+        """
+        Create a live query with client-side filtering for user-significant changes
+        
+        Args:
+            table_name: Table name (e.g., "system_stats" or "unified_stack")
+            callback: Function to call on significant changes only
+            significance_filter: List of keywords that indicate significant changes
+            
+        Returns:
+            live_query_id: UUID string for the live query
+        """
+        if not self.connected and not await self.connect():
+            raise Exception("Cannot create filtered live query: SurrealDB not connected")
+        
+        # Default significance filter for Docker containers
+        if significance_filter is None:
+            significance_filter = [
+                'status', 'state', 'health', 'image', 'restart',
+                'error', 'warning', 'ports', 'networks', 'volumes',
+                'created', 'removed', 'exited', 'died'
+            ]
+        
+        # Create wrapper callback that filters changes
+        async def filtered_callback(update_data):
+            if self._is_significant_change(update_data, significance_filter):
+                logger.info(f"📡 Significant change detected, calling callback")
+                await callback(update_data)
+            else:
+                logger.debug(f"📡 Insignificant change ignored")
+        
+        # Create the live query with filtered callback
+        return await self.create_live_query(table_name, filtered_callback)
+
+    def _is_significant_change(self, update_data: Any, significance_filter: List[str]) -> bool:
+        """Check if a change contains user-significant indicators"""
+        if not update_data:
+            return False
+        
+        update_str = str(update_data).lower()
+        
+        # Check if any significant indicator is present
+        for indicator in significance_filter:
+            if indicator in update_str:
+                return True
+        
+        return False
+
     # =============================================================================
     # ENHANCED STATS METHODS
     # =============================================================================
@@ -330,6 +383,33 @@ class SurrealDBService:
         except Exception as e:
             logger.error(f"❌ Failed to get dashboard summary: {e}")
             return {"error": str(e)}
+
+    # =============================================================================
+    # USER EVENT TABLE BIFURCATION
+    # =============================================================================
+
+    async def store_user_event(self, event_type: str, stack_name: str, container_name: str = None, details: Dict = None) -> bool:
+        """Store a user-significant event in the events table"""
+        if not self.connected and not await self.connect():
+            return False
+        
+        try:
+            event_data = {
+                "event_type": event_type,  # "stack_status_change", "container_added", etc.
+                "stack_name": stack_name,
+                "container_name": container_name,
+                "details": details or {},
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "processed": False
+            }
+            
+            await self.db.create("user_events", event_data)
+            print(f"🐛 USER EVENT STORED: {event_type} for {stack_name}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error storing user event: {e}")
+            return False
 
 # Global instance
 surreal_service = SurrealDBService()

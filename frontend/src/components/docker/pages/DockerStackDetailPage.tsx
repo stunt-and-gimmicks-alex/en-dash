@@ -554,13 +554,18 @@ export const DockerStackDetailPage: React.FC = () => {
                   <DataList.ItemLabel>Networks</DataList.ItemLabel>{" "}
                   <DataList.ItemValue flex="unset">
                     <HoverCard.Root>
-                      <HoverCard.Trigger asChild>
+                      <HoverCard.Trigger
+                        asChild
+                        textDecor={{
+                          base: "underline dashed white",
+                          _hover: "underline dashed gray",
+                        }}
+                      >
                         <Link>
                           <PiNetwork />
                           <Text>
-                            {stack.aggregated_configs?.networks.length}
-                          </Text>{" "}
-                          Found
+                            {stack.aggregated_configs?.networks.length} Found
+                          </Text>
                         </Link>
                       </HoverCard.Trigger>
                       <HoverCard.Positioner>
@@ -602,7 +607,13 @@ export const DockerStackDetailPage: React.FC = () => {
                   <DataList.ItemLabel>Ports</DataList.ItemLabel>{" "}
                   <DataList.ItemValue flex="unset">
                     <HoverCard.Root>
-                      <HoverCard.Trigger asChild>
+                      <HoverCard.Trigger
+                        asChild
+                        textDecor={{
+                          base: "underline dashed white",
+                          _hover: "underline dashed gray",
+                        }}
+                      >
                         <Link>
                           <PiArrowsLeftRight />
                           <Text>
@@ -652,7 +663,13 @@ export const DockerStackDetailPage: React.FC = () => {
                   <DataList.ItemLabel>Volumes</DataList.ItemLabel>{" "}
                   <DataList.ItemValue flex="unset">
                     <HoverCard.Root>
-                      <HoverCard.Trigger asChild>
+                      <HoverCard.Trigger
+                        asChild
+                        textDecor={{
+                          base: "underline dashed white",
+                          _hover: "underline dashed gray",
+                        }}
+                      >
                         <Link>
                           <PiHardDrives />
                           <Text>
@@ -701,7 +718,13 @@ export const DockerStackDetailPage: React.FC = () => {
                   <DataList.ItemLabel>Container Status</DataList.ItemLabel>
                   <DataList.ItemValue flex="unset">
                     <HoverCard.Root>
-                      <HoverCard.Trigger asChild>
+                      <HoverCard.Trigger
+                        asChild
+                        textDecor={{
+                          base: "underline dashed white",
+                          _hover: "underline dashed gray",
+                        }}
+                      >
                         <Link>
                           <PiShippingContainer />
                           <Text>{stack.containers.total}</Text> Found
@@ -825,52 +848,42 @@ export const DockerStackDetailPage: React.FC = () => {
                 <DataList.Item>
                   <DataList.ItemLabel>ENV Vars.</DataList.ItemLabel>{" "}
                   <DataList.ItemValue flex="unset">
-                    <HoverCard.Root>
-                      <HoverCard.Trigger asChild>
+                    <Drawer.Root size="xl">
+                      <Drawer.Trigger asChild alignItems="center">
                         <Link>
-                          <PiTerminal />
+                          <PiTagSimple />
                           <Text>
-                            {stack.aggregated_configs.environment.length}
+                            {stack.aggregated_configs.environment.length} Found
                           </Text>{" "}
-                          Found
+                          <PiArrowSquareIn />
                         </Link>
-                      </HoverCard.Trigger>
-                      <HoverCard.Positioner>
-                        <HoverCard.Content>
-                          <HoverCard.Arrow>
-                            <HoverCard.ArrowTip />
-                          </HoverCard.Arrow>
-                          <List.Root gap="2" variant="plain" align="center">
-                            {stack?.aggregated_configs?.environment ? (
-                              stack.aggregated_configs.environment.map(
-                                (e, index: number) => (
-                                  <List.Item key={index} w="100%">
-                                    <List.Indicator asChild color="green.500">
-                                      <Badge
-                                        colorPalette="secondaryBrand"
-                                        variant="outline"
-                                      >
-                                        <Text color="secondaryBrand.fg">
-                                          {e.level}
-                                        </Text>
-                                      </Badge>
-                                    </List.Indicator>
-                                    <Text>{e.key}</Text>
-                                    <Text color="secondaryBrand.fg">
-                                      &ensp;[{e.value}]
-                                    </Text>
-                                  </List.Item>
-                                )
-                              )
-                            ) : (
-                              <List.Item color="brand.error">
-                                No volumes found.
-                              </List.Item>
-                            )}
-                          </List.Root>
-                        </HoverCard.Content>
-                      </HoverCard.Positioner>
-                    </HoverCard.Root>
+                      </Drawer.Trigger>
+                      <Portal>
+                        <Drawer.Backdrop />
+                        <Drawer.Positioner>
+                          <Drawer.Content>
+                            <EditableDrawerTable
+                              tabletitle={
+                                stack.name + " Environmental Variables"
+                              }
+                              items={stack.aggregated_configs.environment || []}
+                            />
+
+                            <Drawer.Footer bg="bg.panel" py="3">
+                              <ButtonGroup size="sm">
+                                <Button colorPalette="brand">Save</Button>
+                                <Button colorPalette="redBrand" variant="ghost">
+                                  Discard
+                                </Button>
+                              </ButtonGroup>
+                            </Drawer.Footer>
+                            <Drawer.CloseTrigger asChild>
+                              <CloseButton size="sm" />
+                            </Drawer.CloseTrigger>
+                          </Drawer.Content>
+                        </Drawer.Positioner>
+                      </Portal>
+                    </Drawer.Root>
                   </DataList.ItemValue>
                 </DataList.Item>
                 <DataList.Item>

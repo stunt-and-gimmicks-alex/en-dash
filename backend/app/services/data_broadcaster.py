@@ -224,15 +224,21 @@ class DataBroadcaster:
         except Exception as e:
             logger.error(f"Error sending immediate system stats: {e}")
     
+
     # Docker Monitoring
+    
+    # =============================================================================
+    # USER EVENT TABLE BIFURCATION
+    # =============================================================================    
+    
     async def _start_docker_monitoring(self):
         """Start Docker stacks monitoring with fallback"""
         try:
             if surreal_service.connected:
                 # Try live query first
                 live_id = await surreal_service.create_live_query(
-                    "unified_stack",  # Just the table name
-                    self._handle_system_stats_update
+                    "user_events",
+                    self._handle_user_event
                 )
                                 
                 if live_id:
@@ -243,53 +249,46 @@ class DataBroadcaster:
                     await self._send_immediate_docker_data()
                     return
             
-            # Fallback to polling
-            await self._start_docker_polling()
+            logger.info("🔄 Docker monitoring will use live queries only (no polling fallback)")
             
         except Exception as e:
             logger.warning(f"Live query failed for docker stacks: {e}")
-            await self._start_docker_polling()
-    
-    async def _start_docker_polling(self):
-        """Fallback polling for docker stacks"""
-        logger.info("🔄 Starting Docker stacks polling fallback")
-        
-        async def poll_loop():
-            while self.running:
-                try:
-                    stacks = await unified_stack_service.get_all_unified_stacks()
-                    
-                    # Cache and broadcast
-                    self.cached_data['docker_stacks'] = stacks
-                    self.cached_data['last_update']['docker_stacks'] = datetime.now(timezone.utc)
-                    
-                    await self._broadcast_docker_stacks(stacks, trigger="polling")
-                    await asyncio.sleep(self.intervals['docker_stacks'])
-                    
-                except asyncio.CancelledError:
-                    break
-                except Exception as e:
-                    logger.error(f"Error in Docker polling: {e}")
-                    await asyncio.sleep(10)  # Longer delay on error
-        
-        self.polling_tasks['docker_stacks'] = asyncio.create_task(poll_loop())
     
     async def _handle_docker_update(self, update_data: Any):
-        """Handle Docker stacks live query updates"""
+        """Handle significant Docker stacks live query updates"""
         try:
-            logger.debug("📦 Docker stacks live update received")
+            print(f"🐛 SIGNIFICANT DOCKER CHANGE - Broadcasting update")
             
-            # Get fresh data from the service
+            # Re-fetch and broadcast (only called for significant changes now)
             stacks = await unified_stack_service.get_all_unified_stacks()
-            
-            # Cache and broadcast
             self.cached_data['docker_stacks'] = stacks
             self.cached_data['last_update']['docker_stacks'] = datetime.now(timezone.utc)
             
-            await self._broadcast_docker_stacks(stacks, trigger="live_query")
+            await self._broadcast_docker_stacks(stacks, trigger="live_query_filtered")
             
         except Exception as e:
-            logger.error(f"Error handling Docker update: {e}")
+            print(f"🐛 ERROR in docker update: {e}")
+
+    async def _handle_user_event(self, event_data: Any):
+        """Handle user events from the events table"""
+        try:
+            print(f"🐛 USER EVENT RECEIVED: {str(event_data)[:200]}")
+            
+            # Only broadcast for Docker-related events
+            if "docker" in str(event_data).lower():
+                print(f"🐛 DOCKER EVENT - Broadcasting stack update")
+                
+                # Get fresh stack data and broadcast
+                stacks = await unified_stack_service.get_all_unified_stacks()
+                self.cached_data['docker_stacks'] = stacks
+                self.cached_data['last_update']['docker_stacks'] = datetime.now(timezone.utc)
+                
+                await self._broadcast_docker_stacks(stacks, trigger="user_event")
+            else:
+                print(f"🐛 NON-DOCKER EVENT - Ignoring")
+            
+        except Exception as e:
+            print(f"🐛 ERROR in user event handler: {e}")
     
     async def _broadcast_docker_stacks(self, stacks_data: list, trigger: str = "polling"):
         """Broadcast Docker stacks to websocket clients"""

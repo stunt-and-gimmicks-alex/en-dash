@@ -84,13 +84,24 @@ class BackgroundCollector:
                     # Collect current Docker state
                     logger.debug(f"🔍 Docker collection check #{self.docker_check_count}")
                     stacks = await unified_stack_service.get_all_unified_stacks()
-                    
+
+                    # =============================================================================
+                    # USER EVENT TABLE BIFURCATION
+                    # =============================================================================
+
                     # Store in database - but only if changed
                     changes_made = await surreal_service.store_unified_stacks(stacks)
-                    
+
                     if changes_made:
                         self.docker_changes_detected += 1
                         logger.info(f"🔄 Docker state changed - wrote {len(stacks)} stacks to database")
+                        
+                        # Generate user event for stack changes
+                        await surreal_service.store_user_event(
+                            event_type="docker_stacks_updated",
+                            stack_name="all_stacks",
+                            details={"stack_count": len(stacks), "change_reason": "background_scan"}
+                        )
                         
                         # Log which stacks are running for visibility
                         running_stacks = [s['name'] for s in stacks if s.get('status') == 'running']
