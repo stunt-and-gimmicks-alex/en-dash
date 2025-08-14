@@ -130,6 +130,9 @@ class BackgroundCollector:
     async def _stats_collection_loop(self):
         """Collect system stats every 1 second"""
         try:
+            
+            print(f"🐛 Step 1: Stats collection loop starts -- {datetime.now()}")
+            
             from ..core.config import settings
             
             while self.running and not self._shutdown_requested:
@@ -143,6 +146,8 @@ class BackgroundCollector:
                         
                     # Collect system stats (keep this simple and working)
                     await self._collect_system_stats()
+                    
+                    print(f"🐛 Step 2: Stats collection loop ends -- {datetime.now()}")
                     
                     # Wait 1 second before next collection
                     await asyncio.sleep(1)
@@ -164,7 +169,8 @@ class BackgroundCollector:
             return
             
         try:
-            logger.info("🔥 COLLECTING SYSTEM STATS NOW")
+            
+            print(f"🐛 Step 3: Starting data collection -- {datetime.now()}")
 
             # CPU stats
             cpu_percent = psutil.cpu_percent(interval=None)  # Non-blocking
@@ -186,6 +192,8 @@ class BackgroundCollector:
                 load_avg = psutil.getloadavg()
             except AttributeError:
                 load_avg = [0, 0, 0]  # Windows fallback
+            
+            print(f"🐛 Step 3.5: About to build stats_data object -- {datetime.now()}")
             
             # Build comprehensive stats object
             stats_data = {
@@ -233,8 +241,12 @@ class BackgroundCollector:
                 "network_packets_recv": network.packets_recv,
             }
             
+            print(f"🐛 Step 4: Data collected, calling store_system_stats -- {datetime.now()}")
+
             # Store in SurrealDB
             await surreal_service.store_system_stats(stats_data)
+
+            print(f"🐛 Step 5: store_system_stats completed -- {datetime.now()}")
             
         except asyncio.CancelledError:
             logger.info("📡 System stats collection cancelled")

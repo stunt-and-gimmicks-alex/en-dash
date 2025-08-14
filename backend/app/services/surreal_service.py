@@ -257,13 +257,20 @@ class SurrealDBService:
             return
             
         try:
+            
+            print(f"🐛 Step 6: SurrealDB store_system_stats called -- {datetime.now()}")
+
             stats_with_timestamp = {
                 **stats_data,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "collected_at": datetime.now(timezone.utc).isoformat()
             }
             
+            print(f"🐛 Step 7: About to write to SurrealDB -- {datetime.now()}")
+
             await self.db.create("system_stats", stats_with_timestamp)
+
+            print(f"🐛 Step 8: SurrealDB write completed -- {datetime.now()}")
             
         except asyncio.CancelledError:
             logger.info("📡 System stats storage cancelled during shutdown")
