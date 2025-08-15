@@ -248,7 +248,6 @@ export const NewDockDrawerServices = ({
                   placeholder="Enter service tags like: frontend, api, cache..."
                   maxTags={5}
                   size="sm"
-                  colorPalette="green"
                 />
               </Stack>
             </Stack>
