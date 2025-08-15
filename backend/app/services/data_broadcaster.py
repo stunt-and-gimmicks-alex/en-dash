@@ -187,7 +187,6 @@ class DataBroadcaster:
     async def _handle_system_stats_update(self, update_data: Any):
         """Handle system stats live query updates"""
         
-        print(f"🐛 Step 9: Live query handler triggered -- {datetime.now()}")
 
         try:
             logger.debug("📊 System stats live update received")
@@ -203,11 +202,9 @@ class DataBroadcaster:
                 self.cached_data['system_stats'] = latest_stats
                 self.cached_data['last_update']['system_stats'] = datetime.now(timezone.utc)
 
-                print(f"🐛 Step 10: About to broadcast system stats -- {datetime.now()}")
                 
                 await self._broadcast_system_stats(latest_stats, trigger="live_query")
 
-                print(f"🐛 Step 11: System stats broadcast completed -- {datetime.now()}")
 
             else:
                 logger.warning("No recent system stats found in SurrealDB")

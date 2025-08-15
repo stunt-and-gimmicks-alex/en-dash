@@ -108,25 +108,20 @@ class SurrealDBService:
     # =============================================================================
 
     async def create_live_query(self, table_name: str, callback: Callable) -> str:
-        """
-        Create a live query using SurrealDB 2.x pattern
-        
-        Args:
-            table_name: Table name (e.g., "system_stats" or "unified_stack")
-            callback: Function to call when data changes
-            
-        Returns:
-            live_query_id: UUID string for the live query
-        """
+        """Create a live query for a table - ENHANCED DEBUG"""
         if not self.connected and not await self.connect():
-            raise Exception("Cannot create live query: SurrealDB not connected")
-            
+            raise Exception(f"Cannot create live query: SurrealDB not connected")
+        
         try:
+            print(f"🐛 LIVE QUERY SETUP: Creating live query for '{table_name}' at {datetime.now()}")
+            
             # Use the live() method - SurrealDB 2.x pattern
             live_query_id = await self.db.live(table_name)
+            print(f"🐛 LIVE QUERY SETUP: Live query ID created: {live_query_id} at {datetime.now()}")
             
             # Subscribe to the live query using subscribe_live()
             subscription = await self.db.subscribe_live(live_query_id)
+            print(f"🐛 LIVE QUERY SETUP: Subscription created for {live_query_id} at {datetime.now()}")
             
             # Store live query info
             self.live_queries[live_query_id] = {
@@ -141,31 +136,45 @@ class SurrealDBService:
                 self._listen_to_live_query(live_query_id, subscription, callback)
             )
             self.live_queries[live_query_id]["task"] = listen_task
+            print(f"🐛 LIVE QUERY SETUP: Listener task started for {live_query_id} at {datetime.now()}")
             
             logger.info(f"📡 Created live query for '{table_name}': {live_query_id}")
             return live_query_id
                 
         except Exception as e:
             logger.error(f"❌ Failed to create live query for {table_name}: {e}")
+            print(f"🐛 LIVE QUERY SETUP: Error creating live query: {e}")
             raise
 
     async def _listen_to_live_query(self, live_id: str, subscription: Any, callback: Callable):
-        """Listen to live query updates in a background task"""
+        """Listen to live query updates in a background task - ENHANCED DEBUG"""
         try:
+            print(f"🐛 LIVE QUERY: Starting listener for {live_id} at {datetime.now()}")
+            
             async for update in subscription:
+                print(f"🐛 LIVE QUERY: Raw update received for {live_id} at {datetime.now()}")
+                print(f"🐛 LIVE QUERY: Update data type: {type(update)}")
+                print(f"🐛 LIVE QUERY: Update data: {update}")
+                
                 if self._shutdown_requested:
+                    print(f"🐛 LIVE QUERY: Shutdown requested, breaking loop for {live_id}")
                     break
                     
                 try:
+                    print(f"🐛 LIVE QUERY: About to call callback for {live_id} at {datetime.now()}")
                     # Call the callback with the update data
                     await callback(update)
+                    print(f"🐛 LIVE QUERY: Callback completed for {live_id} at {datetime.now()}")
                 except Exception as e:
                     logger.error(f"Error in live query callback for {live_id}: {e}")
+                    print(f"🐛 LIVE QUERY: Callback error for {live_id}: {e}")
                     
         except Exception as e:
             if not self._shutdown_requested:
                 logger.error(f"Error listening to live query {live_id}: {e}")
+                print(f"🐛 LIVE QUERY: Listener error for {live_id}: {e}")
         finally:
+            print(f"🐛 LIVE QUERY: Listener stopped for {live_id} at {datetime.now()}")
             logger.debug(f"Live query listener {live_id} stopped")
 
     async def kill_live_query(self, live_id: str):
@@ -248,7 +257,7 @@ class SurrealDBService:
     # =============================================================================
 
     async def store_system_stats(self, stats_data: Dict):
-        """Store system statistics"""
+        """Store system statistics - ENHANCED DEBUG"""
         if self._shutdown_requested:
             return
             
@@ -257,8 +266,6 @@ class SurrealDBService:
             return
             
         try:
-            
-            print(f"🐛 Step 6: SurrealDB store_system_stats called -- {datetime.now()}")
 
             stats_with_timestamp = {
                 **stats_data,
@@ -266,17 +273,16 @@ class SurrealDBService:
                 "collected_at": datetime.now(timezone.utc).isoformat()
             }
             
-            print(f"🐛 Step 7: About to write to SurrealDB -- {datetime.now()}")
 
-            await self.db.create("system_stats", stats_with_timestamp)
-
-            print(f"🐛 Step 8: SurrealDB write completed -- {datetime.now()}")
+            result = await self.db.create("system_stats", stats_with_timestamp)
+            
             
         except asyncio.CancelledError:
             logger.info("📡 System stats storage cancelled during shutdown")
         except Exception as e:
             if not self._shutdown_requested:
                 logger.error(f"❌ Failed to store system stats: {e}")
+                print(f"🐛 WRITE ERROR: {e}")
 
     async def get_system_stats(self, hours_back: int = 24) -> List[Dict]:
         """Get recent system statistics"""
