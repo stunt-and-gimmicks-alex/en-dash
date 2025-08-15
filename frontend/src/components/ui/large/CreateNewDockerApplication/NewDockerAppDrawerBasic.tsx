@@ -39,13 +39,13 @@ export const NewDockDrawerStart = ({
     newStack["x-meta"]?.tags || []
   );
 
-  const setStackName = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const setStackName = (e: React.FocusEvent<HTMLInputElement>) => {
     setNewStack((stack) => {
       stack.name = e.target.value;
     });
   };
 
-  const setStackDescription = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+  const setStackDescription = (e: React.FocusEvent<HTMLTextAreaElement>) => {
     setNewStack((stack) => {
       stack.description = e.target.value;
     });
@@ -114,14 +114,14 @@ export const NewDockDrawerStart = ({
               label="Application Name"
               defaultValue={newStack.name}
               placeholder="Enter a memorable name... like 'My Web App'"
-              onChange={setStackName}
+              onBlur={setStackName}
             />
 
             <TextAreaField
               label="Description"
               defaultValue={newStack.description}
               placeholder="Describe what this application does..."
-              onChange={setStackDescription}
+              onBlur={setStackDescription}
             />
           </PropertySection>
 
@@ -140,7 +140,6 @@ export const NewDockDrawerStart = ({
                 onChange={setAppTags}
                 placeholder="Enter tags like: web, database, monitoring..."
                 maxTags={10}
-                colorPalette="blue"
               />
             </HStack>
           </PropertySection>

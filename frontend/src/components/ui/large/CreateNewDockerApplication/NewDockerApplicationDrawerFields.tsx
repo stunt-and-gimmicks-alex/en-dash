@@ -20,10 +20,13 @@ interface BaseFieldProps {
   disabled?: boolean;
 }
 
+// Fix the TypeScript errors in the existing TextField components
+
 interface TextFieldProps extends BaseFieldProps {
   placeholder?: string;
   defaultValue?: string;
   onChange?: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onBlur?: (event: React.FocusEvent<HTMLInputElement>) => void; // Fixed: HTMLInputElement, not HTMLTextAreaElement
 }
 
 export function TextField(props: TextFieldProps) {
@@ -35,6 +38,7 @@ export function TextField(props: TextFieldProps) {
     defaultValue,
     placeholder,
     onChange,
+    onBlur,
   } = props;
   return (
     <Field.Root
@@ -53,17 +57,17 @@ export function TextField(props: TextFieldProps) {
         placeholder={placeholder}
         _placeholder={{ color: "brandSecondary.800" }}
         onChange={onChange}
+        onBlur={onBlur}
       />
     </Field.Root>
   );
 }
 
-// Fixed TextAreaField component that properly handles controlled inputs
-
 interface TextAreaProps extends BaseFieldProps {
   placeholder?: string;
   defaultValue?: string;
-  onChange?: React.ChangeEventHandler<HTMLTextAreaElement>;
+  onChange?: React.ChangeEventHandler<HTMLTextAreaElement>; // Fixed: proper type
+  onBlur?: (event: React.FocusEvent<HTMLTextAreaElement>) => void;
 }
 
 export function TextAreaField(props: TextAreaProps) {
@@ -75,6 +79,7 @@ export function TextAreaField(props: TextAreaProps) {
     defaultValue,
     placeholder,
     onChange,
+    onBlur,
   } = props;
 
   const [textareaValue, setTextareaValue] = useState(defaultValue || "");
@@ -102,6 +107,7 @@ export function TextAreaField(props: TextAreaProps) {
         placeholder={placeholder}
         _placeholder={{ color: "brandSecondary.800" }}
         onChange={handleChange}
+        onBlur={onBlur}
       />
     </Field.Root>
   );

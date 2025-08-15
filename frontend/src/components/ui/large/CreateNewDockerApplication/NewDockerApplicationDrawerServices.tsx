@@ -18,6 +18,128 @@ import { PropertySection } from "./NewDockerApplicationDrawerPropSection";
 import { PiPlus, PiX } from "react-icons/pi";
 import { SmartTagInput } from "../../small/SmartTagInput";
 
+import { FilterableCombobox } from "../../small/ServiceSelectorComboBox";
+
+// =============================================================================
+// MOCK DATA - Move to API later
+// =============================================================================
+const DOCKER_ROLES = [
+  { value: "database", label: "Database" },
+  { value: "web-server", label: "Web Server" },
+  { value: "cache", label: "Cache / Memory Store" },
+  { value: "proxy", label: "Reverse Proxy" },
+  { value: "monitoring", label: "Monitoring & Observability" },
+  { value: "storage", label: "File Storage & Backup" },
+  { value: "development", label: "Development Tools" },
+  { value: "communication", label: "Communication & Chat" },
+  { value: "media", label: "Media Processing" },
+  { value: "security", label: "Security & Authentication" },
+  { value: "automation", label: "Automation & CI/CD" },
+  { value: "analytics", label: "Analytics & Business Intelligence" },
+];
+
+const MOCK_DOCKER_SERVICES = [
+  {
+    id: "surrealdb",
+    service_name: "SurrealDB",
+    suggested_roles: ["database", "primary-db", "analytics-db", "cache"],
+    image: "surrealdb/surrealdb:latest",
+    description:
+      "Multi-model database for web, mobile, serverless, and traditional applications",
+    category: "database",
+    tags: ["database", "multi-model", "realtime", "graph"],
+    default_ports: ["8000:8000"],
+    environment_vars: [
+      { key: "SURREAL_USER", description: "Database user", required: true },
+      { key: "SURREAL_PASS", description: "Database password", required: true },
+    ],
+    github_url: "https://github.com/surrealdb/surrealdb",
+    docker_hub_url: "https://hub.docker.com/r/surrealdb/surrealdb",
+    updated_at: "2024-01-15T00:00:00Z",
+    popularity_score: 75,
+  },
+  {
+    id: "postgres",
+    service_name: "PostgreSQL",
+    suggested_roles: ["database", "primary-db", "analytics-db"],
+    image: "postgres:16",
+    description: "Advanced open source relational database",
+    category: "database",
+    tags: ["database", "sql", "relational", "acid"],
+    default_ports: ["5432:5432"],
+    environment_vars: [
+      { key: "POSTGRES_DB", description: "Database name", required: true },
+      { key: "POSTGRES_USER", description: "Database user", required: true },
+      {
+        key: "POSTGRES_PASSWORD",
+        description: "Database password",
+        required: true,
+      },
+    ],
+    github_url: "https://github.com/postgres/postgres",
+    docker_hub_url: "https://hub.docker.com/_/postgres",
+    updated_at: "2024-01-10T00:00:00Z",
+    popularity_score: 95,
+  },
+  {
+    id: "redis",
+    service_name: "Redis",
+    suggested_roles: ["cache", "session-store", "message-broker"],
+    image: "redis:7-alpine",
+    description:
+      "In-memory data structure store used as database, cache, and message broker",
+    category: "cache",
+    tags: ["cache", "memory", "session", "pubsub"],
+    default_ports: ["6379:6379"],
+    environment_vars: [
+      { key: "REDIS_PASSWORD", description: "Redis password", required: false },
+    ],
+    github_url: "https://github.com/redis/redis",
+    docker_hub_url: "https://hub.docker.com/_/redis",
+    updated_at: "2024-01-12T00:00:00Z",
+    popularity_score: 90,
+  },
+  {
+    id: "nginx",
+    service_name: "NGINX",
+    suggested_roles: ["web-server", "proxy", "load-balancer"],
+    image: "nginx:alpine",
+    description: "High-performance HTTP server and reverse proxy",
+    category: "web-server",
+    tags: ["web-server", "proxy", "load-balancer", "http"],
+    default_ports: ["80:80", "443:443"],
+    environment_vars: [],
+    github_url: "https://github.com/nginx/nginx",
+    docker_hub_url: "https://hub.docker.com/_/nginx",
+    updated_at: "2024-01-08T00:00:00Z",
+    popularity_score: 88,
+  },
+];
+
+// Helper function to filter services by role
+const useServiceComboboxData = (
+  services: typeof MOCK_DOCKER_SERVICES,
+  selectedRole?: string
+) => {
+  const filteredServices = selectedRole
+    ? services.filter((service) =>
+        service.suggested_roles.includes(selectedRole)
+      )
+    : services;
+
+  // Sort by popularity score (highest first)
+  const sortedServices = [...filteredServices].sort(
+    (a, b) => b.popularity_score - a.popularity_score
+  );
+
+  // Convert to combobox items
+  return sortedServices.map((service) => ({
+    value: service.id,
+    label: service.service_name,
+    data: service, // Attach full service data
+  }));
+};
+
 interface ServiceDrawerProps {
   serviceId?: string; // If provided, we're editing; if not, we're creating
   onClose?: () => void;
@@ -31,6 +153,9 @@ export const NewDockDrawerServices = ({
 
   // Service state
   const [serviceName, setServiceName] = useState("");
+  const [selectedRole, setSelectedRole] = useState("");
+  const [selectedDockerService, setSelectedDockerService] =
+    useState<DockerService | null>(null);
   const [serviceImage, setServiceImage] = useState("");
   const [serviceRestart, setServiceRestart] = useState("unless-stopped");
   const [servicePorts, setServicePorts] = useState<string[]>([]);
@@ -176,6 +301,11 @@ export const NewDockDrawerServices = ({
     { value: "development", label: "Development" },
   ];
 
+  const serviceItems = useServiceComboboxData(
+    MOCK_DOCKER_SERVICES,
+    selectedRole
+  );
+
   return (
     <>
       <Drawer.Header>
@@ -189,6 +319,7 @@ export const NewDockDrawerServices = ({
       <Drawer.Body colorPalette="secondaryBrand">
         <Stack px="4" pt="4" pb="6" gap="6">
           <PropertySection title="Basic Configuration">
+            {/*}
             <Field.Root orientation="horizontal" gap="10">
               <Field.Label color="fg.muted">Service Name</Field.Label>
               <Input
@@ -200,18 +331,30 @@ export const NewDockDrawerServices = ({
                 onChange={(e) => setServiceName(e.target.value)}
               />
             </Field.Root>
+            */}
 
-            <Field.Root orientation="horizontal" gap="10">
-              <Field.Label color="fg.muted">Docker Image</Field.Label>
-              <Input
-                size="sm"
-                maxW="var(--max-width)"
-                flex="1"
-                value={serviceImage}
-                placeholder="e.g., nginx:latest, postgres:15"
-                onChange={(e) => setServiceImage(e.target.value)}
+            <FilterableCombobox
+              items={DOCKER_ROLES}
+              value={selectedRole}
+              onValueChange={(value) => setSelectedRole(value || "")}
+              label="Service Role"
+              placeholder="Select a service role..."
+            />
+
+            {selectedRole && (
+              <FilterableCombobox
+                items={serviceItems}
+                value={selectedDockerService?.id}
+                onValueChange={(value, item) => {
+                  setSelectedDockerService(item?.data || null);
+                  if (item?.data) {
+                    setServiceImage(item.data.image);
+                  }
+                }}
+                label="Available Services"
+                placeholder="Choose from registry..."
               />
-            </Field.Root>
+            )}
 
             <SelectField
               label="Restart Policy"
@@ -230,26 +373,15 @@ export const NewDockDrawerServices = ({
               onChange={(e) => setServiceCategory(e.target.value)}
             />
 
-            <Stack gap="3">
-              <HStack justify="space-between">
-                <Text fontSize="sm" color="fg.muted">
-                  Tags (for organization and discovery)
-                </Text>
-                <Button size="xs" variant="ghost" onClick={addTag}>
-                  <PiPlus />
-                </Button>
-              </HStack>
-
-              <Stack gap="2">
-                <SmartTagInput
-                  label="Service Tags"
-                  value={serviceTags}
-                  onChange={setServiceTags}
-                  placeholder="Enter service tags like: frontend, api, cache..."
-                  maxTags={5}
-                  size="sm"
-                />
-              </Stack>
+            <Stack gap="2">
+              <SmartTagInput
+                label="Service Tags"
+                value={serviceTags}
+                onChange={setServiceTags}
+                placeholder="Enter service tags like: frontend, api, cache..."
+                maxTags={5}
+                size="sm"
+              />
             </Stack>
           </PropertySection>
 
