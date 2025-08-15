@@ -20,6 +20,7 @@ import {
 } from "./NewDockerApplicationDrawerFields";
 import { PropertySection } from "./NewDockerApplicationDrawerPropSection";
 import { PiPlus, PiX } from "react-icons/pi";
+import { SmartTagInput } from "../../small/SmartTagInput";
 
 interface BasicConfigDrawerProps {
   onClose?: () => void;
@@ -32,10 +33,10 @@ export const NewDockDrawerStart = ({
 
   // Local state for x-meta
   const [appCategory, setAppCategory] = useState(
-    newStack.configs["x-meta"]?.category || ""
+    newStack["x-meta"]?.category || ""
   );
   const [appTags, setAppTags] = useState<string[]>(
-    newStack.configs["x-meta"]?.tags || []
+    newStack["x-meta"]?.tags || []
   );
 
   const setStackName = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -52,10 +53,13 @@ export const NewDockDrawerStart = ({
 
   const handleSave = () => {
     setNewStack((stack) => {
-      if (!stack.configs) stack.configs = {};
-      stack.configs["x-meta"] = {
+      if (!stack["x-meta"]) stack["x-meta"] = {};
+      stack["x-meta"] = {
+        ...stack["x-meta"],
         category: appCategory,
         tags: appTags.filter((tag) => tag.trim()),
+        created_by: "en-dash",
+        created_at: new Date().toISOString(),
       };
     });
 
@@ -129,44 +133,16 @@ export const NewDockDrawerStart = ({
               onChange={(e) => setAppCategory(e.target.value)}
             />
 
-            <Stack gap="3">
-              <HStack justify="space-between">
-                <Text fontSize="sm" color="fg.muted">
-                  Application Tags
-                </Text>
-                <Button size="xs" variant="ghost" onClick={addTag}>
-                  <PiPlus />
-                </Button>
-              </HStack>
-
-              <Stack gap="2">
-                {appTags.map((tag, index) => (
-                  <HStack key={index} gap="2">
-                    <Input
-                      size="sm"
-                      flex="1"
-                      value={tag}
-                      placeholder="Enter tag"
-                      onChange={(e) => updateTag(index, e.target.value)}
-                    />
-                    <IconButton
-                      size="sm"
-                      variant="ghost"
-                      colorPalette="red"
-                      onClick={() => removeTag(index)}
-                    >
-                      <PiX />
-                    </IconButton>
-                  </HStack>
-                ))}
-
-                {appTags.length === 0 && (
-                  <Text fontSize="xs" color="fg.muted" fontStyle="italic">
-                    No tags configured
-                  </Text>
-                )}
-              </Stack>
-            </Stack>
+            <HStack gap="2" w="full">
+              <SmartTagInput
+                label="Application Tags"
+                value={appTags}
+                onChange={setAppTags}
+                placeholder="Enter tags like: web, database, monitoring..."
+                maxTags={10}
+                colorPalette="blue"
+              />
+            </HStack>
           </PropertySection>
 
           <PropertySection title="Quick Templates (Coming Soon)">

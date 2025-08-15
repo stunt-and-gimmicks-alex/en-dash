@@ -16,6 +16,7 @@ import {
 import { SelectField } from "./NewDockerApplicationDrawerFields";
 import { PropertySection } from "./NewDockerApplicationDrawerPropSection";
 import { PiPlus, PiX } from "react-icons/pi";
+import { SmartTagInput } from "../../small/SmartTagInput";
 
 interface ServiceDrawerProps {
   serviceId?: string; // If provided, we're editing; if not, we're creating
@@ -240,31 +241,15 @@ export const NewDockDrawerServices = ({
               </HStack>
 
               <Stack gap="2">
-                {serviceTags.map((tag, index) => (
-                  <HStack key={index} gap="2">
-                    <Input
-                      size="sm"
-                      flex="1"
-                      value={tag}
-                      placeholder="Enter tag"
-                      onChange={(e) => updateTag(index, e.target.value)}
-                    />
-                    <IconButton
-                      size="sm"
-                      variant="ghost"
-                      colorPalette="red"
-                      onClick={() => removeTag(index)}
-                    >
-                      <PiX />
-                    </IconButton>
-                  </HStack>
-                ))}
-
-                {serviceTags.length === 0 && (
-                  <Text fontSize="xs" color="fg.muted" fontStyle="italic">
-                    No tags configured
-                  </Text>
-                )}
+                <SmartTagInput
+                  label="Service Tags"
+                  value={serviceTags}
+                  onChange={setServiceTags}
+                  placeholder="Enter service tags like: frontend, api, cache..."
+                  maxTags={5}
+                  size="sm"
+                  colorPalette="green"
+                />
               </Stack>
             </Stack>
           </PropertySection>

@@ -317,7 +317,6 @@ interface NewStack {
   // Basic stack info
   name: string;
   description: string;
-  version?: string;
 
   // Main sections
   services: Record<string, ServiceConfig>;
@@ -358,10 +357,52 @@ interface NewStackStore {
   removeVolume: (volumeId: string) => void;
 }
 
+// Define the skeleton template separately (not in the store data)
+const skeletonTemplate = {
+  name: "{{APP_NAME}}",
+  description: "{{APP_DESCRIPTION}}",
+  services: {
+    "{{SERVICE_NAME}}": {
+      image: "{{SERVICE_IMAGE}}",
+      restart: "unless-stopped",
+      expose: ["{{SERVICE_PORT}}"],
+      environment: {
+        TZ: "${TZ:-UTC}",
+      },
+      networks: ["{{NETWORK_NAME}}"],
+      "x-meta": {
+        category: "{{SERVICE_CATEGORY}}",
+        description: "{{SERVICE_DESCRIPTION}}",
+        tags: ["{{SERVICE_TAGS}}"],
+      },
+    },
+  },
+  networks: {
+    "{{NETWORK_NAME}}": {
+      driver: "bridge",
+    },
+  },
+  volumes: {
+    "{{VOLUME_NAME}}": {
+      driver: "local",
+    },
+  },
+  secrets: {},
+  configs: {},
+  environment: {},
+  "x-meta": {
+    category: "{{APP_CATEGORY}}",
+    description: "{{APP_DESCRIPTION}}",
+    tags: ["{{APP_TAGS}}"],
+    created_by: "en-dash",
+    created_at: new Date().toISOString(),
+  },
+};
+
+// Clean default stack (no placeholders)
 const defaultStack: NewStack = {
   name: "",
   description: "",
-  version: "3.8",
   services: {},
   networks: {},
   volumes: {},
@@ -381,123 +422,200 @@ export const useNewStackStore = create<NewStackStore>()(
 
     resetStack: () => set(() => ({ newStack: { ...defaultStack } })),
 
-    // Generate YAML from current stack
+    // Enhanced generateYaml function that merges real data with skeleton template
     generateYaml: () => {
       const stack = get().newStack;
 
-      // Build the compose object
+      // Create preview stack by merging real data with skeleton template
+      const previewStack = {
+        // Start with real data or fall back to template placeholders
+        name: stack.name || skeletonTemplate.name,
+        description: stack.description || skeletonTemplate.description,
+
+        // Services: use real services if any exist, otherwise show template
+        services:
+          Object.keys(stack.services).length > 0
+            ? stack.services
+            : skeletonTemplate.services,
+
+        // Networks: use real networks if any exist, otherwise show template
+        networks:
+          Object.keys(stack.networks).length > 0
+            ? stack.networks
+            : skeletonTemplate.networks,
+
+        // Volumes: use real volumes if any exist, otherwise show template
+        volumes:
+          Object.keys(stack.volumes).length > 0
+            ? stack.volumes
+            : skeletonTemplate.volumes,
+
+        // Secrets and configs: only show if they exist (no template needed)
+        ...(Object.keys(stack.secrets).length > 0 && {
+          secrets: stack.secrets,
+        }),
+        ...(Object.keys(stack.configs).length > 0 && {
+          configs: stack.configs,
+        }),
+
+        // Environment: only show if exists
+        ...(Object.keys(stack.environment).length > 0 && {
+          environment: stack.environment,
+        }),
+
+        // x-meta: merge real data with template, include description
+        "x-meta": {
+          ...skeletonTemplate["x-meta"],
+          // Only use top-level x-meta, not configs x-meta
+          ...stack["x-meta"],
+          // Ensure description is included if available
+          ...(stack.description && { description: stack.description }),
+        },
+      };
+
+      // Helper function to transform name to kebab-case for Docker Compose safety
+      const toKebabCase = (str: string): string => {
+        return str
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "");
+      };
+
+      // Build comment header from preview stack
+      const appName = previewStack.name || "{{APP_NAME}}";
+      const appDescription = previewStack.description || "{{APP_DESCRIPTION}}";
+      const services = Object.keys(previewStack.services).join(" + ");
+      const networks = Object.keys(previewStack.networks).join(", ");
+
+      const header = `# =========================================================================
+# ${appName.toUpperCase()}
+# ${appDescription}
+# ${services.toUpperCase()}
+# Served on ${networks.toUpperCase()}
+# =========================================================================
+
+`;
+
+      // Build the compose object from preview stack
       const composeObj: any = {};
 
-      // Add version if specified
-      if (stack.version) {
-        composeObj.version = stack.version;
-      }
+      // Add project name (transformed to kebab-case for Docker Compose safety)
+      composeObj.name = previewStack.name
+        ? toKebabCase(previewStack.name)
+        : previewStack.name;
 
       // Add services
-      if (Object.keys(stack.services).length > 0) {
+      if (Object.keys(previewStack.services).length > 0) {
         composeObj.services = {};
-        Object.entries(stack.services).forEach(([serviceId, service]) => {
-          // Clean up the service config for YAML output
-          const cleanService = { ...service };
-          delete cleanService.name; // name is the key, not a property
+        Object.entries(previewStack.services).forEach(
+          ([serviceId, service]) => {
+            const cleanService = { ...service };
+            delete cleanService.name; // name is the key, not a property
 
-          // Only include non-empty properties
-          Object.keys(cleanService).forEach((key) => {
-            const value = cleanService[key as keyof ServiceConfig];
-            if (
-              value === undefined ||
-              value === null ||
-              (Array.isArray(value) && value.length === 0) ||
-              (typeof value === "object" && Object.keys(value).length === 0) ||
-              value === ""
-            ) {
-              delete cleanService[key as keyof ServiceConfig];
-            }
-          });
+            // Clean up empty properties (but keep template placeholders for preview)
+            Object.keys(cleanService).forEach((key) => {
+              const value = cleanService[key as keyof typeof cleanService];
+              if (
+                value === undefined ||
+                value === null ||
+                (Array.isArray(value) && value.length === 0) ||
+                (typeof value === "object" &&
+                  !key.startsWith("{{") && // Keep template placeholders
+                  Object.keys(value).length === 0) ||
+                value === ""
+              ) {
+                delete cleanService[key as keyof typeof cleanService];
+              }
+            });
 
-          composeObj.services[serviceId] = cleanService;
-        });
+            composeObj.services[serviceId] = cleanService;
+          }
+        );
       }
 
       // Add networks
-      if (Object.keys(stack.networks).length > 0) {
+      if (Object.keys(previewStack.networks).length > 0) {
         composeObj.networks = {};
-        Object.entries(stack.networks).forEach(([networkId, network]) => {
-          const cleanNetwork = { ...network };
-          delete cleanNetwork.name;
-
-          // Clean up empty properties
-          Object.keys(cleanNetwork).forEach((key) => {
-            const value = cleanNetwork[key as keyof NetworkConfig];
-            if (
-              value === undefined ||
-              value === null ||
-              (Array.isArray(value) && value.length === 0) ||
-              (typeof value === "object" && Object.keys(value).length === 0) ||
-              value === ""
-            ) {
-              delete cleanNetwork[key as keyof NetworkConfig];
-            }
-          });
-
-          composeObj.networks[networkId] = cleanNetwork;
-        });
+        Object.entries(previewStack.networks).forEach(
+          ([networkId, network]) => {
+            const cleanNetwork = { ...network };
+            delete cleanNetwork.name;
+            composeObj.networks[networkId] = cleanNetwork;
+          }
+        );
       }
 
       // Add volumes
-      if (Object.keys(stack.volumes).length > 0) {
+      if (Object.keys(previewStack.volumes).length > 0) {
         composeObj.volumes = {};
-        Object.entries(stack.volumes).forEach(([volumeId, volume]) => {
+        Object.entries(previewStack.volumes).forEach(([volumeId, volume]) => {
           const cleanVolume = { ...volume };
           delete cleanVolume.name;
-
-          Object.keys(cleanVolume).forEach((key) => {
-            const value = cleanVolume[key as keyof VolumeConfig];
-            if (
-              value === undefined ||
-              value === null ||
-              (Array.isArray(value) && value.length === 0) ||
-              (typeof value === "object" && Object.keys(value).length === 0) ||
-              value === ""
-            ) {
-              delete cleanVolume[key as keyof VolumeConfig];
-            }
-          });
-
           composeObj.volumes[volumeId] = cleanVolume;
         });
       }
 
       // Add secrets
-      if (Object.keys(stack.secrets).length > 0) {
+      if (
+        previewStack.secrets &&
+        Object.keys(previewStack.secrets).length > 0
+      ) {
         composeObj.secrets = {};
-        Object.entries(stack.secrets).forEach(([secretId, secret]) => {
+        Object.entries(previewStack.secrets).forEach(([secretId, secret]) => {
           const cleanSecret = { ...secret };
           delete cleanSecret.name;
           composeObj.secrets[secretId] = cleanSecret;
         });
       }
 
-      // Add configs
-      if (Object.keys(stack.configs).length > 0) {
+      // Add configs - only if they exist and not empty (skip x-meta in configs)
+      if (
+        previewStack.configs &&
+        Object.keys(previewStack.configs).length > 0
+      ) {
         composeObj.configs = {};
-        Object.entries(stack.configs).forEach(([configId, config]) => {
+        Object.entries(previewStack.configs).forEach(([configId, config]) => {
+          // Skip x-meta in configs - it should only be at top level
+          if (configId === "x-meta") return;
+
           const cleanConfig = { ...config };
           delete cleanConfig.name;
           composeObj.configs[configId] = cleanConfig;
         });
+
+        // Only add configs section if there are actual configs (not just x-meta)
+        if (Object.keys(composeObj.configs).length === 0) {
+          delete composeObj.configs;
+        }
+      }
+
+      // Add global environment
+      if (
+        previewStack.environment &&
+        Object.keys(previewStack.environment).length > 0
+      ) {
+        composeObj.environment = previewStack.environment;
+      }
+
+      // Add global x-meta
+      if (previewStack["x-meta"]) {
+        composeObj["x-meta"] = previewStack["x-meta"];
       }
 
       try {
-        return YAML.stringify(composeObj, {
+        const yamlContent = YAML.stringify(composeObj, {
           indent: 2,
-          lineWidth: 0, // Disable line wrapping
+          lineWidth: 0,
           minContentWidth: 0,
           doubleQuotedAsJSON: false,
         });
+
+        return header + yamlContent;
       } catch (error) {
         console.error("Error generating YAML:", error);
-        return "# Error generating YAML\n# Please check your configuration";
+        return (
+          header + "# Error generating YAML\n# Please check your configuration"
+        );
       }
     },
 
