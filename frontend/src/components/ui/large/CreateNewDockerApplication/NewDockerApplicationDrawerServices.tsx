@@ -1,6 +1,6 @@
 // NewDockerApplicationDrawerServices.tsx - Single service configuration drawer
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNewStackStore } from "@/stores/useNewStackStore";
 import {
   Button,
@@ -12,6 +12,11 @@ import {
   CloseButton,
   Input,
   Field,
+  Combobox,
+  useCombobox,
+  Portal,
+  useFilter,
+  useListCollection,
 } from "@chakra-ui/react";
 import { SelectField } from "./NewDockerApplicationDrawerFields";
 import { PropertySection } from "./NewDockerApplicationDrawerPropSection";
@@ -23,122 +28,26 @@ import { FilterableCombobox } from "../../small/ServiceSelectorComboBox";
 // =============================================================================
 // MOCK DATA - Move to API later
 // =============================================================================
-const DOCKER_ROLES = [
-  { value: "database", label: "Database" },
-  { value: "web-server", label: "Web Server" },
-  { value: "cache", label: "Cache / Memory Store" },
-  { value: "proxy", label: "Reverse Proxy" },
-  { value: "monitoring", label: "Monitoring & Observability" },
-  { value: "storage", label: "File Storage & Backup" },
-  { value: "development", label: "Development Tools" },
-  { value: "communication", label: "Communication & Chat" },
-  { value: "media", label: "Media Processing" },
-  { value: "security", label: "Security & Authentication" },
-  { value: "automation", label: "Automation & CI/CD" },
-  { value: "analytics", label: "Analytics & Business Intelligence" },
-];
 
-const MOCK_DOCKER_SERVICES = [
-  {
-    id: "surrealdb",
-    service_name: "SurrealDB",
-    suggested_roles: ["database", "primary-db", "analytics-db", "cache"],
-    image: "surrealdb/surrealdb:latest",
-    description:
-      "Multi-model database for web, mobile, serverless, and traditional applications",
-    category: "database",
-    tags: ["database", "multi-model", "realtime", "graph"],
-    default_ports: ["8000:8000"],
-    environment_vars: [
-      { key: "SURREAL_USER", description: "Database user", required: true },
-      { key: "SURREAL_PASS", description: "Database password", required: true },
-    ],
-    github_url: "https://github.com/surrealdb/surrealdb",
-    docker_hub_url: "https://hub.docker.com/r/surrealdb/surrealdb",
-    updated_at: "2024-01-15T00:00:00Z",
-    popularity_score: 75,
-  },
-  {
-    id: "postgres",
-    service_name: "PostgreSQL",
-    suggested_roles: ["database", "primary-db", "analytics-db"],
-    image: "postgres:16",
-    description: "Advanced open source relational database",
-    category: "database",
-    tags: ["database", "sql", "relational", "acid"],
-    default_ports: ["5432:5432"],
-    environment_vars: [
-      { key: "POSTGRES_DB", description: "Database name", required: true },
-      { key: "POSTGRES_USER", description: "Database user", required: true },
-      {
-        key: "POSTGRES_PASSWORD",
-        description: "Database password",
-        required: true,
-      },
-    ],
-    github_url: "https://github.com/postgres/postgres",
-    docker_hub_url: "https://hub.docker.com/_/postgres",
-    updated_at: "2024-01-10T00:00:00Z",
-    popularity_score: 95,
-  },
-  {
-    id: "redis",
-    service_name: "Redis",
-    suggested_roles: ["cache", "session-store", "message-broker"],
-    image: "redis:7-alpine",
-    description:
-      "In-memory data structure store used as database, cache, and message broker",
-    category: "cache",
-    tags: ["cache", "memory", "session", "pubsub"],
-    default_ports: ["6379:6379"],
-    environment_vars: [
-      { key: "REDIS_PASSWORD", description: "Redis password", required: false },
-    ],
-    github_url: "https://github.com/redis/redis",
-    docker_hub_url: "https://hub.docker.com/_/redis",
-    updated_at: "2024-01-12T00:00:00Z",
-    popularity_score: 90,
-  },
-  {
-    id: "nginx",
-    service_name: "NGINX",
-    suggested_roles: ["web-server", "proxy", "load-balancer"],
-    image: "nginx:alpine",
-    description: "High-performance HTTP server and reverse proxy",
-    category: "web-server",
-    tags: ["web-server", "proxy", "load-balancer", "http"],
-    default_ports: ["80:80", "443:443"],
-    environment_vars: [],
-    github_url: "https://github.com/nginx/nginx",
-    docker_hub_url: "https://hub.docker.com/_/nginx",
-    updated_at: "2024-01-08T00:00:00Z",
-    popularity_score: 88,
-  },
-];
-
-// Helper function to filter services by role
-const useServiceComboboxData = (
-  services: typeof MOCK_DOCKER_SERVICES,
-  selectedRole?: string
-) => {
-  const filteredServices = selectedRole
-    ? services.filter((service) =>
-        service.suggested_roles.includes(selectedRole)
-      )
-    : services;
-
-  // Sort by popularity score (highest first)
-  const sortedServices = [...filteredServices].sort(
-    (a, b) => b.popularity_score - a.popularity_score
-  );
-
-  // Convert to combobox items
-  return sortedServices.map((service) => ({
-    value: service.id,
-    label: service.service_name,
-    data: service, // Attach full service data
-  }));
-};
+interface DockerService {
+  id: string;
+  service_name: string;
+  suggested_roles: string[];
+  image: string;
+  description: string;
+  category: string;
+  tags: string[];
+  default_ports: string[];
+  environment_vars: Array<{
+    key: string;
+    description: string;
+    required: boolean;
+  }>;
+  github_url?: string;
+  docker_hub_url?: string;
+  updated_at: string;
+  popularity_score: number;
+}
 
 interface ServiceDrawerProps {
   serviceId?: string; // If provided, we're editing; if not, we're creating
@@ -301,10 +210,66 @@ export const NewDockDrawerServices = ({
     { value: "development", label: "Development" },
   ];
 
-  const serviceItems = useServiceComboboxData(
-    MOCK_DOCKER_SERVICES,
-    selectedRole
-  );
+  const DOCKER_ROLES = [
+    { value: "database", label: "Database" },
+    { value: "web-server", label: "Web Server" },
+    { value: "cache", label: "Cache / Memory Store" },
+    { value: "proxy", label: "Reverse Proxy" },
+    { value: "monitoring", label: "Monitoring & Observability" },
+    { value: "storage", label: "File Storage & Backup" },
+    { value: "development", label: "Development Tools" },
+    { value: "communication", label: "Communication & Chat" },
+    { value: "media", label: "Media Processing" },
+    { value: "security", label: "Security & Authentication" },
+    { value: "automation", label: "Automation & CI/CD" },
+    { value: "analytics", label: "Analytics & Business Intelligence" },
+  ];
+
+  const MOCK_DOCKER_SERVICES = [
+    {
+      id: "surrealdb",
+      service_name: "SurrealDB",
+      suggested_roles: ["database"],
+      image: "surrealdb/surrealdb:latest",
+      popularity_score: 75, // ADD THIS
+    },
+    {
+      id: "postgres",
+      service_name: "PostgreSQL",
+      suggested_roles: ["database"],
+      image: "postgres:16",
+      popularity_score: 95, // ADD THIS
+    },
+    {
+      id: "redis",
+      service_name: "Redis",
+      suggested_roles: ["cache"],
+      image: "redis:7-alpine",
+      popularity_score: 90, // ADD THIS
+    },
+    {
+      id: "nginx",
+      service_name: "NGINX",
+      suggested_roles: ["web-server", "proxy"],
+      image: "nginx:alpine",
+      popularity_score: 88, // ADD THIS
+    },
+  ];
+
+  const filteredServices = MOCK_DOCKER_SERVICES.filter((service) =>
+    service.suggested_roles.includes(selectedRole)
+  ).map((service) => ({
+    label: service.service_name,
+    value: service.id,
+    data: service,
+  }));
+
+  const { contains } = useFilter({ sensitivity: "base" });
+
+  const { collection, filter } = useListCollection({
+    initialItems: filteredServices,
+    filter: contains,
+  });
 
   return (
     <>
@@ -318,8 +283,157 @@ export const NewDockDrawerServices = ({
 
       <Drawer.Body colorPalette="secondaryBrand">
         <Stack px="4" pt="4" pb="6" gap="6">
+          <PropertySection title="Service Selection">
+            {(() => {
+              const [inputValue, setInputValue] = useState("");
+              const { collection, set } = useListCollection({
+                initialItems: DOCKER_ROLES,
+                itemToString: (item) => item.label,
+                itemToValue: (item) => item.value,
+              });
+
+              const combobox = useCombobox({
+                collection,
+                value: selectedRole ? [selectedRole] : [],
+                placeholder: "Select a service role...",
+                inputValue,
+                onInputValueChange: (e) => setInputValue(e.inputValue),
+                onValueChange: (details) => {
+                  const value = details.value?.[0] || "";
+                  console.log("Role selected:", value);
+                  setSelectedRole(value);
+                },
+              });
+
+              // Rehydrate the value when selectedRole changes externally
+              const hydrated = useRef(false);
+              if (selectedRole && collection.size && !hydrated.current) {
+                combobox.syncSelectedItems();
+                hydrated.current = true;
+              }
+
+              return (
+                <Combobox.RootProvider value={combobox} width="full">
+                  <Combobox.Label>Service Role</Combobox.Label>
+                  <Combobox.Control>
+                    <Combobox.Input placeholder="Select a service role..." />
+                    <Combobox.IndicatorGroup>
+                      <Combobox.ClearTrigger />
+                      <Combobox.Trigger />
+                    </Combobox.IndicatorGroup>
+                  </Combobox.Control>
+                  <Portal>
+                    <Combobox.Positioner>
+                      <Combobox.Content>
+                        <Combobox.Empty>No roles found</Combobox.Empty>
+                        {collection.items.map((item) => (
+                          <Combobox.Item key={item.value} item={item}>
+                            {item.label}
+                            <Combobox.ItemIndicator />
+                          </Combobox.Item>
+                        ))}
+                      </Combobox.Content>
+                    </Combobox.Positioner>
+                  </Portal>
+                </Combobox.RootProvider>
+              );
+            })()}
+
+            {/* Service Selection Combobox - Only show if role is selected */}
+            {selectedRole &&
+              (() => {
+                const filteredServices = MOCK_DOCKER_SERVICES.filter(
+                  (service) => service.suggested_roles.includes(selectedRole)
+                ).map((service) => ({
+                  label: service.service_name,
+                  value: service.id,
+                  data: service,
+                }));
+
+                const [inputValue, setInputValue] = useState("");
+                const { collection, set } = useListCollection({
+                  initialItems: filteredServices,
+                  itemToString: (item) => item.label,
+                  itemToValue: (item) => item.value,
+                });
+
+                const combobox = useCombobox({
+                  collection,
+                  value: selectedDockerService
+                    ? [selectedDockerService.id]
+                    : [],
+                  placeholder: "Choose from registry...",
+                  inputValue,
+                  onInputValueChange: (e) => setInputValue(e.inputValue),
+                  onValueChange: (details) => {
+                    const value = details.value?.[0] || "";
+                    const selectedService = filteredServices.find(
+                      (s) => s.value === value
+                    );
+                    console.log("Service selected:", value, selectedService);
+
+                    if (selectedService) {
+                      setSelectedDockerService(selectedService.data);
+                      setServiceImage(selectedService.data.image);
+                      setServiceName(selectedService.data.service_name);
+                    }
+                  },
+                });
+
+                // Rehydrate when selectedDockerService changes
+                const hydrated = useRef(false);
+                if (
+                  selectedDockerService &&
+                  collection.size &&
+                  !hydrated.current
+                ) {
+                  combobox.syncSelectedItems();
+                  hydrated.current = true;
+                }
+
+                return (
+                  <Combobox.RootProvider value={combobox} width="full">
+                    <Combobox.Label>
+                      Available Services ({filteredServices.length} found)
+                    </Combobox.Label>
+                    <Combobox.Control>
+                      <Combobox.Input placeholder="Choose from registry..." />
+                      <Combobox.IndicatorGroup>
+                        <Combobox.ClearTrigger />
+                        <Combobox.Trigger />
+                      </Combobox.IndicatorGroup>
+                    </Combobox.Control>
+                    <Portal>
+                      <Combobox.Positioner>
+                        <Combobox.Content>
+                          <Combobox.Empty>No services found</Combobox.Empty>
+                          {collection.items.map((item) => (
+                            <Combobox.Item key={item.value} item={item}>
+                              {item.label}
+                              <Combobox.ItemIndicator />
+                            </Combobox.Item>
+                          ))}
+                        </Combobox.Content>
+                      </Combobox.Positioner>
+                    </Portal>
+                  </Combobox.RootProvider>
+                );
+              })()}
+
+            {/* Manual image input as fallback */}
+            <Field.Root orientation="horizontal" gap="10">
+              <Field.Label color="fg.muted">Or Enter Custom Image</Field.Label>
+              <Input
+                size="sm"
+                maxW="var(--max-width)"
+                flex="1"
+                value={serviceImage}
+                placeholder="e.g., nginx:latest, custom/image:v1.0"
+                onChange={(e) => setServiceImage(e.target.value)}
+              />
+            </Field.Root>
+          </PropertySection>
           <PropertySection title="Basic Configuration">
-            {/*}
             <Field.Root orientation="horizontal" gap="10">
               <Field.Label color="fg.muted">Service Name</Field.Label>
               <Input
@@ -331,30 +445,6 @@ export const NewDockDrawerServices = ({
                 onChange={(e) => setServiceName(e.target.value)}
               />
             </Field.Root>
-            */}
-
-            <FilterableCombobox
-              items={DOCKER_ROLES}
-              value={selectedRole}
-              onValueChange={(value) => setSelectedRole(value || "")}
-              label="Service Role"
-              placeholder="Select a service role..."
-            />
-
-            {selectedRole && (
-              <FilterableCombobox
-                items={serviceItems}
-                value={selectedDockerService?.id}
-                onValueChange={(value, item) => {
-                  setSelectedDockerService(item?.data || null);
-                  if (item?.data) {
-                    setServiceImage(item.data.image);
-                  }
-                }}
-                label="Available Services"
-                placeholder="Choose from registry..."
-              />
-            )}
 
             <SelectField
               label="Restart Policy"
