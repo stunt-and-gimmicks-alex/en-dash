@@ -1,33 +1,43 @@
-// NewDockerApplicationDrawerServices.tsx - Single service configuration drawer
+// NewDockerApplicationDrawerServices.tsx - Clean slate for your implementation
+"use client";
 
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { useNewStackStore } from "@/stores/useNewStackStore";
 import {
   Button,
   Drawer,
   Stack,
   HStack,
-  Text,
+  Span,
   IconButton,
   CloseButton,
   Input,
   Field,
-  Combobox,
-  useCombobox,
-  Portal,
-  useFilter,
-  useListCollection,
 } from "@chakra-ui/react";
-import { SelectField } from "./NewDockerApplicationDrawerFields";
 import { PropertySection } from "./NewDockerApplicationDrawerPropSection";
 import { PiPlus, PiX } from "react-icons/pi";
-import { SmartTagInput } from "../../small/SmartTagInput";
 
-import { FilterableCombobox } from "../../small/ServiceSelectorComboBox";
+// Import test data from ServiceSelectorComboBox
+import {
+  MOCK_DOCKER_SERVICES,
+  DOCKER_ROLES,
+  OrgSwitcherMenu,
+  ProjectSwitcherMenu,
+} from "@/components/ui/small/ServiceSelectorComboBox";
+
+import {
+  type Organization,
+  type Project,
+  organizations,
+} from "../../small/DataFetcher";
 
 // =============================================================================
-// MOCK DATA - Move to API later
+// INTERFACES
 // =============================================================================
+interface ServiceDrawerProps {
+  serviceId?: string; // If provided, we're editing; if not, we're creating
+  onClose?: () => void;
+}
 
 interface DockerService {
   id: string;
@@ -49,11 +59,9 @@ interface DockerService {
   popularity_score: number;
 }
 
-interface ServiceDrawerProps {
-  serviceId?: string; // If provided, we're editing; if not, we're creating
-  onClose?: () => void;
-}
-
+// =============================================================================
+// MAIN DRAWER COMPONENT
+// =============================================================================
 export const NewDockDrawerServices = ({
   serviceId,
   onClose,
@@ -109,6 +117,36 @@ export const NewDockDrawerServices = ({
     }
   }, [serviceId, newStack.services]);
 
+  // Handle role selection (ready for your implementation)
+  const handleRoleChange = (role: string) => {
+    console.log("Role changed to:", role);
+    setSelectedRole(role);
+    // Reset service selection when role changes
+    setSelectedDockerService(null);
+    setServiceImage("");
+    setServiceName("");
+  };
+
+  // Handle service selection (ready for your implementation)
+  const handleServiceChange = (
+    serviceId: string,
+    service: DockerService | null
+  ) => {
+    console.log("Service changed to:", serviceId, service);
+    setSelectedDockerService(service);
+    if (service) {
+      setServiceImage(service.image);
+      setServiceName(service.service_name);
+      setServiceCategory(service.category);
+      setServiceTags(service.tags);
+
+      // Set default ports if available
+      if (service.default_ports.length > 0) {
+        setServicePorts(service.default_ports);
+      }
+    }
+  };
+
   const handleSave = () => {
     if (!serviceName.trim() || !serviceImage.trim()) return;
 
@@ -142,6 +180,7 @@ export const NewDockDrawerServices = ({
     onClose?.();
   };
 
+  // Helper functions for dynamic arrays
   const addPort = () => {
     setServicePorts([...servicePorts, ""]);
   };
@@ -174,20 +213,6 @@ export const NewDockDrawerServices = ({
     setServiceEnvironment(serviceEnvironment.filter((_, i) => i !== index));
   };
 
-  const addTag = () => {
-    setServiceTags([...serviceTags, ""]);
-  };
-
-  const updateTag = (index: number, value: string) => {
-    const newTags = [...serviceTags];
-    newTags[index] = value;
-    setServiceTags(newTags);
-  };
-
-  const removeTag = (index: number) => {
-    setServiceTags(serviceTags.filter((_, i) => i !== index));
-  };
-
   const restartOptions = [
     { value: "no", label: "No restart" },
     { value: "always", label: "Always restart" },
@@ -195,81 +220,25 @@ export const NewDockDrawerServices = ({
     { value: "on-failure", label: "On failure" },
   ];
 
-  const serviceCategoryOptions = [
-    { value: "", label: "Select a category..." },
-    { value: "proxy", label: "Proxy" },
-    { value: "media-player", label: "Media Player" },
-    { value: "devops", label: "DevOps" },
-    { value: "database", label: "Database" },
-    { value: "web-server", label: "Web Server" },
-    { value: "monitoring", label: "Monitoring" },
-    { value: "security", label: "Security" },
-    { value: "storage", label: "Storage" },
-    { value: "communication", label: "Communication" },
-    { value: "productivity", label: "Productivity" },
-    { value: "development", label: "Development" },
-  ];
+  const [selectedOrg, setSelectedOrg] = useState<Organization>(
+    organizations[0]
+  );
+  const [selectedProject, setSelectedProject] = useState<Project>(
+    organizations[0].projects[0]
+  );
 
-  const DOCKER_ROLES = [
-    { value: "database", label: "Database" },
-    { value: "web-server", label: "Web Server" },
-    { value: "cache", label: "Cache / Memory Store" },
-    { value: "proxy", label: "Reverse Proxy" },
-    { value: "monitoring", label: "Monitoring & Observability" },
-    { value: "storage", label: "File Storage & Backup" },
-    { value: "development", label: "Development Tools" },
-    { value: "communication", label: "Communication & Chat" },
-    { value: "media", label: "Media Processing" },
-    { value: "security", label: "Security & Authentication" },
-    { value: "automation", label: "Automation & CI/CD" },
-    { value: "analytics", label: "Analytics & Business Intelligence" },
-  ];
+  const handleOrgChange = (id: string) => {
+    const org = organizations.find((org) => org.id === id);
+    if (!org) return;
+    setSelectedOrg(org);
+    setSelectedProject(org.projects[0]);
+  };
 
-  const MOCK_DOCKER_SERVICES = [
-    {
-      id: "surrealdb",
-      service_name: "SurrealDB",
-      suggested_roles: ["database"],
-      image: "surrealdb/surrealdb:latest",
-      popularity_score: 75, // ADD THIS
-    },
-    {
-      id: "postgres",
-      service_name: "PostgreSQL",
-      suggested_roles: ["database"],
-      image: "postgres:16",
-      popularity_score: 95, // ADD THIS
-    },
-    {
-      id: "redis",
-      service_name: "Redis",
-      suggested_roles: ["cache"],
-      image: "redis:7-alpine",
-      popularity_score: 90, // ADD THIS
-    },
-    {
-      id: "nginx",
-      service_name: "NGINX",
-      suggested_roles: ["web-server", "proxy"],
-      image: "nginx:alpine",
-      popularity_score: 88, // ADD THIS
-    },
-  ];
-
-  const filteredServices = MOCK_DOCKER_SERVICES.filter((service) =>
-    service.suggested_roles.includes(selectedRole)
-  ).map((service) => ({
-    label: service.service_name,
-    value: service.id,
-    data: service,
-  }));
-
-  const { contains } = useFilter({ sensitivity: "base" });
-
-  const { collection, filter } = useListCollection({
-    initialItems: filteredServices,
-    filter: contains,
-  });
+  const handleProjectChange = (id: string) => {
+    const project = selectedOrg.projects.find((project) => project.id === id);
+    if (!project) return;
+    setSelectedProject(project);
+  };
 
   return (
     <>
@@ -283,308 +252,139 @@ export const NewDockDrawerServices = ({
 
       <Drawer.Body colorPalette="secondaryBrand">
         <Stack px="4" pt="4" pb="6" gap="6">
+          {/* Service Selection Section - READY FOR YOUR IMPLEMENTATION */}
           <PropertySection title="Service Selection">
-            {(() => {
-              const [inputValue, setInputValue] = useState("");
-              const { collection, set } = useListCollection({
-                initialItems: DOCKER_ROLES,
-                itemToString: (item) => item.label,
-                itemToValue: (item) => item.value,
-              });
+            <Stack gap="4">
+              {/* YOUR ROLE SELECTOR GOES HERE */}
 
-              const combobox = useCombobox({
-                collection,
-                value: selectedRole ? [selectedRole] : [],
-                placeholder: "Select a service role...",
-                inputValue,
-                onInputValueChange: (e) => setInputValue(e.inputValue),
-                onValueChange: (details) => {
-                  const value = details.value?.[0] || "";
-                  console.log("Role selected:", value);
-                  setSelectedRole(value);
-                },
-              });
-
-              // Rehydrate the value when selectedRole changes externally
-              const hydrated = useRef(false);
-              if (selectedRole && collection.size && !hydrated.current) {
-                combobox.syncSelectedItems();
-                hydrated.current = true;
-              }
-
-              return (
-                <Combobox.RootProvider value={combobox} width="full">
-                  <Combobox.Label>Service Role</Combobox.Label>
-                  <Combobox.Control>
-                    <Combobox.Input placeholder="Select a service role..." />
-                    <Combobox.IndicatorGroup>
-                      <Combobox.ClearTrigger />
-                      <Combobox.Trigger />
-                    </Combobox.IndicatorGroup>
-                  </Combobox.Control>
-                  <Portal>
-                    <Combobox.Positioner>
-                      <Combobox.Content>
-                        <Combobox.Empty>No roles found</Combobox.Empty>
-                        {collection.items.map((item) => (
-                          <Combobox.Item key={item.value} item={item}>
-                            {item.label}
-                            <Combobox.ItemIndicator />
-                          </Combobox.Item>
-                        ))}
-                      </Combobox.Content>
-                    </Combobox.Positioner>
-                  </Portal>
-                </Combobox.RootProvider>
-              );
-            })()}
-
-            {/* Service Selection Combobox - Only show if role is selected */}
-            {selectedRole &&
-              (() => {
-                const filteredServices = MOCK_DOCKER_SERVICES.filter(
-                  (service) => service.suggested_roles.includes(selectedRole)
-                ).map((service) => ({
-                  label: service.service_name,
-                  value: service.id,
-                  data: service,
-                }));
-
-                const [inputValue, setInputValue] = useState("");
-                const { collection, set } = useListCollection({
-                  initialItems: filteredServices,
-                  itemToString: (item) => item.label,
-                  itemToValue: (item) => item.value,
-                });
-
-                const combobox = useCombobox({
-                  collection,
-                  value: selectedDockerService
-                    ? [selectedDockerService.id]
-                    : [],
-                  placeholder: "Choose from registry...",
-                  inputValue,
-                  onInputValueChange: (e) => setInputValue(e.inputValue),
-                  onValueChange: (details) => {
-                    const value = details.value?.[0] || "";
-                    const selectedService = filteredServices.find(
-                      (s) => s.value === value
-                    );
-                    console.log("Service selected:", value, selectedService);
-
-                    if (selectedService) {
-                      setSelectedDockerService(selectedService.data);
-                      setServiceImage(selectedService.data.image);
-                      setServiceName(selectedService.data.service_name);
-                    }
-                  },
-                });
-
-                // Rehydrate when selectedDockerService changes
-                const hydrated = useRef(false);
-                if (
-                  selectedDockerService &&
-                  collection.size &&
-                  !hydrated.current
-                ) {
-                  combobox.syncSelectedItems();
-                  hydrated.current = true;
-                }
-
-                return (
-                  <Combobox.RootProvider value={combobox} width="full">
-                    <Combobox.Label>
-                      Available Services ({filteredServices.length} found)
-                    </Combobox.Label>
-                    <Combobox.Control>
-                      <Combobox.Input placeholder="Choose from registry..." />
-                      <Combobox.IndicatorGroup>
-                        <Combobox.ClearTrigger />
-                        <Combobox.Trigger />
-                      </Combobox.IndicatorGroup>
-                    </Combobox.Control>
-                    <Portal>
-                      <Combobox.Positioner>
-                        <Combobox.Content>
-                          <Combobox.Empty>No services found</Combobox.Empty>
-                          {collection.items.map((item) => (
-                            <Combobox.Item key={item.value} item={item}>
-                              {item.label}
-                              <Combobox.ItemIndicator />
-                            </Combobox.Item>
-                          ))}
-                        </Combobox.Content>
-                      </Combobox.Positioner>
-                    </Portal>
-                  </Combobox.RootProvider>
-                );
-              })()}
-
-            {/* Manual image input as fallback */}
-            <Field.Root orientation="horizontal" gap="10">
-              <Field.Label color="fg.muted">Or Enter Custom Image</Field.Label>
-              <Input
-                size="sm"
-                maxW="var(--max-width)"
-                flex="1"
-                value={serviceImage}
-                placeholder="e.g., nginx:latest, custom/image:v1.0"
-                onChange={(e) => setServiceImage(e.target.value)}
-              />
-            </Field.Root>
-          </PropertySection>
-          <PropertySection title="Basic Configuration">
-            <Field.Root orientation="horizontal" gap="10">
-              <Field.Label color="fg.muted">Service Name</Field.Label>
-              <Input
-                size="sm"
-                maxW="var(--max-width)"
-                flex="1"
-                value={serviceName}
-                placeholder="e.g., web, database, redis"
-                onChange={(e) => setServiceName(e.target.value)}
-              />
-            </Field.Root>
-
-            <SelectField
-              label="Restart Policy"
-              options={restartOptions}
-              defaultValue={serviceRestart}
-              onChange={(e) => setServiceRestart(e.target.value)}
-            />
-          </PropertySection>
-
-          {/* Metadata Section */}
-          <PropertySection title="Organization & Metadata">
-            <SelectField
-              label="Service Category"
-              options={serviceCategoryOptions}
-              defaultValue={serviceCategory}
-              onChange={(e) => setServiceCategory(e.target.value)}
-            />
-
-            <Stack gap="2">
-              <SmartTagInput
-                label="Service Tags"
-                value={serviceTags}
-                onChange={setServiceTags}
-                placeholder="Enter service tags like: frontend, api, cache..."
-                maxTags={5}
-                size="sm"
-              />
+              <HStack gap="3">
+                <OrgSwitcherMenu
+                  selectedId={selectedOrg.id}
+                  items={organizations}
+                  onSelect={handleOrgChange}
+                />
+                <Span color="fg.subtle">/</Span>
+                <ProjectSwitcherMenu
+                  selectedId={selectedProject.id}
+                  items={selectedOrg.projects}
+                  onSelect={handleProjectChange}
+                />
+              </HStack>
             </Stack>
           </PropertySection>
 
-          {/* Port Configuration */}
-          <PropertySection title="Port Mappings">
-            <Stack gap="3">
-              <HStack justify="space-between">
-                <Text fontSize="sm" color="fg.muted">
-                  Map container ports to host ports (format: host:container)
-                </Text>
-                <Button size="xs" variant="ghost" onClick={addPort}>
-                  <PiPlus />
-                </Button>
-              </HStack>
+          {/* Basic Configuration */}
+          <PropertySection title="Basic Configuration">
+            <Stack gap="4">
+              <Field.Root>
+                <Field.Label>Service Name</Field.Label>
+                <Input
+                  value={serviceName}
+                  onChange={(e) => setServiceName(e.target.value)}
+                  placeholder="my-service"
+                />
+              </Field.Root>
 
-              <Stack gap="2">
-                {servicePorts.map((port, index) => (
-                  <HStack key={index} gap="2">
-                    <Field.Root orientation="horizontal" gap="10" flex="1">
-                      <Input
-                        size="sm"
-                        flex="1"
-                        value={port}
-                        placeholder="8080:80"
-                        onChange={(e) => updatePort(index, e.target.value)}
-                      />
-                    </Field.Root>
-                    <IconButton
-                      size="sm"
-                      variant="ghost"
-                      colorPalette="red"
-                      onClick={() => removePort(index)}
-                    >
-                      <PiX />
-                    </IconButton>
-                  </HStack>
-                ))}
+              <Field.Root>
+                <Field.Label>Docker Image</Field.Label>
+                <Input
+                  value={serviceImage}
+                  onChange={(e) => setServiceImage(e.target.value)}
+                  placeholder="nginx:latest"
+                />
+              </Field.Root>
 
-                {servicePorts.length === 0 && (
-                  <Text fontSize="xs" color="fg.muted" fontStyle="italic">
-                    No port mappings configured
-                  </Text>
-                )}
-              </Stack>
+              <Field.Root>
+                <Field.Label>Restart Policy</Field.Label>
+                <select
+                  value={serviceRestart}
+                  onChange={(e) => setServiceRestart(e.target.value)}
+                  style={{
+                    padding: "8px",
+                    borderRadius: "6px",
+                    border: "1px solid #e2e8f0",
+                    width: "100%",
+                  }}
+                >
+                  {restartOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </Field.Root>
+            </Stack>
+          </PropertySection>
+
+          {/* Ports Configuration */}
+          <PropertySection title="Port Mapping">
+            <Stack gap="2">
+              {servicePorts.map((port, index) => (
+                <HStack key={index}>
+                  <Input
+                    value={port}
+                    onChange={(e) => updatePort(index, e.target.value)}
+                    placeholder="8080:80"
+                    flex="1"
+                  />
+                  <IconButton
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removePort(index)}
+                  >
+                    <PiX />
+                  </IconButton>
+                </HStack>
+              ))}
+              <Button variant="outline" size="sm" onClick={addPort}>
+                <PiPlus /> Add Port
+              </Button>
             </Stack>
           </PropertySection>
 
           {/* Environment Variables */}
           <PropertySection title="Environment Variables">
-            <Stack gap="3">
-              <HStack justify="space-between">
-                <Text fontSize="sm" color="fg.muted">
-                  Set environment variables for the container
-                </Text>
-                <Button size="xs" variant="ghost" onClick={addEnvironmentVar}>
-                  <PiPlus />
-                </Button>
-              </HStack>
-
-              <Stack gap="2">
-                {serviceEnvironment.map((env, index) => (
-                  <HStack key={index} gap="2">
-                    <Input
-                      size="sm"
-                      flex="1"
-                      value={env.key}
-                      placeholder="VARIABLE_NAME"
-                      onChange={(e) =>
-                        updateEnvironmentVar(index, "key", e.target.value)
-                      }
-                    />
-                    <Text fontSize="sm" color="fg.muted">
-                      =
-                    </Text>
-                    <Input
-                      size="sm"
-                      flex="1"
-                      value={env.value}
-                      placeholder="value"
-                      onChange={(e) =>
-                        updateEnvironmentVar(index, "value", e.target.value)
-                      }
-                    />
-                    <IconButton
-                      size="sm"
-                      variant="ghost"
-                      colorPalette="red"
-                      onClick={() => removeEnvironmentVar(index)}
-                    >
-                      <PiX />
-                    </IconButton>
-                  </HStack>
-                ))}
-
-                {serviceEnvironment.length === 0 && (
-                  <Text fontSize="xs" color="fg.muted" fontStyle="italic">
-                    No environment variables configured
-                  </Text>
-                )}
-              </Stack>
+            <Stack gap="2">
+              {serviceEnvironment.map((env, index) => (
+                <HStack key={index}>
+                  <Input
+                    value={env.key}
+                    onChange={(e) =>
+                      updateEnvironmentVar(index, "key", e.target.value)
+                    }
+                    placeholder="VARIABLE_NAME"
+                    flex="1"
+                  />
+                  <Input
+                    value={env.value}
+                    onChange={(e) =>
+                      updateEnvironmentVar(index, "value", e.target.value)
+                    }
+                    placeholder="value"
+                    flex="1"
+                  />
+                  <IconButton
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeEnvironmentVar(index)}
+                  >
+                    <PiX />
+                  </IconButton>
+                </HStack>
+              ))}
+              <Button variant="outline" size="sm" onClick={addEnvironmentVar}>
+                <PiPlus /> Add Environment Variable
+              </Button>
             </Stack>
           </PropertySection>
         </Stack>
       </Drawer.Body>
 
-      <Drawer.Footer gap="3">
-        <Button variant="outline" onClick={onClose}>
-          Cancel
-        </Button>
+      <Drawer.Footer>
         <Button
-          colorPalette="brand"
-          disabled={!serviceName.trim() || !serviceImage.trim()}
           onClick={handleSave}
+          disabled={!serviceName.trim() || !serviceImage.trim()}
+          colorPalette="secondaryBrand"
         >
           {isEditing ? "Update Service" : "Add Service"}
         </Button>
