@@ -13,15 +13,7 @@ import { HStack, Span } from "@chakra-ui/react";
 import { useState } from "react";
 import type { Organization, Project } from "@/components/ui/small/DataFetcher";
 import { organizations } from "@/components/ui/small/DataFetcher";
-import {
-  OrgSwitcherMenu,
-  ProjectSwitcherMenu,
-} from "@/components/ui/small/ServiceSelectorComboBox";
 // Import test data from ServiceSelectorComboBox
-import {
-  MOCK_DOCKER_SERVICES,
-  DOCKER_ROLES,
-} from "@/components/ui/small/ServiceSelectorComboBox";
 
 // Keep your exact ContentPlaceholder and Label components
 const ContentPlaceholder: React.FC<any> = ({ children, ...props }) => (
@@ -99,19 +91,7 @@ export const DashboardPage: React.FC = () => {
         Testing ChakraUI v3 Comboboxes with Docker role and service data:
       </Text>
       <Container>
-        <HStack gap="3">
-          <OrgSwitcherMenu
-            selectedId={selectedOrg.id}
-            items={organizations}
-            onSelect={handleOrgChange}
-          />
-          <Span color="fg.subtle">/</Span>
-          <ProjectSwitcherMenu
-            selectedId={selectedProject.id}
-            items={selectedOrg.projects}
-            onSelect={handleProjectChange}
-          />
-        </HStack>
+        <HStack gap="3">hello world</HStack>
       </Container>
     </>
   );

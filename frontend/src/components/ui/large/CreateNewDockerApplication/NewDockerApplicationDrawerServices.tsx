@@ -1,4 +1,4 @@
-// NewDockerApplicationDrawerServices.tsx - Clean slate for your implementation
+// NewDockerApplicationDrawerServices.tsx - Clean implementation with ServicesComboBox
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -8,7 +8,6 @@ import {
   Drawer,
   Stack,
   HStack,
-  Span,
   IconButton,
   CloseButton,
   Input,
@@ -17,19 +16,12 @@ import {
 import { PropertySection } from "./NewDockerApplicationDrawerPropSection";
 import { PiPlus, PiX } from "react-icons/pi";
 
-// Import test data from ServiceSelectorComboBox
 import {
-  MOCK_DOCKER_SERVICES,
-  DOCKER_ROLES,
-  OrgSwitcherMenu,
-  ProjectSwitcherMenu,
+  ServicesComboBox,
+  type ServicesComboBoxItem,
 } from "@/components/ui/small/ServiceSelectorComboBox";
 
-import {
-  type Organization,
-  type Project,
-  organizations,
-} from "../../small/DataFetcher";
+import { type DockerService } from "@/components/ui/small/ServiceSelectorComboBox";
 
 // =============================================================================
 // INTERFACES
@@ -37,26 +29,6 @@ import {
 interface ServiceDrawerProps {
   serviceId?: string; // If provided, we're editing; if not, we're creating
   onClose?: () => void;
-}
-
-interface DockerService {
-  id: string;
-  service_name: string;
-  suggested_roles: string[];
-  image: string;
-  description: string;
-  category: string;
-  tags: string[];
-  default_ports: string[];
-  environment_vars: Array<{
-    key: string;
-    description: string;
-    required: boolean;
-  }>;
-  github_url?: string;
-  docker_hub_url?: string;
-  updated_at: string;
-  popularity_score: number;
 }
 
 // =============================================================================
@@ -70,7 +42,8 @@ export const NewDockDrawerServices = ({
 
   // Service state
   const [serviceName, setServiceName] = useState("");
-  const [selectedRole, setSelectedRole] = useState("");
+  const [serviceRole, setServiceRole] = useState(""); // New role field
+  const [selectedComboValue, setSelectedComboValue] = useState<string>("");
   const [selectedDockerService, setSelectedDockerService] =
     useState<DockerService | null>(null);
   const [serviceImage, setServiceImage] = useState("");
@@ -89,6 +62,7 @@ export const NewDockDrawerServices = ({
     if (serviceId && newStack.services?.[serviceId]) {
       const service = newStack.services[serviceId];
       setServiceName(service.name || serviceId);
+      setServiceRole(service["x-meta"]?.role || ""); // Load existing role
       setServiceImage(service.image || "");
       setServiceRestart(service.restart || "unless-stopped");
       setServicePorts(service.ports || []);
@@ -108,42 +82,69 @@ export const NewDockDrawerServices = ({
     } else {
       // Reset for new service
       setServiceName("");
+      setServiceRole(""); // Reset role
       setServiceImage("");
       setServiceRestart("unless-stopped");
       setServicePorts([]);
       setServiceEnvironment([]);
       setServiceCategory("");
       setServiceTags([]);
+      setSelectedComboValue("");
+      setSelectedDockerService(null);
     }
   }, [serviceId, newStack.services]);
 
-  // Handle role selection (ready for your implementation)
-  const handleRoleChange = (role: string) => {
-    console.log("Role changed to:", role);
-    setSelectedRole(role);
-    // Reset service selection when role changes
-    setSelectedDockerService(null);
-    setServiceImage("");
-    setServiceName("");
-  };
-
-  // Handle service selection (ready for your implementation)
-  const handleServiceChange = (
-    serviceId: string,
-    service: DockerService | null
+  // Handle service/role selection from combobox
+  const handleServiceSelection = (
+    value: string | null,
+    item: ServicesComboBoxItem | null
   ) => {
-    console.log("Service changed to:", serviceId, service);
-    setSelectedDockerService(service);
-    if (service) {
-      setServiceImage(service.image);
-      setServiceName(service.service_name);
-      setServiceCategory(service.category);
-      setServiceTags(service.tags);
+    console.log("Service selection handler:", { value, item });
 
-      // Set default ports if available
-      if (service.default_ports.length > 0) {
-        setServicePorts(service.default_ports);
-      }
+    setSelectedComboValue(value || "");
+
+    if (!item) {
+      // Clear selection
+      setSelectedDockerService(null);
+      setServiceImage("");
+      setServiceName("");
+      return;
+    }
+
+    switch (item.type) {
+      case "service":
+        // User selected a specific service
+        if (item.data) {
+          setSelectedDockerService(item.data);
+          setServiceImage(item.data.image);
+          setServiceName(item.data.service_name);
+          setServiceCategory(item.data.category);
+          setServiceTags(item.data.tags);
+
+          // Set the service role to the first suggested role (or empty if none)
+          setServiceRole(item.data.suggested_roles[0] || "");
+
+          // Set default ports if available
+          if (item.data.default_ports.length > 0) {
+            setServicePorts(item.data.default_ports);
+          }
+        }
+        break;
+
+      case "role":
+        // User selected a role - clear service-specific data but keep the selection
+        setSelectedDockerService(null);
+        setServiceImage("");
+        setServiceName("");
+        // TODO: Could filter services by role in the future
+        break;
+
+      case "custom":
+        // User wants to add a custom service
+        setSelectedDockerService(null);
+        setServiceImage("");
+        setServiceName(""); // Let them fill this out manually
+        break;
     }
   };
 
@@ -173,10 +174,15 @@ export const NewDockDrawerServices = ({
         "x-meta": {
           category: serviceCategory,
           tags: serviceTags.filter((tag) => tag.trim()),
+          role: serviceRole.trim() || undefined, // Save the role if provided
         },
       };
     });
 
+    onClose?.();
+  };
+
+  const handleCancel = () => {
     onClose?.();
   };
 
@@ -220,26 +226,6 @@ export const NewDockDrawerServices = ({
     { value: "on-failure", label: "On failure" },
   ];
 
-  const [selectedOrg, setSelectedOrg] = useState<Organization>(
-    organizations[0]
-  );
-  const [selectedProject, setSelectedProject] = useState<Project>(
-    organizations[0].projects[0]
-  );
-
-  const handleOrgChange = (id: string) => {
-    const org = organizations.find((org) => org.id === id);
-    if (!org) return;
-    setSelectedOrg(org);
-    setSelectedProject(org.projects[0]);
-  };
-
-  const handleProjectChange = (id: string) => {
-    const project = selectedOrg.projects.find((project) => project.id === id);
-    if (!project) return;
-    setSelectedProject(project);
-  };
-
   return (
     <>
       <Drawer.Header>
@@ -252,30 +238,34 @@ export const NewDockDrawerServices = ({
 
       <Drawer.Body colorPalette="secondaryBrand">
         <Stack px="4" pt="4" pb="6" gap="6">
-          {/* Service Selection Section - READY FOR YOUR IMPLEMENTATION */}
+          {/* Service Selection Section */}
           <PropertySection title="Service Selection">
             <Stack gap="4">
-              {/* YOUR ROLE SELECTOR GOES HERE */}
-
-              <HStack gap="3">
-                <OrgSwitcherMenu
-                  selectedId={selectedOrg.id}
-                  items={organizations}
-                  onSelect={handleOrgChange}
-                />
-                <Span color="fg.subtle">/</Span>
-                <ProjectSwitcherMenu
-                  selectedId={selectedProject.id}
-                  items={selectedOrg.projects}
-                  onSelect={handleProjectChange}
-                />
-              </HStack>
+              <ServicesComboBox
+                value={selectedComboValue}
+                onValueChange={handleServiceSelection}
+                label="Search for a service role or specific Docker service"
+                placeholder="Type to search roles, services, or add custom..."
+                size="sm"
+              />
             </Stack>
           </PropertySection>
 
           {/* Basic Configuration */}
           <PropertySection title="Basic Configuration">
             <Stack gap="4">
+              <Field.Root>
+                <Field.Label>Service Role</Field.Label>
+                <Input
+                  value={serviceRole}
+                  onChange={(e) => setServiceRole(e.target.value)}
+                  placeholder="database, web-server, cache, etc."
+                />
+                <Field.HelperText>
+                  Optional: The role this service plays in your stack
+                </Field.HelperText>
+              </Field.Root>
+
               <Field.Root>
                 <Field.Label>Service Name</Field.Label>
                 <Input
@@ -352,7 +342,7 @@ export const NewDockDrawerServices = ({
                     onChange={(e) =>
                       updateEnvironmentVar(index, "key", e.target.value)
                     }
-                    placeholder="VARIABLE_NAME"
+                    placeholder="KEY"
                     flex="1"
                   />
                   <Input
@@ -361,7 +351,7 @@ export const NewDockDrawerServices = ({
                       updateEnvironmentVar(index, "value", e.target.value)
                     }
                     placeholder="value"
-                    flex="1"
+                    flex="2"
                   />
                   <IconButton
                     variant="ghost"
@@ -381,18 +371,16 @@ export const NewDockDrawerServices = ({
       </Drawer.Body>
 
       <Drawer.Footer>
+        <Button variant="outline" onClick={handleCancel}>
+          Cancel
+        </Button>
         <Button
           onClick={handleSave}
           disabled={!serviceName.trim() || !serviceImage.trim()}
-          colorPalette="secondaryBrand"
         >
           {isEditing ? "Update Service" : "Add Service"}
         </Button>
       </Drawer.Footer>
-
-      <Drawer.CloseTrigger asChild>
-        <CloseButton size="sm" />
-      </Drawer.CloseTrigger>
     </>
   );
 };

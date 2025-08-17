@@ -255,16 +255,206 @@ async def redirect_legacy_websocket():
         "migration_note": "Update your frontend to use the new endpoint for better performance"
     }
 
+# Add this to backend/app/routers/docker_unified.py
+
 # =============================================================================
-# REMOVED: UnifiedStackConnectionManager
-# WebSocket functionality moved to:
-# - app/services/websocket_manager.py (connection management)
-# - app/services/data_broadcaster.py (data broadcasting)  
-# - app/routers/picows_websocket.py (websocket endpoints)
+# DOCKER LIBRARY ENDPOINTS - Curated service templates and configurations
 # =============================================================================
 
-# REMOVED: All WebSocket-related classes and endpoints
-# This router now focuses ONLY on:
-# 1. REST endpoints for stack management
-# 2. Data processing and retrieval
-# 3. Health/debug endpoints
+@router.get("/library")
+async def get_docker_library():
+    """Get all available Docker services from the curated library"""
+    try:
+        logger.info("REST: Getting docker library services...")
+        
+        # Try to get from SurrealDB first
+        try:
+            if surreal_service.connected:
+                # Use the direct db.query method from the SurrealDB client
+                result = await surreal_service.db.query("SELECT * FROM docker_services ORDER BY popularity_score DESC")
+                if result and len(result) > 0:
+                    # SurrealDB returns nested arrays - extract the actual data
+                    services_data = result[0] if isinstance(result, list) and len(result) > 0 else []
+                    
+                    return {
+                        "success": True,
+                        "data": services_data,
+                        "total_services": len(services_data),
+                        "source": "surrealdb",
+                        "timestamp": datetime.now(timezone.utc).isoformat()
+                    }
+        except Exception as db_error:
+            logger.warning(f"Could not fetch from SurrealDB: {db_error}")
+        
+        # Fallback to default services if database is not available
+        fallback_services = [
+            {
+                "id": "surrealdb",
+                "service_name": "SurrealDB",
+                "suggested_roles": ["database", "primary-db", "analytics-db", "cache"],
+                "image": "surrealdb/surrealdb:latest",
+                "description": "Multi-model database for web, mobile, serverless, and traditional applications",
+                "category": "database",
+                "tags": ["database", "multi-model", "realtime", "graph"],
+                "default_ports": ["8000:8000"],
+                "environment_vars": [
+                    {"key": "SURREAL_USER", "description": "Database user", "required": True},
+                    {"key": "SURREAL_PASS", "description": "Database password", "required": True},
+                ],
+                "github_url": "https://github.com/surrealdb/surrealdb",
+                "docker_hub_url": "https://hub.docker.com/r/surrealdb/surrealdb",
+                "updated_at": "2024-01-15T00:00:00Z",
+                "popularity_score": 75,
+            },
+            {
+                "id": "postgres",
+                "service_name": "PostgreSQL",
+                "suggested_roles": ["database", "primary-db", "analytics-db"],
+                "image": "postgres:16",
+                "description": "Advanced open source relational database",
+                "category": "database",
+                "tags": ["database", "sql", "relational", "acid"],
+                "default_ports": ["5432:5432"],
+                "environment_vars": [
+                    {"key": "POSTGRES_DB", "description": "Database name", "required": True},
+                    {"key": "POSTGRES_USER", "description": "Database user", "required": True},
+                    {"key": "POSTGRES_PASSWORD", "description": "Database password", "required": True},
+                ],
+                "github_url": "https://github.com/postgres/postgres",
+                "docker_hub_url": "https://hub.docker.com/_/postgres",
+                "updated_at": "2024-01-10T00:00:00Z",
+                "popularity_score": 95,
+            },
+            {
+                "id": "redis",
+                "service_name": "Redis",
+                "suggested_roles": ["cache", "session-store", "message-broker"],
+                "image": "redis:7-alpine",
+                "description": "In-memory data structure store used as database, cache, and message broker",
+                "category": "cache",
+                "tags": ["cache", "memory", "session", "pubsub"],
+                "default_ports": ["6379:6379"],
+                "environment_vars": [
+                    {"key": "REDIS_PASSWORD", "description": "Redis password", "required": False},
+                ],
+                "github_url": "https://github.com/redis/redis",
+                "docker_hub_url": "https://hub.docker.com/_/redis",
+                "updated_at": "2024-01-12T00:00:00Z",
+                "popularity_score": 90,
+            },
+            {
+                "id": "nginx",
+                "service_name": "NGINX",
+                "suggested_roles": ["web-server", "proxy", "load-balancer"],
+                "image": "nginx:alpine",
+                "description": "High-performance HTTP server and reverse proxy",
+                "category": "web-server",
+                "tags": ["web-server", "proxy", "load-balancer", "http"],
+                "default_ports": ["80:80", "443:443"],
+                "environment_vars": [],
+                "github_url": "https://github.com/nginx/nginx",
+                "docker_hub_url": "https://hub.docker.com/_/nginx",
+                "updated_at": "2024-01-08T00:00:00Z",
+                "popularity_score": 88,
+            },
+        ]
+        
+        return {
+            "success": True,
+            "data": fallback_services,
+            "total_services": len(fallback_services),
+            "source": "fallback",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "note": "Using fallback data - SurrealDB connection not available"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting docker library: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error retrieving docker library: {str(e)}"
+        )
+
+@router.post("/library")
+async def create_docker_library_service(service_data: Dict[str, Any]):
+    """Add a new Docker service to the curated library"""
+    try:
+        logger.info(f"Adding new service to docker library: {service_data.get('service_name', 'unknown')}")
+        
+        if not surreal_service.connected:
+            raise HTTPException(
+                status_code=503,
+                detail="Database connection not available"
+            )
+        
+        # Validate required fields
+        required_fields = ["service_name", "image", "suggested_roles", "category"]
+        for field in required_fields:
+            if field not in service_data:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Missing required field: {field}"
+                )
+        
+        # Add metadata
+        service_data["id"] = service_data["service_name"].lower().replace(" ", "_")
+        service_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+        service_data["popularity_score"] = service_data.get("popularity_score", 0)
+        
+        # Insert into database using the direct db.create method
+        result = await surreal_service.db.create("docker_services", service_data)
+        
+        return {
+            "success": True,
+            "data": result,
+            "message": "Docker service added to library successfully",
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error adding service to docker library: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error adding service to docker library: {str(e)}"
+        )
+
+@router.get("/library/{service_id}")
+async def get_docker_library_service(service_id: str):
+    """Get a specific Docker service from the library by ID"""
+    try:
+        if not surreal_service.connected:
+            raise HTTPException(
+                status_code=503,
+                detail="Database connection not available"
+            )
+        
+        # Use the direct db.query method with parameters
+        result = await surreal_service.db.query(
+            "SELECT * FROM docker_services WHERE id = $service_id",
+            {"service_id": service_id}
+        )
+        
+        if not result or len(result) == 0 or len(result[0]) == 0:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Docker service '{service_id}' not found in library"
+            )
+        
+        service = result[0][0]  # SurrealDB returns nested arrays
+        
+        return {
+            "success": True,
+            "data": service,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting docker library service {service_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error retrieving service from docker library: {str(e)}"
+        )

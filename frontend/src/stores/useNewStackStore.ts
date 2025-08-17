@@ -502,104 +502,152 @@ export const useNewStackStore = create<NewStackStore>()(
       // Add project name (transformed to kebab-case for Docker Compose safety)
       composeObj.name = previewStack.name
         ? toKebabCase(previewStack.name)
-        : previewStack.name;
+        : skeletonTemplate.name;
 
-      // Add services
-      if (Object.keys(previewStack.services).length > 0) {
+      // Transform services to use role-based naming
+      if (previewStack.services) {
         composeObj.services = {};
+
+        // Track functions for global x-meta
+        const functions: Record<string, string> = {};
+
         Object.entries(previewStack.services).forEach(
-          ([serviceId, service]) => {
-            const cleanService = { ...service };
-            delete cleanService.name; // name is the key, not a property
+          ([originalServiceId, service]) => {
+            // Determine the service key (role-based)
+            const serviceRole = service["x-meta"]?.role || originalServiceId;
+            const serviceName = service.name || originalServiceId;
 
-            // Clean up empty properties (but keep template placeholders for preview)
-            Object.keys(cleanService).forEach((key) => {
-              const value = cleanService[key as keyof typeof cleanService];
-              if (
-                value === undefined ||
-                value === null ||
-                (Array.isArray(value) && value.length === 0) ||
-                (typeof value === "object" &&
-                  !key.startsWith("{{") && // Keep template placeholders
-                  Object.keys(value).length === 0) ||
-                value === ""
-              ) {
-                delete cleanService[key as keyof typeof cleanService];
-              }
-            });
+            // Track this function mapping
+            functions[serviceRole] = serviceName;
 
-            composeObj.services[serviceId] = cleanService;
+            // Create the service config with role as key
+            const serviceConfig: any = {
+              image: service.image,
+              restart: service.restart || "unless-stopped",
+            };
+
+            // Add ports if they exist
+            if (service.ports && service.ports.length > 0) {
+              serviceConfig.ports = service.ports;
+            }
+
+            // Add expose if they exist
+            if (service.expose && service.expose.length > 0) {
+              serviceConfig.expose = service.expose;
+            }
+
+            // Add environment if exists
+            if (
+              service.environment &&
+              Object.keys(service.environment).length > 0
+            ) {
+              serviceConfig.environment = service.environment;
+            }
+
+            // Add networks if they exist
+            if (service.networks) {
+              serviceConfig.networks = service.networks;
+            }
+
+            // Add volumes if they exist
+            if (service.volumes && service.volumes.length > 0) {
+              serviceConfig.volumes = service.volumes;
+            }
+
+            // Add depends_on if exists
+            if (service.depends_on) {
+              serviceConfig.depends_on = service.depends_on;
+            }
+
+            // Add other common fields
+            if (service.command) serviceConfig.command = service.command;
+            if (service.working_dir)
+              serviceConfig.working_dir = service.working_dir;
+            if (service.user) serviceConfig.user = service.user;
+            if (service.hostname) serviceConfig.hostname = service.hostname;
+            if (service.privileged)
+              serviceConfig.privileged = service.privileged;
+            if (service.devices) serviceConfig.devices = service.devices;
+            if (service.cap_add) serviceConfig.cap_add = service.cap_add;
+            if (service.cap_drop) serviceConfig.cap_drop = service.cap_drop;
+            if (service.security_opt)
+              serviceConfig.security_opt = service.security_opt;
+            if (service.labels) serviceConfig.labels = service.labels;
+            if (service.logging) serviceConfig.logging = service.logging;
+            if (service.healthcheck)
+              serviceConfig.healthcheck = service.healthcheck;
+
+            // Add x-meta with provider name and metadata (but not role since key IS the role)
+            const xMeta: any = {
+              name: serviceName, // The actual service provider name (e.g., "Redis", "PostgreSQL")
+            };
+
+            // Add other x-meta fields except role
+            if (service["x-meta"]?.category)
+              xMeta.category = service["x-meta"].category;
+            if (service["x-meta"]?.tags && service["x-meta"].tags.length > 0) {
+              xMeta.tags = service["x-meta"].tags;
+            }
+            if (service["x-meta"]?.description)
+              xMeta.description = service["x-meta"].description;
+            if (service["x-meta"]?.documentation)
+              xMeta.documentation = service["x-meta"].documentation;
+            if (service["x-meta"]?.icon) xMeta.icon = service["x-meta"].icon;
+
+            serviceConfig["x-meta"] = xMeta;
+
+            // Use role as the service key
+            composeObj.services[serviceRole] = serviceConfig;
           }
         );
+
+        // Update global x-meta with functions mapping
+        if (previewStack["x-meta"]) {
+          composeObj["x-meta"] = {
+            ...previewStack["x-meta"],
+            functions: functions, // Add the role -> provider mapping
+          };
+        }
       }
 
       // Add networks
-      if (Object.keys(previewStack.networks).length > 0) {
-        composeObj.networks = {};
-        Object.entries(previewStack.networks).forEach(
-          ([networkId, network]) => {
-            const cleanNetwork = { ...network };
-            delete cleanNetwork.name;
-            composeObj.networks[networkId] = cleanNetwork;
-          }
-        );
+      if (
+        previewStack.networks &&
+        Object.keys(previewStack.networks).length > 0
+      ) {
+        composeObj.networks = previewStack.networks;
       }
 
       // Add volumes
-      if (Object.keys(previewStack.volumes).length > 0) {
-        composeObj.volumes = {};
-        Object.entries(previewStack.volumes).forEach(([volumeId, volume]) => {
-          const cleanVolume = { ...volume };
-          delete cleanVolume.name;
-          composeObj.volumes[volumeId] = cleanVolume;
-        });
+      if (
+        previewStack.volumes &&
+        Object.keys(previewStack.volumes).length > 0
+      ) {
+        composeObj.volumes = previewStack.volumes;
       }
 
-      // Add secrets
+      // Add secrets if they exist
       if (
         previewStack.secrets &&
         Object.keys(previewStack.secrets).length > 0
       ) {
-        composeObj.secrets = {};
-        Object.entries(previewStack.secrets).forEach(([secretId, secret]) => {
-          const cleanSecret = { ...secret };
-          delete cleanSecret.name;
-          composeObj.secrets[secretId] = cleanSecret;
-        });
+        composeObj.secrets = previewStack.secrets;
       }
 
-      // Add configs - only if they exist and not empty (skip x-meta in configs)
+      // Add configs if they exist
       if (
         previewStack.configs &&
         Object.keys(previewStack.configs).length > 0
       ) {
-        composeObj.configs = {};
-        Object.entries(previewStack.configs).forEach(([configId, config]) => {
-          // Skip x-meta in configs - it should only be at top level
-          if (configId === "x-meta") return;
-
-          const cleanConfig = { ...config };
-          delete cleanConfig.name;
-          composeObj.configs[configId] = cleanConfig;
-        });
-
-        // Only add configs section if there are actual configs (not just x-meta)
-        if (Object.keys(composeObj.configs).length === 0) {
-          delete composeObj.configs;
-        }
+        composeObj.configs = previewStack.configs;
       }
 
-      // Add global environment
+      // Add global environment if exists
       if (
         previewStack.environment &&
         Object.keys(previewStack.environment).length > 0
       ) {
         composeObj.environment = previewStack.environment;
-      }
-
-      // Add global x-meta
-      if (previewStack["x-meta"]) {
-        composeObj["x-meta"] = previewStack["x-meta"];
       }
 
       try {
