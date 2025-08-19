@@ -309,7 +309,7 @@ export const NewDockerAppWizard = () => {
       </Stack>
 
       {/* Drawer for all configuration steps */}
-      <Drawer.Root open={open} onOpenChange={(e) => setOpen(e.open)} size="lg">
+      <Drawer.Root open={open} onOpenChange={(e) => setOpen(e.open)} size="xl">
         <Portal>
           <Drawer.Backdrop />
           <Drawer.Positioner>

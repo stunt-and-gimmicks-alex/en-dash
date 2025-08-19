@@ -1,6 +1,6 @@
-// NewDockerApplicationDrawer1.tsx - Wired basic configuration drawer
+// NewDockerApplicationDrawer1.tsx - Logic-only fix for save without blur issue
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNewStackStore } from "@/stores/useNewStackStore";
 import {
   Button,
@@ -39,20 +39,33 @@ export const NewDockDrawerStart = ({
     newStack["x-meta"]?.tags || []
   );
 
-  const setStackName = (e: React.FocusEvent<HTMLInputElement>) => {
-    setNewStack((stack) => {
-      stack.name = e.target.value;
-    });
+  // NEW: Local state to track current input values (fixes save without blur bug)
+  const [currentName, setCurrentName] = useState(newStack.name || "");
+  const [currentDescription, setCurrentDescription] = useState(
+    newStack.description || ""
+  );
+
+  // REMOVED: No more onBlur handlers that update the store immediately
+  // Store updates now only happen on Save Configuration click
+
+  // Handle input changes to track current values (but don't update store yet)
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setCurrentName(e.target.value);
   };
 
-  const setStackDescription = (e: React.FocusEvent<HTMLTextAreaElement>) => {
-    setNewStack((stack) => {
-      stack.description = e.target.value;
-    });
+  const handleDescriptionChange = (
+    e: React.ChangeEvent<HTMLTextAreaElement>
+  ) => {
+    setCurrentDescription(e.target.value);
   };
 
   const handleSave = () => {
+    // FIXED: Use current tracked values instead of relying on onBlur
     setNewStack((stack) => {
+      // Update with current input values (fixes save without blur bug)
+      stack.name = currentName;
+      stack.description = currentDescription;
+
       if (!stack["x-meta"]) stack["x-meta"] = {};
       stack["x-meta"] = {
         ...stack["x-meta"],
@@ -114,14 +127,14 @@ export const NewDockDrawerStart = ({
               label="Application Name"
               defaultValue={newStack.name}
               placeholder="Enter a memorable name... like 'My Web App'"
-              onBlur={setStackName}
+              onChange={handleNameChange}
             />
 
             <TextAreaField
               label="Description"
               defaultValue={newStack.description}
               placeholder="Describe what this application does..."
-              onBlur={setStackDescription}
+              onChange={handleDescriptionChange}
             />
           </PropertySection>
 
@@ -176,7 +189,7 @@ export const NewDockDrawerStart = ({
         </Button>
         <Button
           colorPalette="brand"
-          disabled={!newStack.name}
+          disabled={!currentName.trim()}
           onClick={handleSave}
         >
           Save Configuration

@@ -261,20 +261,30 @@ async def redirect_legacy_websocket():
 # DOCKER LIBRARY ENDPOINTS - Curated service templates and configurations
 # =============================================================================
 
+# backend/app/routers/docker_unified.py - Fixed library endpoint
+
 @router.get("/library")
 async def get_docker_library():
     """Get all available Docker services from the curated library"""
     try:
-        logger.info("REST: Getting docker library services...")
+        print("REST: Getting docker library services...")
         
         # Try to get from SurrealDB first
         try:
             if surreal_service.connected:
                 # Use the direct db.query method from the SurrealDB client
                 result = await surreal_service.db.query("SELECT * FROM docker_services ORDER BY popularity_score DESC")
+                
                 if result and len(result) > 0:
-                    # SurrealDB returns nested arrays - extract the actual data
-                    services_data = result[0] if isinstance(result, list) and len(result) > 0 else []
+                    # SurrealDB actually returns a flat array: [service1, service2, service3, ...]
+                    # NOT nested arrays like [[service1, service2, ...]]
+                    if isinstance(result, list):
+                        services_data = result  # Use the result directly - it's already the array of services
+                    else:
+                        # If somehow we got a single object, wrap it in an array
+                        services_data = [result] if result else []
+                    
+                    print(f"✅ Retrieved {len(services_data)} services from SurrealDB")
                     
                     return {
                         "success": True,
@@ -283,8 +293,11 @@ async def get_docker_library():
                         "source": "surrealdb",
                         "timestamp": datetime.now(timezone.utc).isoformat()
                     }
+                else:
+                    print("⚠️ No services found in SurrealDB, using fallback")
+                    
         except Exception as db_error:
-            logger.warning(f"Could not fetch from SurrealDB: {db_error}")
+            print(f"Could not fetch from SurrealDB: {db_error}")
         
         # Fallback to default services if database is not available
         fallback_services = [
@@ -359,6 +372,8 @@ async def get_docker_library():
             },
         ]
         
+        print(f"✅ Using fallback services: {len(fallback_services)} services")
+        
         return {
             "success": True,
             "data": fallback_services,
@@ -369,7 +384,7 @@ async def get_docker_library():
         }
         
     except Exception as e:
-        logger.error(f"Error getting docker library: {e}")
+        print(f"Error getting docker library: {e}")
         raise HTTPException(
             status_code=500,
             detail=f"Error retrieving docker library: {str(e)}"

@@ -1,7 +1,7 @@
-// ServiceSelectorComboBox.tsx - Clean unified ServicesComboBox component
+// ServiceSelectorComboBox.tsx - Fixed async implementation with ChakraUI v3 pattern
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
   Combobox,
   useListCollection,
@@ -10,7 +10,9 @@ import {
   Badge,
   Stack,
   Span,
+  Spinner,
 } from "@chakra-ui/react";
+import { useAsync } from "react-use";
 
 import {
   useDockerLibrary,
@@ -44,48 +46,6 @@ interface ServicesComboBoxProps {
 }
 
 // =============================================================================
-// CUSTOM FILTER LOGIC
-// =============================================================================
-const useCustomFilter = () => {
-  return {
-    filter: (
-      itemText: string,
-      filterText: string,
-      item: UnifiedComboboxItem
-    ): boolean => {
-      if (!filterText.trim()) return true;
-
-      const searchTerm = filterText.toLowerCase().trim();
-
-      // Always show custom option when typing
-      if (item.type === "custom") return true;
-
-      // Search in label (service name)
-      if (item.label.toLowerCase().includes(searchTerm)) return true;
-
-      // Search in description
-      if (item.description?.toLowerCase().includes(searchTerm)) return true;
-
-      // Search in category
-      if (item.category?.toLowerCase().includes(searchTerm)) return true;
-
-      // Search in tags
-      if (item.tags?.some((tag) => tag.toLowerCase().includes(searchTerm)))
-        return true;
-
-      // For services, also search in suggested roles
-      if (item.type === "service" && item.data?.suggested_roles) {
-        return item.data.suggested_roles.some((role) =>
-          role.toLowerCase().includes(searchTerm)
-        );
-      }
-
-      return false;
-    },
-  };
-};
-
-// =============================================================================
 // MAIN COMPONENT
 // =============================================================================
 export const ServicesComboBox: React.FC<ServicesComboBoxProps> = ({
@@ -99,61 +59,94 @@ export const ServicesComboBox: React.FC<ServicesComboBoxProps> = ({
 }) => {
   const [inputValue, setInputValue] = useState("");
 
+  // Set up collection for async loading
+  const { collection, set } = useListCollection<UnifiedComboboxItem>({
+    initialItems: [],
+    itemToString: (item) => item.label,
+    itemToValue: (item) => item.value,
+  });
+
   // Fetch services from Docker Library API
   const { services, loading, error, source } = useDockerLibrary();
 
-  // Create unified collection of services + custom option (using API data)
-  const allItems = useMemo((): UnifiedComboboxItem[] => {
+  // Use async pattern to update collection when services or inputValue changes
+  const state = useAsync(async () => {
+    // Wait for services to load first
+    if (loading) return;
+
+    // 🐛 DEBUG: Log the raw data structure received from backend
+    console.log("🔍 DEBUG - Raw services data:", {
+      services,
+      servicesType: typeof services,
+      isArray: Array.isArray(services),
+      length: services?.length,
+      firstItem: services?.[0],
+      loading,
+      error,
+    });
+
     const items: UnifiedComboboxItem[] = [];
+    const searchTerm = inputValue.toLowerCase().trim();
 
-    // Add services from Docker Library (roles are searchable via suggested_roles field)
-    services.forEach((service) => {
-      items.push({
-        value: `service:${service.id}`,
-        label: service.service_name,
-        type: "service",
-        description: service.description,
-        category: service.category,
-        tags: service.tags,
-        data: service,
+    // Add services from Docker Library (with filtering)
+    if (services && Array.isArray(services)) {
+      services.forEach((service) => {
+        // Apply search filtering
+        if (
+          !searchTerm ||
+          service.service_name.toLowerCase().includes(searchTerm) ||
+          service.description.toLowerCase().includes(searchTerm) ||
+          service.category.toLowerCase().includes(searchTerm) ||
+          service.tags.some((tag) => tag.toLowerCase().includes(searchTerm)) ||
+          service.suggested_roles.some((role) =>
+            role.toLowerCase().includes(searchTerm)
+          )
+        ) {
+          // FIX: Extract actual ID from SurrealDB object structure
+          const serviceId =
+            typeof service.id === "object" && service.id?.id
+              ? service.id.id
+              : service.id ||
+                service.service_name.toLowerCase().replace(/[^a-z0-9]/g, "_");
+
+          items.push({
+            value: `service:${serviceId}`,
+            label: service.service_name,
+            type: "service",
+            description: service.description,
+            category: service.category,
+            tags: service.tags,
+            data: service,
+          });
+        }
       });
-    });
+    }
 
-    // Add custom option (always available)
-    items.push({
-      value: "custom:new",
-      label: `Add custom service: "${inputValue}"`,
-      type: "custom",
-      description: "Create a custom Docker service",
-      data: null,
-    });
+    // Add custom option (always available when typing)
+    if (inputValue.trim()) {
+      items.push({
+        value: "custom:new",
+        label: `Add custom service: "${inputValue}"`,
+        type: "custom",
+        description: "Create a custom Docker service",
+        data: null,
+      });
+    }
 
-    return items;
-  }, [services, inputValue]);
-
-  // Use custom filter with proper ChakraUI signature
-  const { filter } = useCustomFilter();
-
-  // Set up collection with custom filtering
-  const { collection, filter: collectionFilter } = useListCollection({
-    initialItems: allItems,
-    filter: filter, // Now matches the expected signature
-  });
+    // Update the collection
+    set(items);
+  }, [services, loading, inputValue, set]);
 
   // Handle input changes
   const handleInputValueChange = (details: any) => {
-    const newInputValue = details.inputValue;
-    setInputValue(newInputValue);
-
-    // Trigger custom filter
-    collectionFilter(newInputValue);
+    setInputValue(details.inputValue);
   };
 
   // Handle selection
   const handleValueChange = (details: any) => {
     const selectedValue = details.value?.[0] || null;
     const selectedItem = selectedValue
-      ? allItems.find((item) => item.value === selectedValue) || null
+      ? collection.items.find((item) => item.value === selectedValue) || null
       : null;
 
     console.log("ServicesComboBox selection:", {
@@ -240,19 +233,33 @@ export const ServicesComboBox: React.FC<ServicesComboBoxProps> = ({
           <Combobox.Trigger />
         </Combobox.IndicatorGroup>
       </Combobox.Control>
-
-      {/* NO Portal - drawer context issue */}
       <Combobox.Positioner>
         <Combobox.Content>
-          <Combobox.Empty>
-            No matching services found in Docker Library
-          </Combobox.Empty>
-          {collection.items.map((item) => (
-            <Combobox.Item item={item} key={item.value} padding="3" minH="16">
-              {renderItem(item)}
-              <Combobox.ItemIndicator />
-            </Combobox.Item>
-          ))}
+          {/* Loading state */}
+          {loading || state.loading ? (
+            <HStack p="2">
+              <Spinner size="xs" borderWidth="1px" />
+              <Span>Loading services...</Span>
+            </HStack>
+          ) : error || state.error ? (
+            /* Error state */
+            <Span p="2" color="fg.error">
+              {error || "Error loading services"}
+            </Span>
+          ) : collection.items.length === 0 ? (
+            /* Empty state */
+            <Combobox.Empty>
+              No matching services found in Docker Library
+            </Combobox.Empty>
+          ) : (
+            /* Items */
+            collection.items.map((item) => (
+              <Combobox.Item item={item} key={item.value} padding="3">
+                {renderItem(item)}
+                <Combobox.ItemIndicator />
+              </Combobox.Item>
+            ))
+          )}
         </Combobox.Content>
       </Combobox.Positioner>
     </Combobox.Root>
