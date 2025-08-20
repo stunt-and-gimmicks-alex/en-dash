@@ -1,39 +1,32 @@
 # ============================================================================
-# AI Stack
-# OPENWEBUI + KOKORO TTS (OpenAI-compatible) - En-Dash Stack
+# STACK NAME (e.g. "LOCAL SERVICES REVERSE PROXY")
+# STACK DESCRIPTION (e.g. "Reverse proxy for serving local hosted services on internal lan with HTTPS.")
+# LIST OF INCLUDED SERVICES (e.g. "reverse-proxy (CADDY)")
 # Served via Caddy on the 'localweb' network
-# MODEL FILE NOTES:
-# 1. All files should have a top-level project name that is descriptive and memorable
-# 2. The file should be saved as <project-name>.docker-compose.yml
-# 3. Service names should be readable and function-oriented rather than image-oriented.
-#    The idea is that you should be able to replace any service in a project/app with
-#    any other similar service and it should work perfectly fine.
-# 4. The x-meta field is how we keep things sane and useful for human readers. It should
-#    at the very least contain a name, category, description, and link to documentation.
 # ============================================================================
 
-name: ai-stack
+name: local-services-reverse-proxy # <- Same name as at the top, but lowercase and kebabcase
 
 services:
   # --------------------------------------------------------------------------
-  # OPEN WEBUI — Chat + RAG + Audio I/O
+  # SERVICE NAME — SERVICE DESCRIPTION (e.g. "CADDY — Reverse proxy with SSL"
   # --------------------------------------------------------------------------
-  frontend:
-    image: ghcr.io/open-webui/open-webui:main
-    container_name: openwebui
+  service-role: # <-  Using the generic service roles as ID rather than container names
+    image: some-image
+    # container_name: openwebui                                                             # <-  In general, leave blank since using container names prevents scaling containers past 1 instance
     restart: unless-stopped
     expose:
-      - "8080" # Caddy will proxy via service DNS; no host port required
+      - "8080" # <-  If needed
 
-    x-meta:
-      name: openwebui
-      category: application
-      description: "Open WebUI with persistent data & model dirs on bind-backed volumes"
-      documentation: "https://docs.openwebui.com/"
-      provides: ["chat", "RAG", "speech", "whisper"]
-      tags: ["ai", "chat", "work", "personal"]
-      dependencies: ["kokoro-web"]
-      internal_url: "https://llama.home"
+    x-meta: # <-  Using extension records to create a consistent metadata set for every service and stack
+      name: openwebui # <-  The name of the actual application provideing the service
+      category: application # <-  Service category (can be identical to service role)
+      description: "Open WebUI with persistent data & model dirs on bind-backed volumes" # <-  Plain english human-readable service description
+      documentation: "https://docs.openwebui.com/" # <-  Link to service documentation, if available
+      provides: ["chat", "RAG", "speech", "whisper"] # <-  List of provided roles and tools
+      tags: ["ai", "chat", "work", "personal"] # <-  Tags for organization and sorting
+      dependencies: ["kokoro-web"] # <-  Service dependancies
+      internal_url: "https://llama.home" # <-  If an internal url is provided, use that.
 
     environment:
       # Core runtime
@@ -194,7 +187,7 @@ volumes:
 # -----------------------------------------------------------------------------
 # EN-DASH STACK METADATA / CADDY HINTS
 # -----------------------------------------------------------------------------
-x-endash-config:
+x-endash-config: # <-  Same general pattern as service meta fields, but about the stack as a whole
   stack_name: "ai-stack"
   stack_version: "1.0.0-2025"
   reverse_proxy: "caddy"
