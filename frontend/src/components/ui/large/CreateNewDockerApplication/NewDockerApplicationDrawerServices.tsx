@@ -12,6 +12,8 @@ import {
   Input,
   Field,
   Tabs,
+  Text,
+  Box,
 } from "@chakra-ui/react";
 import { PropertySection } from "./NewDockerApplicationDrawerPropSection";
 import { PiPlus, PiX } from "react-icons/pi";
@@ -21,7 +23,9 @@ import {
   type ServicesComboBoxItem,
 } from "@/components/ui/small/ServiceSelectorComboBox";
 
-import { type DockerService } from "@/components/ui/small/ServiceSelectorComboBox";
+import { NetworkSelectorComboBox } from "@/components/ui/small/NetworkSelectorComboBox";
+import { VolumeMappingInput } from "@/components/ui/small/VolumeMappingInput";
+import { SmartPortInput } from "@/components/ui/small/SmartPortInputs";
 
 // =============================================================================
 // INTERFACES
@@ -422,7 +426,7 @@ export const NewDockDrawerServices = ({
                   <Stack gap="4">
                     <Field.Root>
                       <HStack justify="space-between">
-                        <Field.Label>Ports</Field.Label>
+                        <Field.Label>External Access Ports</Field.Label>
                         <Button
                           size="sm"
                           variant="outline"
@@ -433,72 +437,194 @@ export const NewDockDrawerServices = ({
                           Add Port
                         </Button>
                       </HStack>
+                      <Field.HelperText fontSize="xs">
+                        Expose container ports to your host system for external
+                        access
+                      </Field.HelperText>
                     </Field.Root>
 
-                    {servicePorts.map((port, index) => (
-                      <HStack key={index} gap="2">
-                        <Input
-                          value={port}
-                          onChange={(e) => updatePort(index, e.target.value)}
-                          placeholder="8080:80"
-                          disabled={fieldsDisabled}
-                        />
-                        <IconButton
-                          variant="outline"
-                          colorScheme="red"
-                          onClick={() => removePort(index)}
-                          disabled={fieldsDisabled}
+                    {servicePorts.length === 0 ? (
+                      <Text
+                        fontSize="sm"
+                        color="fg.muted"
+                        fontStyle="italic"
+                        p="4"
+                        textAlign="center"
+                      >
+                        No port mappings configured. Services will only be
+                        accessible internally.
+                      </Text>
+                    ) : (
+                      <Stack gap="3">
+                        {servicePorts.map((port, index) => (
+                          <SmartPortInput
+                            key={index}
+                            value={port}
+                            onChange={(newValue) => updatePort(index, newValue)}
+                            onRemove={() => removePort(index)}
+                            disabled={fieldsDisabled}
+                            placeholder={{
+                              host: `${50000 + index}`, // Secure default suggestions
+                              container: index === 0 ? "80" : `${8000 + index}`,
+                            }}
+                            autoSuggest={true}
+                          />
+                        ))}
+                      </Stack>
+                    )}
+
+                    {/* Port guidance for common services */}
+                    {servicePorts.length === 0 && (
+                      <Box bg="brand.surfaceContainer" p="3" borderRadius="md">
+                        <Text
+                          fontSize="xs"
+                          fontWeight="medium"
+                          mb="2"
+                          color="fg.muted"
                         >
-                          <PiX />
-                        </IconButton>
-                      </HStack>
-                    ))}
+                          Common Container Ports:
+                        </Text>
+                        <Stack gap="1" fontSize="xs" color="fg.muted">
+                          <Text fontFamily="mono">80 → HTTP web servers</Text>
+                          <Text fontFamily="mono">443 → HTTPS web servers</Text>
+                          <Text fontFamily="mono">3000 → Node.js apps</Text>
+                          <Text fontFamily="mono">8080 → Java/Tomcat apps</Text>
+                          <Text fontFamily="mono">
+                            5432 → PostgreSQL database
+                          </Text>
+                          <Text fontFamily="mono">3306 → MySQL database</Text>
+                        </Stack>
+                      </Box>
+                    )}
+
+                    {/* Security tip */}
+                    {servicePorts.length > 0 && (
+                      <Box
+                        bg="green.50"
+                        borderLeft="4px solid"
+                        borderColor="green.500"
+                        p="3"
+                        borderRadius="md"
+                      >
+                        <Text
+                          fontSize="xs"
+                          fontWeight="medium"
+                          mb="1"
+                          color="green.700"
+                        >
+                          Security Tip:
+                        </Text>
+                        <Text fontSize="xs" color="green.600">
+                          High ports (49152-65535) are automatically suggested
+                          to avoid conflicts and reduce exposure to port
+                          scanners.
+                        </Text>
+                      </Box>
+                    )}
                   </Stack>
                 </PropertySection>
 
                 <PropertySection title="Networks">
                   <Stack gap="4">
-                    <Field.Root>
-                      <HStack justify="space-between">
-                        <Field.Label>Custom Networks</Field.Label>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={addNetwork}
-                          disabled={fieldsDisabled}
-                        >
-                          <PiPlus />
-                          Add Network
-                        </Button>
-                      </HStack>
-                    </Field.Root>
+                    <NetworkSelectorComboBox
+                      value={
+                        serviceNetworks.length > 0 ? serviceNetworks[0] : ""
+                      }
+                      onValueChange={(value, item) => {
+                        console.log("Network selected:", { value, item });
+                        if (value) {
+                          // Replace the first network or add if none exist
+                          if (serviceNetworks.length > 0) {
+                            updateNetwork(0, value);
+                          } else {
+                            setServiceNetworks([value]);
+                          }
+                        } else {
+                          // Clear selection
+                          if (serviceNetworks.length > 0) {
+                            removeNetwork(0);
+                          }
+                        }
+                      }}
+                      label="Primary Network"
+                      placeholder="Search existing networks or create new..."
+                      size="sm"
+                      disabled={fieldsDisabled}
+                    />
 
-                    {serviceNetworks.map((network, index) => (
-                      <HStack key={index} gap="2">
-                        <Input
-                          value={network}
-                          onChange={(e) => updateNetwork(index, e.target.value)}
-                          placeholder="my-network"
-                          disabled={fieldsDisabled}
-                        />
-                        <IconButton
-                          variant="outline"
-                          colorScheme="red"
-                          onClick={() => removeNetwork(index)}
-                          disabled={fieldsDisabled}
-                        >
-                          <PiX />
-                        </IconButton>
-                      </HStack>
-                    ))}
+                    {/* Additional networks (if more than one) */}
+                    {serviceNetworks.length > 1 && (
+                      <Stack gap="2">
+                        <HStack justify="space-between">
+                          <Text fontSize="sm" color="fg.muted">
+                            Additional Networks
+                          </Text>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={addNetwork}
+                            disabled={fieldsDisabled}
+                          >
+                            <PiPlus />
+                            Add Network
+                          </Button>
+                        </HStack>
+
+                        {serviceNetworks.slice(1).map((network, index) => (
+                          <HStack key={index + 1} gap="2">
+                            <NetworkSelectorComboBox
+                              value={network}
+                              onValueChange={(value) => {
+                                if (value) {
+                                  updateNetwork(index + 1, value);
+                                } else {
+                                  removeNetwork(index + 1);
+                                }
+                              }}
+                              placeholder="Select additional network..."
+                              size="sm"
+                              disabled={fieldsDisabled}
+                            />
+                            <IconButton
+                              variant="outline"
+                              colorScheme="red"
+                              onClick={() => removeNetwork(index + 1)}
+                              disabled={fieldsDisabled}
+                            >
+                              <PiX />
+                            </IconButton>
+                          </HStack>
+                        ))}
+                      </Stack>
+                    )}
+
+                    {/* Add additional network button (only show if we have just one network) */}
+                    {serviceNetworks.length === 1 && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={addNetwork}
+                        disabled={fieldsDisabled}
+                        alignSelf="start"
+                      >
+                        <PiPlus />
+                        Add Additional Network
+                      </Button>
+                    )}
+
+                    {/* Help text */}
+                    <Text fontSize="xs" color="fg.muted">
+                      The primary network is required. Additional networks are
+                      optional for multi-network connectivity.
+                    </Text>
                   </Stack>
                 </PropertySection>
 
-                <PropertySection title="Volumes">
+                <PropertySection title="Volume Mounts">
                   <Stack gap="4">
                     <Field.Root>
                       <HStack justify="space-between">
-                        <Field.Label>Volume Mounts</Field.Label>
+                        <Field.Label>Container Volume Mappings</Field.Label>
                         <Button
                           size="sm"
                           variant="outline"
@@ -509,26 +635,72 @@ export const NewDockDrawerServices = ({
                           Add Volume
                         </Button>
                       </HStack>
+                      <Field.HelperText fontSize="xs">
+                        Map local folders to container paths for persistent data
+                        storage
+                      </Field.HelperText>
                     </Field.Root>
 
-                    {serviceVolumes.map((volume, index) => (
-                      <HStack key={index} gap="2">
-                        <Input
-                          value={volume}
-                          onChange={(e) => updateVolume(index, e.target.value)}
-                          placeholder="./data:/app/data"
-                          disabled={fieldsDisabled}
-                        />
-                        <IconButton
-                          variant="outline"
-                          colorScheme="red"
-                          onClick={() => removeVolume(index)}
-                          disabled={fieldsDisabled}
+                    {serviceVolumes.length === 0 ? (
+                      <Text
+                        fontSize="sm"
+                        color="fg.muted"
+                        fontStyle="italic"
+                        p="4"
+                        textAlign="center"
+                      >
+                        No volume mappings configured. Click "Add Volume" to
+                        mount local folders.
+                      </Text>
+                    ) : (
+                      <Stack gap="3">
+                        {serviceVolumes.map((volume, index) => (
+                          <VolumeMappingInput
+                            key={index}
+                            value={volume}
+                            onChange={(newValue) =>
+                              updateVolume(index, newValue)
+                            }
+                            onRemove={() => removeVolume(index)}
+                            disabled={fieldsDisabled}
+                            placeholder={{
+                              local: `./app-data-${index + 1}`,
+                              container: `/app/data${
+                                index > 0 ? `-${index + 1}` : ""
+                              }`,
+                            }}
+                          />
+                        ))}
+                      </Stack>
+                    )}
+
+                    {/* Quick volume suggestions for common use cases */}
+                    {serviceVolumes.length === 0 && (
+                      <Box bg="brand.surfaceContainer" p="3" borderRadius="md">
+                        <Text
+                          fontSize="xs"
+                          fontWeight="medium"
+                          mb="2"
+                          color="fg.muted"
                         >
-                          <PiX />
-                        </IconButton>
-                      </HStack>
-                    ))}
+                          Common Volume Patterns:
+                        </Text>
+                        <Stack gap="1" fontSize="xs" color="fg.muted">
+                          <Text fontFamily="mono">
+                            ./config → /app/config (app configuration)
+                          </Text>
+                          <Text fontFamily="mono">
+                            ./data → /app/data (application data)
+                          </Text>
+                          <Text fontFamily="mono">
+                            ./logs → /app/logs (log files)
+                          </Text>
+                          <Text fontFamily="mono">
+                            ./uploads → /app/uploads (user uploads)
+                          </Text>
+                        </Stack>
+                      </Box>
+                    )}
                   </Stack>
                 </PropertySection>
 
