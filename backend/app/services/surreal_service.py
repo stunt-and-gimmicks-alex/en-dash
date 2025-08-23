@@ -113,12 +113,15 @@ class SurrealDBService:
             raise Exception(f"Cannot create live query: SurrealDB not connected")
         
         try:
-           
+            print(f"🐛 LIVE QUERY SETUP: Creating live query for '{table_name}' at {datetime.now()}")
+            
             # Use the live() method - SurrealDB 2.x pattern
             live_query_id = await self.db.live(table_name)
+            print(f"🐛 LIVE QUERY SETUP: Live query ID created: {live_query_id} at {datetime.now()}")
             
             # Subscribe to the live query using subscribe_live()
             subscription = await self.db.subscribe_live(live_query_id)
+            print(f"🐛 LIVE QUERY SETUP: Subscription created for {live_query_id} at {datetime.now()}")
             
             # Store live query info
             self.live_queries[live_query_id] = {
@@ -133,12 +136,14 @@ class SurrealDBService:
                 self._listen_to_live_query(live_query_id, subscription, callback)
             )
             self.live_queries[live_query_id]["task"] = listen_task
+            print(f"🐛 LIVE QUERY SETUP: Listener task started for {live_query_id} at {datetime.now()}")
             
             logger.info(f"📡 Created live query for '{table_name}': {live_query_id}")
             return live_query_id
                 
         except Exception as e:
             logger.error(f"❌ Failed to create live query for {table_name}: {e}")
+            print(f"🐛 LIVE QUERY SETUP: Error creating live query: {e}")
             raise
 
     async def _listen_to_live_query(self, live_id: str, subscription: Any, callback: Callable):
@@ -148,7 +153,6 @@ class SurrealDBService:
             async for update in subscription:
                 
                 if self._shutdown_requested:
-                    print(f"LIVE QUERY: Shutdown requested, breaking loop for {live_id}")
                     break
                     
                 try:
@@ -156,14 +160,11 @@ class SurrealDBService:
                     await callback(update)
                 except Exception as e:
                     logger.error(f"Error in live query callback for {live_id}: {e}")
-                    print(f"🐛 LIVE QUERY: Callback error for {live_id}: {e}")
                     
         except Exception as e:
             if not self._shutdown_requested:
                 logger.error(f"Error listening to live query {live_id}: {e}")
-                print(f"🐛 LIVE QUERY: Listener error for {live_id}: {e}")
         finally:
-            print(f"🐛 LIVE QUERY: Listener stopped for {live_id} at {datetime.now()}")
             logger.debug(f"Live query listener {live_id} stopped")
 
     async def kill_live_query(self, live_id: str):

@@ -1,5 +1,5 @@
 # Fix for backend/app/services/background_collector.py
-# Add proper shutdown handling, now with BATCHED SYSTEM STATS COLLECTION
+# Add proper shutdown handling
 
 import asyncio
 import logging
@@ -7,7 +7,6 @@ import time
 import psutil
 import signal
 from datetime import datetime, timedelta
-from typing import List, Dict, Any
 from .surreal_service import surreal_service
 from .docker_unified import unified_stack_service
 
@@ -22,13 +21,6 @@ class BackgroundCollector:
         self.docker_changes_detected = 0
         self._shutdown_requested = False
         
-        # Batched stats collection system
-        self.stats_batch: List[Dict[str, Any]] = []
-        self.stats_batch_size = 30  # 30 seconds worth of stats
-        self.stats_collection_interval = 1.0  # Collect every 1 second
-        self.batch_write_interval = 30.0  # Write to DB every 30 seconds
-        self.last_batch_write = 0
-        
     async def start(self):
         """Start background collection with separate tasks"""
         if self.running:
@@ -37,25 +29,16 @@ class BackgroundCollector:
         self.running = True
         self._shutdown_requested = False
         
-        # Reset batch tracking
-        self.stats_batch = []
-        self.last_batch_write = time.time()
-        
         # Start both collection loops
         self.docker_task = asyncio.create_task(self._docker_collection_loop())
         self.stats_task = asyncio.create_task(self._stats_collection_loop())
-        logger.info("🔄 Started background Docker → SurrealDB collection with batched stats")
+        logger.info("🔄 Started background Docker → SurrealDB collection with change detection")
         
     async def stop(self):
         """Stop background collection gracefully"""
         logger.info("🛑 Stopping background collector...")
         self._shutdown_requested = True
         self.running = False
-        
-        # Write any remaining stats before shutdown
-        if self.stats_batch:
-            logger.info(f"📊 Writing final batch of {len(self.stats_batch)} stats before shutdown")
-            await self._write_stats_batch()
         
         # Cancel tasks
         tasks_to_cancel = []
@@ -128,10 +111,10 @@ class BackgroundCollector:
                         logger.debug(f"✅ Docker state unchanged - skipped database write")
                     
                     # Wait 30 seconds before next check (with early exit on shutdown)
-                    for _ in range(60):  # 60 iterations of 0.5s = 30s
+                    for _ in range(60):
                         if self._shutdown_requested:
                             break
-                        await asyncio.sleep(0.5)
+                        await asyncio.sleep(1)
                     
                 except asyncio.CancelledError:
                     logger.info("📡 Docker collection cancelled")
@@ -145,38 +128,25 @@ class BackgroundCollector:
             logger.info("📡 Docker collection loop cancelled")
 
     async def _stats_collection_loop(self):
-        """BATCHED system stats collection - collect every 1s, write every 30s"""
+        """Collect system stats every 1 second"""
         try:
             from ..core.config import settings
             
             while self.running and not self._shutdown_requested:
                 try:
+                    
+                    logger.info("🔄 STATS COLLECTION LOOP RUNNING")
+                    
                     if not settings.USE_SURREALDB:
-                        await asyncio.sleep(self.stats_collection_interval)
+                        await asyncio.sleep(1)
                         continue
                         
-                    # Collect system stats and add to batch
-                    stats_data = await self._collect_system_stats()
-                    if stats_data:
-                        self.stats_batch.append(stats_data)
-                        
-                        logger.debug(f"📊 Collected stats #{len(self.stats_batch)}/{self.stats_batch_size}")
+                    # Collect system stats (keep this simple and working)
+                    await self._collect_system_stats()
                     
-                    # Check if it's time to write the batch
-                    current_time = time.time()
-                    time_since_last_write = current_time - self.last_batch_write
-                    
-                    # Write batch if we have enough stats OR enough time has passed
-                    should_write_batch = (
-                        len(self.stats_batch) >= self.stats_batch_size or
-                        time_since_last_write >= self.batch_write_interval
-                    )
-                    
-                    if should_write_batch and self.stats_batch:
-                        await self._write_stats_batch()
                     
                     # Wait 1 second before next collection
-                    await asyncio.sleep(self.stats_collection_interval)
+                    await asyncio.sleep(1)
                     
                 except asyncio.CancelledError:
                     logger.info("📡 System stats collection cancelled")
@@ -189,12 +159,14 @@ class BackgroundCollector:
         except asyncio.CancelledError:
             logger.info("📡 System stats collection loop cancelled")
 
-    async def _collect_system_stats(self) -> Dict[str, Any] | None:
-        """Collect comprehensive system statistics - returns dict or None"""
+    async def _collect_system_stats(self):
+        """Collect comprehensive system statistics - WORKING VERSION"""
         if self._shutdown_requested:
-            return None
+            return
             
         try:
+            
+
             # CPU stats
             cpu_percent = psutil.cpu_percent(interval=None)  # Non-blocking
             
@@ -215,6 +187,7 @@ class BackgroundCollector:
                 load_avg = psutil.getloadavg()
             except AttributeError:
                 load_avg = [0, 0, 0]  # Windows fallback
+            
             
             # Build comprehensive stats object
             stats_data = {
@@ -262,67 +235,16 @@ class BackgroundCollector:
                 "network_packets_recv": network.packets_recv,
             }
             
-            return stats_data
+
+            # Store in SurrealDB
+            await surreal_service.store_system_stats(stats_data)
+
             
         except asyncio.CancelledError:
             logger.info("📡 System stats collection cancelled")
-            return None
         except Exception as e:
             if not self._shutdown_requested:
                 logger.error(f"Error collecting system stats: {e}")
-            return None
-
-    async def _write_stats_batch(self):
-        """Write the current batch of stats to SurrealDB and trigger broadcast"""
-        if not self.stats_batch:
-            return
-            
-        try:
-            batch_size = len(self.stats_batch)
-            batch_start_time = self.stats_batch[0]["timestamp"] if self.stats_batch else time.time()
-            batch_end_time = self.stats_batch[-1]["timestamp"] if self.stats_batch else time.time()
-            
-            logger.info(f"📊 Writing batch of {batch_size} stats to database (timespan: {batch_end_time - batch_start_time:.1f}s)")
-            
-            # Write each stat to SurrealDB (could optimize with bulk insert later)
-            write_count = 0
-            for stats_data in self.stats_batch:
-                await surreal_service.store_system_stats(stats_data)
-                write_count += 1
-            
-            logger.info(f"✅ Successfully wrote {write_count} stats to database")
-            
-            # Trigger data broadcaster to send the batch via WebSocket
-            # This will be handled by the live query system automatically
-            # but we can also manually trigger it for immediate broadcast
-            try:
-                from .data_broadcaster import data_broadcaster
-                await data_broadcaster.force_update_system_stats_batch(self.stats_batch)
-                logger.debug(f"📡 Triggered WebSocket broadcast for batch of {batch_size} stats")
-            except Exception as e:
-                logger.warning(f"⚠️ Could not trigger WebSocket broadcast: {e}")
-            
-            # Clear the batch and update timing
-            self.stats_batch = []
-            self.last_batch_write = time.time()
-            
-        except Exception as e:
-            logger.error(f"❌ Failed to write stats batch: {e}")
-            # Don't clear the batch on error - we'll try again next time
-
-    def get_batch_status(self) -> Dict[str, Any]:
-        """Get current batch collection status for debugging"""
-        current_time = time.time()
-        return {
-            "batch_size": len(self.stats_batch),
-            "max_batch_size": self.stats_batch_size,
-            "time_since_last_write": current_time - self.last_batch_write,
-            "batch_write_interval": self.batch_write_interval,
-            "collection_interval": self.stats_collection_interval,
-            "next_write_in": max(0, self.batch_write_interval - (current_time - self.last_batch_write)),
-            "running": self.running,
-            "shutdown_requested": self._shutdown_requested
-        }
 
 # Global instance
 background_collector = BackgroundCollector()

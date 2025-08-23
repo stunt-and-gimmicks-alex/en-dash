@@ -1,100 +1,44 @@
-# EMERGENCY HOTFIX for backend/app/services/data_broadcaster.py
-# Add this deduplication logic to prevent console-crashing spam
+# backend/app/services/data_broadcaster.py
+"""
+Enhanced Data Broadcasting Service for Picows WebSocket Manager
+Handles data updates and broadcasting with proper error handling and fallbacks
+"""
 
 import asyncio
-import hashlib
-import json
-import time
 import logging
+from typing import Dict, Any, Optional, List
 from datetime import datetime, timezone
 
 from .websocket_manager import ws_manager
 from .surreal_service import surreal_service
 from .docker_unified import unified_stack_service
 
-# Safe logging setup for uvicorn issues
-try:
-    logger = logging.getLogger(__name__)
-except:
-    class FakeLogger:
-        def debug(self, msg): print(f"DEBUG: {msg}")
-        def info(self, msg): print(f"INFO: {msg}")
-        def warning(self, msg): print(f"WARNING: {msg}")
-        def error(self, msg): print(f"ERROR: {msg}")
-    logger = FakeLogger()
+logger = logging.getLogger(__name__)
 
 class DataBroadcaster:
-    """Enhanced data broadcaster with EMERGENCY DEDUPLICATION"""
+    """Enhanced data broadcaster for picows integration"""
     
     def __init__(self):
         self.running = False
-        self.live_query_tasks = {}
-        self.polling_tasks = {}
+        self.live_query_tasks: Dict[str, asyncio.Task] = {}
+        self.polling_tasks: Dict[str, asyncio.Task] = {}
         
         # Data broadcasting intervals (in seconds)
         self.intervals = {
-            'system_stats': 30.0,
-            'docker_stacks': 30.0,
-            'heartbeat': 30.0
+            'system_stats': 5.0,
+            'docker_stacks': 3.0,  # Slightly faster for docker updates
+            'heartbeat': 30.0      # Regular heartbeat
         }
         
         # Live query tracking
-        self.live_query_ids = {}
+        self.live_query_ids: Dict[str, str] = {}
         
-        # Cache for immediate responses
+        # Cache for immediate responses to new connections
         self.cached_data = {
             'system_stats': None,
-            'system_stats_batch': None,
             'docker_stacks': None,
-            'last_update': {
-                'system_stats': None,
-                'system_stats_batch': None,
-                'docker_stacks': None
-            }
+            'last_update': {}
         }
-        
-        # EMERGENCY DEDUPLICATION SYSTEM
-        self.last_broadcast_hashes = {}
-        self.last_broadcast_times = {}
-        self.dedup_window_seconds = 5.0  # Don't send same message within 5 seconds
-    
-    def _generate_message_hash(self, message):
-        """Generate a hash of the message content for deduplication"""
-        try:
-            # Create a consistent string representation for hashing
-            message_copy = message.copy()
-            # Remove timestamps and trigger info that change but don't affect content
-            message_copy.pop('cached_at', None)
-            message_copy.pop('trigger', None)
-            if 'data' in message_copy and isinstance(message_copy['data'], dict):
-                message_copy['data'].pop('processing_time', None)
-            
-            content_str = json.dumps(message_copy, sort_keys=True)
-            return hashlib.md5(content_str.encode()).hexdigest()
-        except Exception:
-            # Fallback to timestamp if hashing fails
-            return str(datetime.now().timestamp())
-    
-    def _should_broadcast(self, message_type, message):
-        """Check if we should broadcast this message or if it's a duplicate"""
-        current_time = time.time()
-        message_hash = self._generate_message_hash(message)
-        
-        # Check if we've sent this exact message recently
-        if message_type in self.last_broadcast_hashes:
-            last_hash = self.last_broadcast_hashes[message_type]
-            last_time = self.last_broadcast_times.get(message_type, 0)
-            
-            # If same content within dedup window, skip
-            if (last_hash == message_hash and 
-                current_time - last_time < self.dedup_window_seconds):
-                logger.debug(f"🚫 Skipping duplicate {message_type} broadcast (within {self.dedup_window_seconds}s window)")
-                return False
-        
-        # Update tracking
-        self.last_broadcast_hashes[message_type] = message_hash
-        self.last_broadcast_times[message_type] = current_time
-        return True
     
     async def start(self):
         """Start data broadcasting services"""
@@ -114,24 +58,20 @@ class DataBroadcaster:
         await self._start_docker_monitoring()
         await self._start_heartbeat()
         
-        logger.info("🚀 Enhanced DataBroadcaster started with DEDUPLICATION")
+        logger.info("🚀 Enhanced DataBroadcaster started")
     
     async def stop(self):
         """Stop data broadcasting services"""
-        logger.info("🛑 Stopping data broadcaster...")
         self.running = False
         
-        # Clear deduplication tracking
-        self.last_broadcast_hashes.clear()
-        self.last_broadcast_times.clear()
-        
-        # Kill all live queries
-        if surreal_service.connected:
-            for query_id in list(self.live_query_ids.values()):
-                try:
-                    await surreal_service.kill_live_query(query_id)
-                except Exception as e:
-                    logger.error(f"Error killing live query {query_id}: {e}")
+        # Stop all live queries
+        for query_type, live_id in self.live_query_ids.items():
+            try:
+                if surreal_service.connected:
+                    await surreal_service.kill_live_query(live_id)
+                logger.info(f"🛑 Stopped live query for {query_type}")
+            except Exception as e:
+                logger.error(f"Error stopping live query {query_type}: {e}")
         
         # Cancel all tasks
         all_tasks = list(self.live_query_tasks.values()) + list(self.polling_tasks.values())
@@ -139,35 +79,30 @@ class DataBroadcaster:
             if not task.done():
                 task.cancel()
         
-        # Wait for tasks to finish
+        # Wait for cancellation
         if all_tasks:
             try:
-                await asyncio.wait_for(
-                    asyncio.gather(*all_tasks, return_exceptions=True),
-                    timeout=5.0
-                )
-            except asyncio.TimeoutError:
-                logger.warning("⚠️ Some broadcaster tasks didn't stop within timeout")
+                await asyncio.gather(*all_tasks, return_exceptions=True)
+            except Exception:
+                pass
         
+        # Clear state
         self.live_query_tasks.clear()
         self.polling_tasks.clear()
         self.live_query_ids.clear()
+        self.cached_data = {'system_stats': None, 'docker_stacks': None, 'last_update': {}}
         
-        logger.info("✅ Data broadcaster stopped")
+        logger.info("🛑 Enhanced DataBroadcaster stopped")
     
     async def _initialize_cache(self):
-        """Initialize cached data for immediate responses"""
+        """Initialize data cache with current values"""
         try:
-            # Get initial Docker data
-            logger.debug("🔄 Initializing Docker cache...")
-            stacks = await unified_stack_service.get_all_unified_stacks()
-            self.cached_data['docker_stacks'] = stacks
+            # Cache Docker stacks
+            docker_data = await unified_stack_service.get_all_unified_stacks()
+            self.cached_data['docker_stacks'] = docker_data
             self.cached_data['last_update']['docker_stacks'] = datetime.now(timezone.utc)
             
-            # Get initial system stats
-            logger.debug("🔄 Initializing system stats cache...")
-            await self._send_immediate_system_stats()
-            
+            logger.info("✅ Data cache initialized")
         except Exception as e:
             logger.error(f"Error initializing cache: {e}")
     
@@ -183,24 +118,24 @@ class DataBroadcaster:
             logger.error(f"❌ Failed to connect to SurrealDB: {e}")
             logger.info("🔄 Will use polling fallback only")
     
-    # System Stats Monitoring - UPDATED FOR BATCHING
+    # System Stats Monitoring
     async def _start_system_stats_monitoring(self):
         """Start system stats monitoring with fallback"""
         try:
-            logger.info("🔍 Starting batched system stats monitoring...")
+            logger.info("🔍 DEBUG: Starting system stats monitoring...")
             if surreal_service.connected:
-                logger.info("🔍 SurrealDB connected, attempting live query...")
+                logger.info("🔍 DEBUG: SurrealDB is connected, attempting live query...")
                 
                 live_id = await surreal_service.create_live_query(
-                    "system_stats",
+                    "system_stats",  # Just the table name
                     self._handle_system_stats_update
                 )
                 
-                logger.info(f"🔍 Live query result: {live_id}")
+                logger.info(f"🔍 DEBUG: Live query result: {live_id}")
                 
                 if live_id:
                     self.live_query_ids['system_stats'] = live_id
-                    logger.info("✅ System stats live query started (batched mode)")
+                    logger.info("✅ System stats live query started")
                     await self._send_immediate_system_stats()
                     return
                 else:
@@ -217,102 +152,68 @@ class DataBroadcaster:
     
     async def _start_system_stats_polling(self):
         """Fallback polling for system stats"""
-        logger.info("🔄 Starting system stats polling fallback (batched mode)")
-        logger.warning("🐛 Polling fallback should not be used in batched mode - background_collector handles this!")
+        logger.info("🔄 Starting system stats polling fallback")
+        print(f"🐛 Fallback polling mechanism initiated. This is a problem!!!")
         
         async def poll_loop():
             while self.running:
                 try:
-                    logger.debug("📊 Batched polling mode - waiting for background_collector updates...")
+                    # This would integrate with your system stats service
+                    # For now, we'll send a basic heartbeat
+                    stats_data = {
+                        "cpu_usage": 0.0,
+                        "memory_usage": 0.0,
+                        "disk_usage": 0.0,
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "source": "polling"
+                    }
+                    
+                    # Cache and broadcast
+                    self.cached_data['system_stats'] = stats_data
+                    self.cached_data['last_update']['system_stats'] = datetime.now(timezone.utc)
+                    print(f"🐛 Falling falling falling back, this should not be here!")
+
+                    await self._broadcast_system_stats(stats_data, trigger="polling")
                     await asyncio.sleep(self.intervals['system_stats'])
                     
                 except asyncio.CancelledError:
                     break
                 except Exception as e:
                     logger.error(f"Error in system stats polling: {e}")
-                    await asyncio.sleep(10)
+                    await asyncio.sleep(10)  # Longer delay on error
         
         self.polling_tasks['system_stats'] = asyncio.create_task(poll_loop())
     
-    async def _handle_system_stats_update(self, update_data):
-        """Handle system stats live query updates - UPDATED FOR BATCHING"""
+    async def _handle_system_stats_update(self, update_data: Any):
+        """Handle system stats live query updates"""
+        
+
         try:
-            logger.debug("📊 System stats live update received (batched mode)")
+            logger.debug("📊 System stats live update received")
             
-            # Get recent batch of stats from SurrealDB
-            recent_stats = await surreal_service.get_system_stats(hours_back=1) 
+            # Get fresh data from SurrealDB 
+            recent_stats = await surreal_service.get_system_stats(hours_back=1)  # We'll fix this method call in step 2
             
             if recent_stats and len(recent_stats) > 0:
-                # Take the latest 30 stats for the batch
-                stats_batch = recent_stats[:30]
+                # Get the most recent stat entry
                 latest_stats = recent_stats[0]
                 
-                # Cache both individual and batch
+                # Cache and broadcast (same pattern as Docker)
                 self.cached_data['system_stats'] = latest_stats
-                self.cached_data['system_stats_batch'] = stats_batch
                 self.cached_data['last_update']['system_stats'] = datetime.now(timezone.utc)
-                self.cached_data['last_update']['system_stats_batch'] = datetime.now(timezone.utc)
+
                 
-                # Broadcast the batch with DEDUPLICATION
-                await self._broadcast_system_stats_batch(stats_batch, trigger="live_query")
-                
+                await self._broadcast_system_stats(latest_stats, trigger="live_query")
+
+
             else:
-                logger.warning("No recent system stats found in SurrealDB for batching")
+                logger.warning("No recent system stats found in SurrealDB")
                 
         except Exception as e:
-            logger.error(f"Error handling batched system stats update: {e}")
+            logger.error(f"Error handling system stats update: {e}")
 
-    async def _broadcast_system_stats_batch(self, stats_batch, trigger="batch"):
-        """Broadcast batched system stats with DEDUPLICATION"""
-        if not stats_batch:
-            logger.warning("⚠️ Empty stats batch - skipping broadcast")
-            return
-        
-        # FIXED: Handle timestamp math safely
-        timespan_seconds = 0
-        try:
-            if len(stats_batch) > 1:
-                first_ts = stats_batch[0].get("timestamp", 0)
-                last_ts = stats_batch[-1].get("timestamp", 0)
-                
-                # Handle both string and numeric timestamps
-                if isinstance(first_ts, str):
-                    first_ts = datetime.fromisoformat(first_ts.replace('Z', '+00:00')).timestamp()
-                if isinstance(last_ts, str):
-                    last_ts = datetime.fromisoformat(last_ts.replace('Z', '+00:00')).timestamp()
-                
-                timespan_seconds = float(first_ts) - float(last_ts)
-        except Exception as e:
-            logger.debug(f"Could not calculate timespan: {e}")
-            timespan_seconds = 30  # Default to 30 seconds
-            
-        message = {
-            "type": "system_stats_batch",
-            "data": {
-                "batch": stats_batch,
-                "batch_size": len(stats_batch),
-                "latest": stats_batch[0] if stats_batch else None,
-                "oldest": stats_batch[-1] if stats_batch else None,
-                "timespan_seconds": timespan_seconds
-            },
-            "trigger": trigger,
-            "cached_at": self.cached_data['last_update'].get('system_stats_batch', datetime.now(timezone.utc)).isoformat(),
-            "playback_info": {
-                "total_duration_ms": 30000,
-                "update_interval_ms": 500,
-                "smooth_tweening": True
-            }
-        }
-        
-        # EMERGENCY DEDUPLICATION CHECK
-        if self._should_broadcast("system_stats_batch", message):
-            await ws_manager.broadcast(message, topic="system_stats")
-            logger.info(f"📡 Broadcasted batch of {len(stats_batch)} system stats")
-        else:
-            logger.debug("🚫 Skipped duplicate system stats batch broadcast")
-
-    async def _broadcast_system_stats(self, stats_data, trigger="polling"):
-        """Broadcast single system stats with DEDUPLICATION (backwards compatibility)"""
+    async def _broadcast_system_stats(self, stats_data: dict, trigger: str = "polling"):
+        """Broadcast system stats to websocket clients"""
         message = {
             "type": "system_stats",
             "data": stats_data,
@@ -320,132 +221,108 @@ class DataBroadcaster:
             "cached_at": self.cached_data['last_update'].get('system_stats', datetime.now(timezone.utc)).isoformat()
         }
         
-        # EMERGENCY DEDUPLICATION CHECK
-        if self._should_broadcast("system_stats", message):
-            await ws_manager.broadcast(message, topic="system_stats")
-            logger.debug("📡 Broadcasted single system stat")
-        else:
-            logger.debug("🚫 Skipped duplicate system stats broadcast")
+        await ws_manager.broadcast(message, topic="system_stats")
     
     async def _send_immediate_system_stats(self):
         """Send immediate system stats data"""
         try:
-            recent_stats = await surreal_service.get_system_stats(hours_back=1)
-            
-            if recent_stats and len(recent_stats) > 0:
-                stats_batch = recent_stats[:30]
-                latest_stats = recent_stats[0]
-                
-                # Update cache
-                self.cached_data['system_stats'] = latest_stats
-                self.cached_data['system_stats_batch'] = stats_batch
-                self.cached_data['last_update']['system_stats'] = datetime.now(timezone.utc)
-                self.cached_data['last_update']['system_stats_batch'] = datetime.now(timezone.utc)
-                
-                logger.debug(f"📊 Cached {len(stats_batch)} system stats for immediate responses")
-            else:
-                logger.debug("📊 No recent system stats found for immediate cache")
-                
+            if self.cached_data['system_stats']:
+                await self._broadcast_system_stats(self.cached_data['system_stats'], trigger="immediate")
         except Exception as e:
-            logger.error(f"Error getting immediate system stats: {e}")
+            logger.error(f"Error sending immediate system stats: {e}")
+    
 
-    # Docker Monitoring with DEDUPLICATION
+    # Docker Monitoring
+    
+    # =============================================================================
+    # USER EVENT TABLE BIFURCATION
+    # =============================================================================    
+
     async def _start_docker_monitoring(self):
         """Start Docker stacks monitoring with fallback"""
         try:
             if surreal_service.connected:
+                # Try live query first
                 live_id = await surreal_service.create_live_query(
-                    "unified_stack",
-                    self._handle_docker_update
+                    "user_events",
+                    self._handle_user_event
                 )
-                
+                                
                 if live_id:
                     self.live_query_ids['docker_stacks'] = live_id
-                    logger.info("✅ Docker stacks live query started")
+                    
+                    # Send immediate data
                     await self._send_immediate_docker_data()
                     return
             
-            # Fallback to polling
-            await self._start_docker_polling()
+            logger.info("🔄 Docker monitoring will use live queries only (no polling fallback)")
             
         except Exception as e:
-            logger.error(f"❌ Live query failed for Docker stacks: {e}")
-            await self._start_docker_polling()
+            logger.warning(f"Live query failed for docker stacks: {e}")
     
-    async def _start_docker_polling(self):
-        """Fallback polling for Docker stacks"""
-        logger.info("🔄 Starting Docker polling fallback")
-        
-        async def poll_loop():
-            while self.running:
-                try:
-                    stacks = await unified_stack_service.get_all_unified_stacks()
-                    
-                    # Cache and broadcast
-                    self.cached_data['docker_stacks'] = stacks
-                    self.cached_data['last_update']['docker_stacks'] = datetime.now(timezone.utc)
-                    
-                    await self._broadcast_docker_stacks(stacks, trigger="polling")
-                    await asyncio.sleep(self.intervals['docker_stacks'])
-                    
-                except asyncio.CancelledError:
-                    break
-                except Exception as e:
-                    logger.error(f"Error in Docker polling: {e}")
-                    await asyncio.sleep(10)
-        
-        self.polling_tasks['docker_stacks'] = asyncio.create_task(poll_loop())
-    
-    async def _handle_docker_update(self, update_data):
-        """Handle Docker stacks live query updates with DEDUPLICATION"""
+    async def _handle_docker_update(self, update_data: Any):
+        """Handle significant Docker stacks live query updates"""
         try:
-            logger.debug("🐳 Docker live update received")
             
-            # Get fresh stacks from unified service
+            # Re-fetch and broadcast (only called for significant changes now)
             stacks = await unified_stack_service.get_all_unified_stacks()
-            
-            # Cache and broadcast with deduplication
             self.cached_data['docker_stacks'] = stacks
             self.cached_data['last_update']['docker_stacks'] = datetime.now(timezone.utc)
             
-            await self._broadcast_docker_stacks(stacks, trigger="live_query")
+            await self._broadcast_docker_stacks(stacks, trigger="live_query_filtered")
             
         except Exception as e:
-            logger.error(f"Error handling Docker update: {e}")
+            print(f"🐛 ERROR in docker update: {e}")
 
-    async def _broadcast_docker_stacks(self, stacks, trigger="polling"):
-        """Broadcast Docker stacks with EMERGENCY DEDUPLICATION"""
+    async def _handle_user_event(self, event_data: Any):
+        """Handle user events from the events table"""
+        try:
+            
+            # Only broadcast for Docker-related events
+            if "docker" in str(event_data).lower():
+                
+                # Get fresh stack data and broadcast
+                stacks = await unified_stack_service.get_all_unified_stacks()
+                self.cached_data['docker_stacks'] = stacks
+                self.cached_data['last_update']['docker_stacks'] = datetime.now(timezone.utc)
+                
+                await self._broadcast_docker_stacks(stacks, trigger="user_event")
+            else:
+                print(f"🐛 NON-DOCKER EVENT - Ignoring")
+            
+        except Exception as e:
+            print(f"🐛 ERROR in user event handler: {e}")
+    
+    async def _broadcast_docker_stacks(self, stacks_data: list, trigger: str = "polling"):
+        """Broadcast Docker stacks to websocket clients"""
         message = {
             "type": "unified_stacks",
             "data": {
                 "available": True,
-                "stacks": stacks,
-                "total_stacks": len(stacks),
-                "processing_time": "0ms"
+                "stacks": stacks_data,
+                "total_stacks": len(stacks_data),
+                "processing_time": "0ms"  # Real-time data
             },
             "trigger": trigger,
             "cached_at": self.cached_data['last_update'].get('docker_stacks', datetime.now(timezone.utc)).isoformat()
         }
         
-        # EMERGENCY DEDUPLICATION CHECK
-        if self._should_broadcast("unified_stacks", message):
-            await ws_manager.broadcast(message, topic="unified_stacks")
-            logger.info(f"📡 Broadcasted {len(stacks)} Docker stacks")
-        else:
-            logger.debug("🚫 Skipped duplicate Docker stacks broadcast")
+        await ws_manager.broadcast(message, topic="unified_stacks")
     
     async def _send_immediate_docker_data(self):
-        """Send immediate Docker data"""
+        """Send immediate Docker data to newly connected clients"""
         try:
-            stacks = await unified_stack_service.get_all_unified_stacks()
-            
-            # Cache and broadcast
-            self.cached_data['docker_stacks'] = stacks
-            self.cached_data['last_update']['docker_stacks'] = datetime.now(timezone.utc)
-            
+            if self.cached_data['docker_stacks']:
+                await self._broadcast_docker_stacks(self.cached_data['docker_stacks'], trigger="immediate")
+            else:
+                # Fetch fresh data if cache is empty
+                stacks = await unified_stack_service.get_all_unified_stacks()
+                self.cached_data['docker_stacks'] = stacks
+                self.cached_data['last_update']['docker_stacks'] = datetime.now(timezone.utc)
+                await self._broadcast_docker_stacks(stacks, trigger="immediate")
         except Exception as e:
-            logger.error(f"Error getting immediate Docker data: {e}")
-
+            logger.error(f"Error sending immediate Docker data: {e}")
+    
     # Heartbeat
     async def _start_heartbeat(self):
         """Start heartbeat broadcasting"""
@@ -454,22 +331,20 @@ class DataBroadcaster:
                 try:
                     await asyncio.sleep(self.intervals['heartbeat'])
                     
-                    if ws_manager.clients:
+                    if ws_manager.clients:  # Only send if there are connected clients
                         heartbeat_message = {
                             "type": "heartbeat",
                             "data": {
                                 "server_time": datetime.now(timezone.utc).isoformat(),
-                                "uptime_seconds": 0,
+                                "uptime_seconds": 0,  # Could calculate actual uptime
                                 "connected_clients": len(ws_manager.clients),
                                 "active_topics": list(ws_manager.topic_subscribers.keys())
                             },
                             "trigger": "heartbeat"
                         }
                         
-                        # Heartbeat with deduplication (though less critical)
-                        if self._should_broadcast("heartbeat", heartbeat_message):
-                            await ws_manager.broadcast(heartbeat_message, topic="heartbeat")
-                            logger.debug("💓 Heartbeat sent to connected clients")
+                        await ws_manager.broadcast(heartbeat_message, topic="heartbeat")
+                        logger.debug("💓 Heartbeat sent to connected clients")
                     
                 except asyncio.CancelledError:
                     break
@@ -480,32 +355,12 @@ class DataBroadcaster:
     
     # Public API
     async def force_update_system_stats(self):
-        """Force immediate system stats update (legacy method)"""
+        """Force immediate system stats update"""
         try:
             await self._send_immediate_system_stats()
             logger.info("🔄 Forced system stats update")
         except Exception as e:
             logger.error(f"Error forcing system stats update: {e}")
-
-    async def force_update_system_stats_batch(self, stats_batch):
-        """Force immediate system stats batch broadcast"""
-        try:
-            if not stats_batch:
-                logger.warning("⚠️ Empty stats batch provided to force_update_system_stats_batch")
-                return
-                
-            # Update cache with the provided batch
-            self.cached_data['system_stats_batch'] = stats_batch
-            self.cached_data['system_stats'] = stats_batch[0] if stats_batch else None
-            self.cached_data['last_update']['system_stats_batch'] = datetime.now(timezone.utc)
-            self.cached_data['last_update']['system_stats'] = datetime.now(timezone.utc)
-            
-            # Broadcast the batch immediately (with deduplication)
-            await self._broadcast_system_stats_batch(stats_batch, trigger="forced")
-            logger.info(f"🔄 Forced system stats batch broadcast ({len(stats_batch)} stats)")
-            
-        except Exception as e:
-            logger.error(f"Error forcing system stats batch update: {e}")
     
     async def force_update_docker_stacks(self):
         """Force immediate Docker stacks update"""
@@ -515,7 +370,7 @@ class DataBroadcaster:
         except Exception as e:
             logger.error(f"Error forcing Docker stacks update: {e}")
     
-    async def send_welcome_data(self, client_id):
+    async def send_welcome_data(self, client_id: str):
         """Send welcome data package to a newly connected client"""
         try:
             # Send cached Docker data
@@ -533,45 +388,8 @@ class DataBroadcaster:
                 }
                 await ws_manager.send_to_client(client_id, welcome_docker)
             
-            # Send cached system stats batch (prioritize batch over single stat)
-            if self.cached_data['system_stats_batch']:
-                # FIXED: Handle timestamp math safely
-                timespan_seconds = 30  # Default fallback
-                try:
-                    if len(self.cached_data['system_stats_batch']) > 1:
-                        first_ts = self.cached_data['system_stats_batch'][0].get("timestamp", 0)
-                        last_ts = self.cached_data['system_stats_batch'][-1].get("timestamp", 0)
-                        
-                        # Handle both string and numeric timestamps
-                        if isinstance(first_ts, str):
-                            first_ts = datetime.fromisoformat(first_ts.replace('Z', '+00:00')).timestamp()
-                        if isinstance(last_ts, str):
-                            last_ts = datetime.fromisoformat(last_ts.replace('Z', '+00:00')).timestamp()
-                        
-                        timespan_seconds = float(first_ts) - float(last_ts)
-                except Exception as e:
-                    logger.debug(f"Could not calculate welcome timespan: {e}")
-                
-                welcome_stats_batch = {
-                    "type": "system_stats_batch",
-                    "data": {
-                        "batch": self.cached_data['system_stats_batch'],
-                        "batch_size": len(self.cached_data['system_stats_batch']),
-                        "latest": self.cached_data['system_stats_batch'][0],
-                        "oldest": self.cached_data['system_stats_batch'][-1],
-                        "timespan_seconds": timespan_seconds
-                    },
-                    "trigger": "welcome",
-                    "cached_at": self.cached_data['last_update'].get('system_stats_batch', datetime.now(timezone.utc)).isoformat(),
-                    "playback_info": {
-                        "total_duration_ms": 30000,
-                        "update_interval_ms": 500,
-                        "smooth_tweening": True
-                    }
-                }
-                await ws_manager.send_to_client(client_id, welcome_stats_batch)
-            elif self.cached_data['system_stats']:
-                # Fallback to single stat if batch not available
+            # Send cached system stats
+            if self.cached_data['system_stats']:
                 welcome_stats = {
                     "type": "system_stats",
                     "data": self.cached_data['system_stats'],
@@ -588,28 +406,18 @@ class DataBroadcaster:
                     "intervals": self.intervals,
                     "live_queries": list(self.live_query_ids.keys()),
                     "polling_fallbacks": list(self.polling_tasks.keys()),
-                    "features": ["binary_frames", "orjson", "high_performance", "batched_stats", "deduplication"],
-                    "batching": {
-                        "system_stats_batch_size": 30,
-                        "system_stats_interval_seconds": 30,
-                        "playback_duration_ms": 30000,
-                        "playback_interval_ms": 500
-                    },
-                    "deduplication": {
-                        "enabled": True,
-                        "window_seconds": self.dedup_window_seconds
-                    }
+                    "features": ["binary_frames", "orjson", "high_performance"]
                 },
                 "trigger": "welcome"
             }
             await ws_manager.send_to_client(client_id, server_info)
             
-            logger.debug(f"📦 Welcome data sent to client {client_id} (with deduplication)")
+            logger.debug(f"📦 Welcome data sent to client {client_id}")
             
         except Exception as e:
             logger.error(f"Error sending welcome data to {client_id}: {e}")
     
-    def get_stats(self):
+    def get_stats(self) -> dict:
         """Get comprehensive broadcaster statistics"""
         return {
             "running": self.running,
@@ -620,29 +428,15 @@ class DataBroadcaster:
             "cache_status": {
                 "docker_stacks": self.cached_data['docker_stacks'] is not None,
                 "system_stats": self.cached_data['system_stats'] is not None,
-                "system_stats_batch": self.cached_data['system_stats_batch'] is not None,
-                "batch_size": len(self.cached_data['system_stats_batch']) if self.cached_data['system_stats_batch'] else 0,
                 "last_updates": {
                     k: v.isoformat() if v else None 
                     for k, v in self.cached_data['last_update'].items()
                 }
             },
-            "websocket_stats": ws_manager.get_stats(),
-            "batching_info": {
-                "enabled": True,
-                "batch_size": 30,
-                "collection_interval": 1,
-                "broadcast_interval": 30
-            },
-            "deduplication": {
-                "enabled": True,
-                "window_seconds": self.dedup_window_seconds,
-                "last_broadcast_times": self.last_broadcast_times,
-                "tracked_message_types": list(self.last_broadcast_hashes.keys())
-            }
+            "websocket_stats": ws_manager.get_stats()
         }
     
-    async def update_interval(self, data_type, interval):
+    async def update_interval(self, data_type: str, interval: float):
         """Update broadcasting interval for a specific data type"""
         if data_type in self.intervals and interval > 0:
             old_interval = self.intervals[data_type]
@@ -662,7 +456,7 @@ class DataBroadcaster:
                 elif data_type == 'docker_stacks':
                     await self._start_docker_polling()
     
-    async def get_cached_data(self, data_type=None):
+    async def get_cached_data(self, data_type: str = None) -> dict:
         """Get cached data for immediate responses"""
         if data_type:
             return {
@@ -673,22 +467,8 @@ class DataBroadcaster:
             return {
                 "docker_stacks": self.cached_data.get('docker_stacks'),
                 "system_stats": self.cached_data.get('system_stats'),
-                "system_stats_batch": self.cached_data.get('system_stats_batch'),
                 "last_updates": self.cached_data['last_update']
             }
-
-    def get_batch_status(self):
-        """Get current batch status for debugging"""
-        batch = self.cached_data.get('system_stats_batch', [])
-        return {
-            "cached_batch_size": len(batch),
-            "latest_timestamp": batch[0].get("timestamp") if batch else None,
-            "oldest_timestamp": batch[-1].get("timestamp") if batch else None,
-            "last_update": self.cached_data['last_update'].get('system_stats_batch'),
-            "broadcasting_enabled": self.running,
-            "deduplication_active": True,
-            "dedup_window_seconds": self.dedup_window_seconds
-        }
 
 # Global instance
 data_broadcaster = DataBroadcaster()
