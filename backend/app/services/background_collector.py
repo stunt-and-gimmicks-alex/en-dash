@@ -235,7 +235,6 @@ class BackgroundCollector:
                 "network_packets_recv": network.packets_recv,
             }
             
-
             # Store in SurrealDB
             await surreal_service.store_system_stats(stats_data)
 

@@ -243,6 +243,7 @@ class SurrealDBService:
 
     async def store_system_stats(self, stats_data: Dict):
         """Store system statistics - ENHANCED DEBUG"""
+        
         if self._shutdown_requested:
             return
             
@@ -258,7 +259,6 @@ class SurrealDBService:
                 "collected_at": datetime.now(timezone.utc).isoformat()
             }
             
-
             result = await self.db.create("system_stats", stats_with_timestamp)
             
             

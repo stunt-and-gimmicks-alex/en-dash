@@ -118,33 +118,42 @@ class DataBroadcaster:
             logger.error(f"❌ Failed to connect to SurrealDB: {e}")
             logger.info("🔄 Will use polling fallback only")
     
+
+
     # System Stats Monitoring
     async def _start_system_stats_monitoring(self):
         """Start system stats monitoring with fallback"""
         try:
-            logger.info("🔍 DEBUG: Starting system stats monitoring...")
-            if surreal_service.connected:
-                logger.info("🔍 DEBUG: SurrealDB is connected, attempting live query...")
-                
-                live_id = await surreal_service.create_live_query(
-                    "system_stats",  # Just the table name
-                    self._handle_system_stats_update
-                )
-                
-                logger.info(f"🔍 DEBUG: Live query result: {live_id}")
-                
-                if live_id:
-                    self.live_query_ids['system_stats'] = live_id
-                    logger.info("✅ System stats live query started")
-                    await self._send_immediate_system_stats()
-                    return
-                else:
-                    logger.error("❌ Live query returned None/False")
-            else:
-                logger.error("❌ SurrealDB not connected for live queries")
-            
-            # Fallback to polling
-            await self._start_system_stats_polling()
+            logger.info("🔍 TEMPORARILY DISABLED system stats live query for testing")
+            return  # EXIT EARLY - no live queries or WebSocket broadcasting
+
+## Commented out for profileing
+#    async def _start_system_stats_monitoring(self):
+#        """Start system stats monitoring with fallback"""
+#        try:
+#            logger.info("🔍 DEBUG: Starting system stats monitoring...")
+#            if surreal_service.connected:
+#                logger.info("🔍 DEBUG: SurrealDB is connected, attempting live query...")
+#                
+#                live_id = await surreal_service.create_live_query(
+#                    "system_stats",  # Just the table name
+#                    self._handle_system_stats_update
+#                )
+#                
+#                logger.info(f"🔍 DEBUG: Live query result: {live_id}")
+#                
+#                if live_id:
+#                    self.live_query_ids['system_stats'] = live_id
+#                    logger.info("✅ System stats live query started")
+#                    await self._send_immediate_system_stats()
+#                    return
+#                else:
+#                    logger.error("❌ Live query returned None/False")
+#            else:
+#                logger.error("❌ SurrealDB not connected for live queries")
+#            
+#            # Fallback to polling
+#            await self._start_system_stats_polling()
             
         except Exception as e:
             logger.error(f"❌ Live query failed for system stats: {e}")
@@ -185,8 +194,7 @@ class DataBroadcaster:
         self.polling_tasks['system_stats'] = asyncio.create_task(poll_loop())
     
     async def _handle_system_stats_update(self, update_data: Any):
-        """Handle system stats live query updates"""
-        
+        """Handle system stats live query updates"""        
 
         try:
             logger.debug("📊 System stats live update received")
@@ -202,17 +210,17 @@ class DataBroadcaster:
                 self.cached_data['system_stats'] = latest_stats
                 self.cached_data['last_update']['system_stats'] = datetime.now(timezone.utc)
 
-                
                 await self._broadcast_system_stats(latest_stats, trigger="live_query")
 
 
             else:
                 logger.warning("No recent system stats found in SurrealDB")
-                
+
         except Exception as e:
             logger.error(f"Error handling system stats update: {e}")
 
     async def _broadcast_system_stats(self, stats_data: dict, trigger: str = "polling"):
+        
         """Broadcast system stats to websocket clients"""
         message = {
             "type": "system_stats",
