@@ -113,15 +113,12 @@ class SurrealDBService:
             raise Exception(f"Cannot create live query: SurrealDB not connected")
         
         try:
-            print(f"🐛 LIVE QUERY SETUP: Creating live query for '{table_name}' at {datetime.now()}")
             
             # Use the live() method - SurrealDB 2.x pattern
             live_query_id = await self.db.live(table_name)
-            print(f"🐛 LIVE QUERY SETUP: Live query ID created: {live_query_id} at {datetime.now()}")
             
             # Subscribe to the live query using subscribe_live()
             subscription = await self.db.subscribe_live(live_query_id)
-            print(f"🐛 LIVE QUERY SETUP: Subscription created for {live_query_id} at {datetime.now()}")
             
             # Store live query info
             self.live_queries[live_query_id] = {
@@ -135,9 +132,7 @@ class SurrealDBService:
             listen_task = asyncio.create_task(
                 self._listen_to_live_query(live_query_id, subscription, callback)
             )
-            self.live_queries[live_query_id]["task"] = listen_task
-            print(f"🐛 LIVE QUERY SETUP: Listener task started for {live_query_id} at {datetime.now()}")
-            
+            self.live_queries[live_query_id]["task"] = listen_task          
             logger.info(f"📡 Created live query for '{table_name}': {live_query_id}")
             return live_query_id
                 
