@@ -121,11 +121,59 @@ class DataBroadcaster:
 
 
     # System Stats Monitoring
+    # CLEAN POLLING IMPLEMENTATION
+    # Replace the live query system with simple, efficient polling
+
     async def _start_system_stats_monitoring(self):
-        """Start system stats monitoring with fallback"""
+        """Start system stats monitoring with polling (NO live queries)"""
         try:
-            logger.info("🔍 TEMPORARILY DISABLED system stats live query for testing")
-            return  # EXIT EARLY - no live queries or WebSocket broadcasting
+            logger.info("📊 Starting system stats monitoring with polling")
+            logger.info(f"📊 Polling interval: {self.intervals['system_stats']} seconds")
+            
+            # Always use polling - no more live query attempts
+            await self._start_system_stats_polling()
+            
+        except Exception as e:
+            logger.error(f"❌ System stats monitoring failed: {e}")
+
+# OPTIMIZED POLLING - Single record lookup instead of full table scan
+
+    async def _start_system_stats_polling(self):
+        """Poll SurrealDB for system stats - OPTIMIZED for single latest record"""
+        logger.info("🔄 Starting OPTIMIZED system stats polling every 1 second")
+        logger.info("🚀 Using single latest record lookup (not full table scan)")
+        
+        async def poll_loop():
+            while self.running:
+                try:
+                    # OPTIMIZATION: Get only the latest record, not 10 records with ORDER BY
+                    latest_stats = await surreal_service.get_system_stats_latest()
+                    
+                    if latest_stats:
+                        # Cache and broadcast
+                        self.cached_data['system_stats'] = latest_stats
+                        self.cached_data['last_update']['system_stats'] = datetime.now(timezone.utc)
+                        
+                        await self._broadcast_system_stats(latest_stats, trigger="optimized_polling")
+                        logger.debug("📊 System stats polled and broadcast (optimized)")
+                        
+                    else:
+                        logger.warning("📊 No recent system stats found in database")
+                    
+                    # Wait 1 second to match frontend expectations and background collector frequency
+                    await asyncio.sleep(1.0)
+                    
+                except asyncio.CancelledError:
+                    logger.info("📊 System stats polling cancelled")
+                    break
+                except Exception as e:
+                    logger.error(f"❌ Error in system stats polling: {e}")
+                    # Wait longer on error to avoid spam
+                    await asyncio.sleep(10)
+        
+        # Start the polling task
+        self.polling_tasks['system_stats'] = asyncio.create_task(poll_loop())
+        logger.info("✅ OPTIMIZED system stats polling started - 1 second intervals")
 
 ## Commented out for profileing
 #    async def _start_system_stats_monitoring(self):
@@ -154,70 +202,74 @@ class DataBroadcaster:
 #            
 #            # Fallback to polling
 #            await self._start_system_stats_polling()
-            
-        except Exception as e:
-            logger.error(f"❌ Live query failed for system stats: {e}")
-            await self._start_system_stats_polling()
-    
-    async def _start_system_stats_polling(self):
-        """Fallback polling for system stats"""
-        logger.info("🔄 Starting system stats polling fallback")
-        print(f"🐛 Fallback polling mechanism initiated. This is a problem!!!")
-        
-        async def poll_loop():
-            while self.running:
-                try:
-                    # This would integrate with your system stats service
-                    # For now, we'll send a basic heartbeat
-                    stats_data = {
-                        "cpu_usage": 0.0,
-                        "memory_usage": 0.0,
-                        "disk_usage": 0.0,
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                        "source": "polling"
-                    }
-                    
-                    # Cache and broadcast
-                    self.cached_data['system_stats'] = stats_data
-                    self.cached_data['last_update']['system_stats'] = datetime.now(timezone.utc)
-                    print(f"🐛 Falling falling falling back, this should not be here!")
+#            
+#        except Exception as e:
+#            logger.error(f"❌ Live query failed for system stats: {e}")
+#            await self._start_system_stats_polling()
+#    
+#    async def _start_system_stats_polling(self):
+#        """Fallback polling for system stats"""
+#        logger.info("🔄 Starting system stats polling fallback")
+#        print(f"🐛 Fallback polling mechanism initiated. This is a problem!!!")
+#        
+#        async def poll_loop():
+#            while self.running:
+#                try:
+#                    # This would integrate with your system stats service
+#                    # For now, we'll send a basic heartbeat
+#                    stats_data = {
+#                        "cpu_usage": 0.0,
+#                        "memory_usage": 0.0,
+#                        "disk_usage": 0.0,
+#                        "timestamp": datetime.now(timezone.utc).isoformat(),
+#                        "source": "polling"
+#                    }
+#                   
+#                    # Cache and broadcast
+#                    self.cached_data['system_stats'] = stats_data
+#                    self.cached_data['last_update']['system_stats'] = datetime.now(timezone.utc)
+#
+#                    await self._broadcast_system_stats(stats_data, trigger="polling")
+#                    await asyncio.sleep(self.intervals['system_stats'])
+#                   
+#                except asyncio.CancelledError:
+#                    break
+#                except Exception as e:
+#                    logger.error(f"Error in system stats polling: {e}")
+#                    await asyncio.sleep(10)  # Longer delay on error
+#        
+#        self.polling_tasks['system_stats'] = asyncio.create_task(poll_loop())
 
-                    await self._broadcast_system_stats(stats_data, trigger="polling")
-                    await asyncio.sleep(self.intervals['system_stats'])
-                    
-                except asyncio.CancelledError:
-                    break
-                except Exception as e:
-                    logger.error(f"Error in system stats polling: {e}")
-                    await asyncio.sleep(10)  # Longer delay on error
-        
-        self.polling_tasks['system_stats'] = asyncio.create_task(poll_loop())
-    
+
     async def _handle_system_stats_update(self, update_data: Any):
-        """Handle system stats live query updates"""        
-
-        try:
-            logger.debug("📊 System stats live update received")
-            
-            # Get fresh data from SurrealDB 
-            recent_stats = await surreal_service.get_system_stats(hours_back=1)  # We'll fix this method call in step 2
-            
-            if recent_stats and len(recent_stats) > 0:
-                # Get the most recent stat entry
-                latest_stats = recent_stats[0]
-                
-                # Cache and broadcast (same pattern as Docker)
-                self.cached_data['system_stats'] = latest_stats
-                self.cached_data['last_update']['system_stats'] = datetime.now(timezone.utc)
-
-                await self._broadcast_system_stats(latest_stats, trigger="live_query")
-
-
-            else:
-                logger.warning("No recent system stats found in SurrealDB")
-
-        except Exception as e:
-            logger.error(f"Error handling system stats update: {e}")
+        """DEPRECATED: This method is no longer used since we switched to polling"""
+        logger.warning("⚠️ _handle_system_stats_update called but live queries are disabled")
+        pass
+#    async def _handle_system_stats_update(self, update_data: Any):
+#        """Handle system stats live query updates"""        
+#
+#        try:
+#            logger.debug("📊 System stats live update received")
+#            
+#            # Get fresh data from SurrealDB 
+#            recent_stats = await surreal_service.get_system_stats(hours_back=1)  # We'll fix this method call in step 2
+#            
+#            if recent_stats and len(recent_stats) > 0:
+#                # Get the most recent stat entry
+#                latest_stats = recent_stats[0]
+#                
+#                # Cache and broadcast (same pattern as Docker)
+#                self.cached_data['system_stats'] = latest_stats
+#                self.cached_data['last_update']['system_stats'] = datetime.now(timezone.utc)
+#
+#                await self._broadcast_system_stats(latest_stats, trigger="live_query")
+#
+#
+#            else:
+#                logger.warning("No recent system stats found in SurrealDB")
+#
+#        except Exception as e:
+#            logger.error(f"Error handling system stats update: {e}")
 
     async def _broadcast_system_stats(self, stats_data: dict, trigger: str = "polling"):
         
