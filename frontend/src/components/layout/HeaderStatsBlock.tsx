@@ -14,10 +14,11 @@ import {
   Progress,
   ProgressCircle,
   Stack,
-  Status,
-  StatusIndicator,
   Text,
 } from "@chakra-ui/react";
+import { systemStatsSelectors } from "@/stores/v06-systemStatsStore";
+import { Chart, useChart } from "@chakra-ui/charts";
+import { Bar, BarChart, Cell } from "recharts";
 
 import {
   PiCpu,

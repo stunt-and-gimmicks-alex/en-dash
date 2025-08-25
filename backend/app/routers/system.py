@@ -411,13 +411,11 @@ async def get_stats_range(
 async def get_latest_stats(
     fields: List[StatField] = Query([StatField.ALL], description="Specific fields to return")
 ):
-    """
-    Get the most recent system stats with field filtering
-    PHASE 3: Uses O(1) time-series lookup
-    """
+    print("🔍 DEBUG: /stats/latest endpoint called!")
     try:
-        # Use the new time-series method for instant lookup
+        print("🔍 DEBUG: About to call get_system_stats_latest_timeseries()")
         latest_stat = await surreal_service.get_system_stats_latest_timeseries()
+        print(f"🔍 DEBUG: Method returned: {latest_stat}")
         
         if not latest_stat:
             return {

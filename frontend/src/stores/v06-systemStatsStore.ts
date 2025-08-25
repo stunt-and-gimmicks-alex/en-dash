@@ -60,6 +60,15 @@ interface SystemStatsBatch {
   timespan_seconds: number;
 }
 
+interface SparklineDataPoint {
+  timestamp: number;
+  cpu_percent: number;
+  memory_percent: number;
+  disk_percent: number;
+  network_bytes_sent: number;
+  network_bytes_recv: number;
+}
+
 interface SystemStatsStore {
   // WebSocket Connection State
   connected: boolean;
@@ -85,6 +94,22 @@ interface SystemStatsStore {
     updateInterval: number;
     smoothTweening: boolean;
   };
+
+  // NEW: Sparkline support
+  sparklineData: SparklineDataPoint[];
+  maxSparklinePoints: number;
+
+  // NEW: Sparkline actions
+  addSparklinePoint: (stats: SystemStatsData) => void;
+  clearSparklineData: () => void;
+  setMaxSparklinePoints: (count: number) => void;
+
+  // NEW: Sparkline selectors (computed values)
+  getCpuSparklineData: () => number[];
+  getMemorySparklineData: () => number[];
+  getDiskSparklineData: () => number[];
+  getNetworkSentSparklineData: () => number[];
+  getNetworkRecvSparklineData: () => number[];
 
   // Private subscription management
   _isSubscribed: boolean;
@@ -200,6 +225,71 @@ export const useSystemStatsStore = create<SystemStatsStore>()(
       totalDuration: 30000, // 30 seconds
       updateInterval: 500, // 500ms
       smoothTweening: true,
+    },
+
+    // NEW: Sparkline data
+    sparklineData: [],
+    maxSparklinePoints: 60, // 30 seconds at ~0.5s intervals
+
+    addSparklinePoint: (stats: SystemStatsData) => {
+      const state = get();
+      const timestamp = Date.now();
+
+      const newPoint: SparklineDataPoint = {
+        timestamp,
+        cpu_percent: stats.cpu_percent || 0,
+        memory_percent: stats.memory_percent || 0,
+        disk_percent: stats.disk_percent || 0,
+        network_bytes_sent: stats.network_bytes_sent || 0,
+        network_bytes_recv: stats.network_bytes_recv || 0,
+      };
+
+      // Add new point and maintain rolling window
+      const newSparklineData = [...state.sparklineData, newPoint].slice(
+        -state.maxSparklinePoints
+      ); // Keep only last N points
+
+      set({ sparklineData: newSparklineData });
+
+      console.log(
+        `✨ Sparkline: Added point, data length: ${newSparklineData.length}/${state.maxSparklinePoints}`
+      );
+    },
+
+    clearSparklineData: () => {
+      console.log("🗑️ Clearing sparkline data");
+      set({ sparklineData: [] });
+    },
+
+    setMaxSparklinePoints: (count: number) => {
+      const state = get();
+      const newData = state.sparklineData.slice(-count);
+      set({
+        maxSparklinePoints: count,
+        sparklineData: newData,
+      });
+      console.log(`📊 Updated max sparkline points to ${count}`);
+    },
+
+    // NEW: Sparkline selectors (computed values)
+    getCpuSparklineData: () => {
+      return get().sparklineData.map((point) => point.cpu_percent);
+    },
+
+    getMemorySparklineData: () => {
+      return get().sparklineData.map((point) => point.memory_percent);
+    },
+
+    getDiskSparklineData: () => {
+      return get().sparklineData.map((point) => point.disk_percent);
+    },
+
+    getNetworkSentSparklineData: () => {
+      return get().sparklineData.map((point) => point.network_bytes_sent);
+    },
+
+    getNetworkRecvSparklineData: () => {
+      return get().sparklineData.map((point) => point.network_bytes_recv);
     },
 
     // WebSocket Actions
@@ -675,6 +765,8 @@ export const useSystemStatsStore = create<SystemStatsStore>()(
           },
         });
 
+        get().addSparklinePoint(currentStat);
+
         // Log progress for batched mode
         if (state.statsQueue.isBatched) {
           const progress =
@@ -795,6 +887,21 @@ export const systemStatsSelectors = {
   useSetUpdateInterval: () =>
     useSystemStatsStore((state) => state.setUpdateInterval),
   useClearHistory: () => useSystemStatsStore((state) => state.clearHistory),
+
+  // NEW: Sparkline selectors
+  useSparklineData: () => useSystemStatsStore((state) => state.sparklineData),
+  useMaxSparklinePoints: () =>
+    useSystemStatsStore((state) => state.maxSparklinePoints),
+  useCpuSparklineData: () =>
+    useSystemStatsStore((state) => state.getCpuSparklineData()),
+  useMemorySparklineData: () =>
+    useSystemStatsStore((state) => state.getMemorySparklineData()),
+  useDiskSparklineData: () =>
+    useSystemStatsStore((state) => state.getDiskSparklineData()),
+  useNetworkSentSparklineData: () =>
+    useSystemStatsStore((state) => state.getNetworkSentSparklineData()),
+  useNetworkRecvSparklineData: () =>
+    useSystemStatsStore((state) => state.getNetworkRecvSparklineData()),
 };
 
 // Store initialization function (follows v06-stackStore pattern)

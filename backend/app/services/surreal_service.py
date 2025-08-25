@@ -299,7 +299,7 @@ class SurrealDBService:
                 logger.error(f"❌ Failed to store system stats with complex ID: {e}")
 
     async def get_system_stats_latest_timeseries(self) -> Dict:
-        """Get latest system stats using correct SurrealDB Python SDK syntax"""
+        """Get latest system stats using correct SurrealDB time-series syntax"""
         
         if self._shutdown_requested:
             return {}
@@ -308,53 +308,49 @@ class SurrealDBService:
             return {}
             
         try:
-            # CORRECT: Simple query to get the most recent record
-            query = "SELECT * FROM system_stats ORDER BY id DESC LIMIT 1"
+            # Get records from the last 1 minute (60,000 ms)
+            now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+            start_ms = now_ms - 60000  # 1 minute back
+            
+            # CORRECT: Use Unicode angle brackets for time-series range query
+            query = f"SELECT * FROM system_stats:⟨[{start_ms}]⟩..⟨[{now_ms}]⟩"
             
             result = await self.db.query(query)
-            print(f"🔍 DEBUG: Raw query result: {result}")
-            print(f"🔍 DEBUG: Result type: {type(result)}")
-            if result:
-                print(f"🔍 DEBUG: First element: {result[0] if len(result) > 0 else 'NO FIRST ELEMENT'}")
-                if len(result) > 0 and result[0]:
-                    print(f"🔍 DEBUG: First result type: {type(result[0])}")
             
             # Handle SurrealDB Python SDK response format
-            if result and len(result) > 0 and result[0] and len(result[0]) > 0:
-                latest_record = result[0][0]  # First query, first result
+            if result and isinstance(result, list) and len(result) > 0:
+                records = result[0] if isinstance(result[0], list) else result
                 
-                # Extract timestamp from record ID: system_stats:[timestamp_ms]
-                if 'id' in latest_record:
-                    try:
-                        # Your record format shows system_stats:⟨[1756077573786]⟩
-                        # The ⟨⟩ are just display characters, actual storage is [timestamp]
-                        id_str = str(latest_record['id'])
-                        
-                        # Extract timestamp from various possible formats
-                        if '[' in id_str and ']' in id_str:
-                            # Find the number between [ and ]
-                            start_idx = id_str.find('[') + 1
-                            end_idx = id_str.find(']')
-                            timestamp_ms = int(id_str[start_idx:end_idx])
-                            
-                            timestamp_dt = datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc)
-                            
-                            # Add timestamp fields for frontend compatibility
-                            latest_record['timestamp'] = timestamp_dt.isoformat()
-                            latest_record['collected_at'] = latest_record['timestamp']
-                            
-                            logger.debug(f"📊 Retrieved latest stats: {timestamp_dt}, CPU: {latest_record.get('cpu_percent')}%")
-                            return latest_record
-                            
-                    except (ValueError, TypeError) as e:
-                        logger.error(f"Failed to parse timestamp from ID {latest_record.get('id')}: {e}")
-                        # Still return the record with current timestamp as fallback
-                        current_time = datetime.now(timezone.utc).isoformat()
-                        latest_record['timestamp'] = current_time
-                        latest_record['collected_at'] = current_time
-                        return latest_record
+                if records and len(records) > 0:
+                    # Get the last record (most recent timestamp)
+                    latest_record = records[-1]
+                    
+                    # Extract timestamp from record ID and add timestamp fields
+                    if 'id' in latest_record:
+                        try:
+                            id_str = str(latest_record['id'])
+                            # Extract timestamp from format: system_stats:⟨[1756136800000]⟩
+                            if '⟨[' in id_str and ']⟩' in id_str:
+                                start_idx = id_str.find('⟨[') + 2
+                                end_idx = id_str.find(']⟩')
+                                timestamp_ms = int(id_str[start_idx:end_idx])
+                                
+                                timestamp_dt = datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc)
+                                latest_record['timestamp'] = timestamp_dt.isoformat()
+                                latest_record['collected_at'] = latest_record['timestamp']
+                                
+                                logger.debug(f"📊 Retrieved latest stats: {timestamp_dt}, CPU: {latest_record.get('cpu_percent')}%")
+                                
+                        except (ValueError, TypeError, IndexError) as e:
+                            logger.warning(f"Could not extract timestamp from ID {latest_record.get('id')}: {e}")
+                            # Still return the record with current timestamp as fallback
+                            current_time = datetime.now(timezone.utc).isoformat()
+                            latest_record['timestamp'] = current_time
+                            latest_record['collected_at'] = current_time
+                    
+                    return latest_record
             
-            logger.warning("📊 No system stats records found in database")
+            logger.warning("📊 No system stats records found in last minute")
             return {}
             
         except Exception as e:
@@ -363,7 +359,7 @@ class SurrealDBService:
             return {}
 
     async def get_system_stats_range_timeseries(self, minutes_back: int = 60) -> List[Dict]:
-        """Get system stats range using correct SurrealDB Python SDK syntax"""
+        """Get system stats range using correct SurrealDB time-series syntax"""
         
         if self._shutdown_requested:
             return []
@@ -372,55 +368,48 @@ class SurrealDBService:
             return []
             
         try:
-            # Calculate time range for filtering
+            # Calculate time range
             now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
             start_ms = now_ms - (minutes_back * 60 * 1000)
             
-            # APPROACH 1: Try range query if your IDs are consistently formatted
-            try:
-                query = f"SELECT * FROM system_stats:[{start_ms}]..=[{now_ms}] ORDER BY id DESC"
-                result = await self.db.query(query)
-                
-                if result and len(result) > 0 and result[0]:
-                    records = result[0]  # First query result
-                    if records:
-                        logger.debug(f"📊 Range query successful: {len(records)} records")
-                        return self._add_timestamps_to_records(records)
-            except Exception as range_error:
-                logger.debug(f"Range query failed, trying fallback: {range_error}")
+            # CORRECT: Use Unicode angle brackets for time-series range query
+            query = f"SELECT * FROM system_stats:⟨[{start_ms}]⟩..⟨[{now_ms}]⟩"
             
-            # APPROACH 2: Fallback - get recent records and filter by timestamp
-            query = f"SELECT * FROM system_stats ORDER BY id DESC LIMIT {min(minutes_back * 3, 1000)}"
             result = await self.db.query(query)
             
-            if result and len(result) > 0 and result[0]:
-                records = result[0]  # First query result
+            # Handle SurrealDB Python SDK response format
+            if result and isinstance(result, list) and len(result) > 0:
+                records = result[0] if isinstance(result[0], list) else result
                 
-                # Filter records within time range
-                filtered_records = []
-                for record in records:
-                    if 'id' in record:
-                        try:
-                            id_str = str(record['id'])
-                            if '[' in id_str and ']' in id_str:
-                                start_idx = id_str.find('[') + 1
-                                end_idx = id_str.find(']')
-                                timestamp_ms = int(id_str[start_idx:end_idx])
-                                
-                                # Check if record is within time range
-                                if timestamp_ms >= start_ms:
+                if records:
+                    # Add timestamp fields to each record
+                    processed_records = []
+                    for record in records:
+                        if 'id' in record:
+                            try:
+                                id_str = str(record['id'])
+                                # Extract timestamp from format: system_stats:⟨[1756136800000]⟩
+                                if '⟨[' in id_str and ']⟩' in id_str:
+                                    start_idx = id_str.find('⟨[') + 2
+                                    end_idx = id_str.find(']⟩')
+                                    timestamp_ms = int(id_str[start_idx:end_idx])
+                                    
                                     timestamp_dt = datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc)
                                     record['timestamp'] = timestamp_dt.isoformat()
                                     record['collected_at'] = record['timestamp']
-                                    filtered_records.append(record)
                                     
-                        except (ValueError, TypeError):
-                            continue
+                            except (ValueError, TypeError, IndexError):
+                                # Add fallback timestamp for records we can't parse
+                                current_time = datetime.now(timezone.utc).isoformat()
+                                record['timestamp'] = current_time
+                                record['collected_at'] = current_time
+                        
+                        processed_records.append(record)
+                    
+                    logger.debug(f"📊 Retrieved {len(processed_records)} stats records from last {minutes_back} minutes")
+                    return processed_records
                 
-                logger.debug(f"📊 Filtered {len(filtered_records)} records from last {minutes_back} minutes")
-                return filtered_records
-                
-            logger.warning(f"📊 No system stats records found")
+            logger.warning(f"📊 No system stats records found for last {minutes_back} minutes")
             return []
             
         except Exception as e:
