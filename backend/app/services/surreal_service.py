@@ -241,8 +241,10 @@ class SurrealDBService:
     # SYSTEM STATS STORAGE
     # =============================================================================
 
+    # PHASE 4: COMPLEX RECORD ID BACKEND IMPLEMENTATION
+
     async def store_system_stats(self, stats_data: Dict):
-        """Store system statistics using optimized time-series pattern - FIXED"""
+        """Store system statistics using complex record ID time-series pattern"""
         
         if self._shutdown_requested:
             return
@@ -252,28 +254,52 @@ class SurrealDBService:
             return
             
         try:
-            # PHASE 1: Keep current storage method but add timestamp to ensure uniqueness
-            # Phase 2 will implement proper complex record IDs later
+            # PHASE 4: Use current timestamp as record ID for O(1) access
+            current_time = datetime.now(timezone.utc)
             
-            stats_with_timestamp = {
-                **stats_data,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "collected_at": datetime.now(timezone.utc).isoformat()
+            # PHASE 4: Store FULL comprehensive data (not just minimal payload)
+            comprehensive_record = {
+                # Core metrics (matching SystemStatsData interface)
+                "cpu_percent": float(stats_data.get("cpu_percent", 0.0)),
+                "memory_percent": float(stats_data.get("memory_percent", 0.0)), 
+                "disk_percent": float(stats_data.get("disk_percent", 0.0)),
+                "memory_used_gb": float(stats_data.get("memory_used_gb", 0.0)),
+                "memory_total_gb": float(stats_data.get("memory_total_gb", 0.0)),
+                "disk_used_gb": float(stats_data.get("disk_used_gb", 0.0)),
+                "disk_total_gb": float(stats_data.get("disk_total_gb", 0.0)),
+                "network_bytes_sent": int(stats_data.get("network_bytes_sent", 0)),
+                "network_bytes_recv": int(stats_data.get("network_bytes_recv", 0)),
+                "network_packets_sent": int(stats_data.get("network_packets_sent", 0)),
+                "network_packets_recv": int(stats_data.get("network_packets_recv", 0)),
+                
+                # Legacy detailed objects (for comprehensive historical data)
+                "cpu": stats_data.get("cpu", {}),
+                "memory": stats_data.get("memory", {}),
+                "disk": stats_data.get("disk", {}),
+                "network": stats_data.get("network", {}),
+                "processes": stats_data.get("processes", {}),
+                
+                # Container resources - ensure it's an object, not None
+                "container_resources": stats_data.get("container_resources", {})
             }
             
-            # Use auto-generated ID to avoid conflicts - let SurrealDB handle uniqueness
-            result = await self.db.create("system_stats", stats_with_timestamp)
+            # COMPLEX RECORD ID: Use epoch timestamp for uniqueness and simplicity
+            # Format: system_stats:[1692912253123] (milliseconds since epoch)
+            timestamp_ms = int(current_time.timestamp() * 1000)
+            record_id = f"system_stats:[{timestamp_ms}]"
             
-            logger.debug("📊 Stored system stats with auto-generated ID")
+            result = await self.db.create(record_id, comprehensive_record)
+            
+            logger.debug(f"📊 Stored system stats with time-series ID: {timestamp_ms}")
             
         except asyncio.CancelledError:
             logger.info("📡 System stats storage cancelled during shutdown")
         except Exception as e:
             if not self._shutdown_requested:
-                logger.error(f"❌ Failed to store system stats: {e}")
+                logger.error(f"❌ Failed to store system stats with complex ID: {e}")
 
-    async def get_system_stats_latest(self) -> Dict:
-        """Get ONLY the most recent system stats - ultra-fast single record lookup"""
+    async def get_system_stats_latest_timeseries(self) -> Dict:
+        """Get latest system stats using time-series range query - O(1) performance!"""
         if self._shutdown_requested:
             return {}
             
@@ -281,27 +307,47 @@ class SurrealDBService:
             return {}
             
         try:
-            # OPTIMIZATION 2: Get only the most recent record (not 10 records!)
-            # This eliminates the expensive ORDER BY on large datasets
-            query = "SELECT * FROM system_stats ORDER BY timestamp DESC LIMIT 1"
+            # PHASE 4: Use range query on numeric timestamp IDs
+            # Get records from last 10 seconds using epoch milliseconds
+            now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+            start_ms = now_ms - (10 * 1000)  # 10 seconds ago
+            
+            query = f"SELECT * FROM system_stats:[{start_ms}]..[{now_ms}] ORDER BY id DESC LIMIT 1"
+            
             result = await self.db.query(query)
             
             if isinstance(result, list) and result and len(result) > 0:
-                serialized = serialize_surrealdb_objects(result)
-                return serialized[0] if serialized else {}
+                if isinstance(result[0], list) and len(result[0]) > 0:
+                    serialized = serialize_surrealdb_objects(result[0])
+                    latest_record = serialized[0] if serialized else {}
+                    
+                    # Add back timestamp field for frontend compatibility
+                    if 'id' in latest_record and isinstance(latest_record['id'], str):
+                        # Extract timestamp from numeric record ID
+                        try:
+                            # Record ID format: system_stats:[1692912253123]
+                            timestamp_ms = int(latest_record['id'].split('[')[1].split(']')[0])
+                            timestamp_dt = datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc)
+                            latest_record['timestamp'] = timestamp_dt.isoformat()
+                            latest_record['collected_at'] = latest_record['timestamp']
+                        except (IndexError, ValueError, TypeError):
+                            latest_record['timestamp'] = datetime.now(timezone.utc).isoformat()
+                            latest_record['collected_at'] = latest_record['timestamp']
+                    
+                    return latest_record
             
             return {}
             
         except asyncio.CancelledError:
-            logger.info("📡 System stats query cancelled during shutdown")
+            logger.info("📡 Time-series stats query cancelled during shutdown")
             return {}
         except Exception as e:
             if not self._shutdown_requested:
-                logger.error(f"❌ Failed to get latest system stats: {e}")
+                logger.error(f"❌ Failed to get latest time-series stats: {e}")
             return {}
 
-    async def get_system_stats_range(self, minutes_back: int = 5) -> List[Dict]:
-        """Get system stats for a specific time range using optimized range query"""
+    async def get_system_stats_range_timeseries(self, minutes_back: int = 60) -> List[Dict]:
+        """Get system stats range using time-series record IDs - super fast!"""
         if self._shutdown_requested:
             return []
             
@@ -309,38 +355,47 @@ class SurrealDBService:
             return []
             
         try:
-            # OPTIMIZATION 3: Use time range queries on record IDs (when we switch to complex IDs)
-            # For now, limit the query scope heavily
-            start_time = datetime.now(timezone.utc) - timedelta(minutes=minutes_back)
+            # PHASE 4: Range query using numeric epoch timestamps
+            now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+            start_ms = now_ms - (minutes_back * 60 * 1000)
             
-            query = f"""
-            SELECT * FROM system_stats 
-            WHERE timestamp >= '{start_time.isoformat()}'
-            ORDER BY timestamp DESC 
-            LIMIT 20
-            """
+            query = f"SELECT * FROM system_stats:[{start_ms}]..[{now_ms}] ORDER BY id DESC LIMIT 1000"
             
             result = await self.db.query(query)
             
             if isinstance(result, list) and result:
-                return serialize_surrealdb_objects(result)
+                if isinstance(result[0], list):
+                    records = serialize_surrealdb_objects(result[0])
+                else:
+                    records = serialize_surrealdb_objects(result)
+                
+                # Add timestamp fields for frontend compatibility
+                for record in records:
+                    if 'id' in record and isinstance(record['id'], str):
+                        try:
+                            # Record ID format: system_stats:[1692912253123]
+                            timestamp_ms = int(record['id'].split('[')[1].split(']')[0])
+                            timestamp_dt = datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc)
+                            record['timestamp'] = timestamp_dt.isoformat()
+                            record['collected_at'] = record['timestamp']
+                        except (IndexError, ValueError, TypeError):
+                            record['timestamp'] = datetime.now(timezone.utc).isoformat()
+                            record['collected_at'] = record['timestamp']
+                
+                return records
             return []
             
-        except asyncio.CancelledError:
-            logger.info("📡 System stats range query cancelled during shutdown")
-            return []
         except Exception as e:
-            if not self._shutdown_requested:
-                logger.error(f"❌ Failed to get system stats range: {e}")
+            logger.error(f"❌ Failed to get time-series range: {e}")
             return []
 
-    # DEPRECATED - replace the old inefficient method
+    # UPDATE: Replace the old get_system_stats method
     async def get_system_stats(self, hours_back: int = 24) -> List[Dict]:
-        """DEPRECATED: Use get_system_stats_latest() for single record or get_system_stats_range() for ranges"""
-        logger.warning("⚠️ get_system_stats() is deprecated - use get_system_stats_latest() instead")
+        """PHASE 4: Use time-series optimized method"""
+        logger.debug("Using time-series optimized query")
         
-        # For backwards compatibility, just return the latest record
-        latest = await self.get_system_stats_latest()
+        # For backwards compatibility, return latest record
+        latest = await self.get_system_stats_latest_timeseries()
         return [latest] if latest else []
 
     async def create_filtered_live_query(

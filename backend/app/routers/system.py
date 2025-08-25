@@ -9,7 +9,8 @@ import asyncio
 import logging
 import subprocess
 from datetime import datetime, timedelta
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
+from enum import Enum
 
 import psutil
 from fastapi import APIRouter, HTTPException, Query
@@ -339,15 +340,207 @@ async def get_broadcaster_status():
         raise HTTPException(status_code=500, detail=f"Error getting status: {str(e)}")
 
 # =============================================================================
-# REMOVED: SystemStatsConnectionManager
-# WebSocket functionality moved to:
-# - app/services/websocket_manager.py (connection management)
-# - app/services/data_broadcaster.py (data broadcasting)
-# - app/routers/picows_websocket.py (websocket endpoints)
+# NEW HISTORICAL DATA ENDPOINTS FOR DASHBOARDING
 # =============================================================================
 
-# REMOVED: All WebSocket-related classes and endpoints
-# This router now focuses ONLY on:
-# 1. REST endpoints for system information
-# 2. Historical data retrieval
-# 3. Integration with data broadcaster for forced updates
+class StatField(str, Enum):
+    CPU_PERCENT = "cpu_percent"
+    MEMORY_PERCENT = "memory_percent"
+    MEMORY_USED_GB = "memory_used_gb"
+    MEMORY_TOTAL_GB = "memory_total_gb"
+    DISK_PERCENT = "disk_percent"
+    DISK_USED_GB = "disk_used_gb"
+    DISK_TOTAL_GB = "disk_total_gb"
+    NETWORK_BYTES_SENT = "network_bytes_sent"
+    NETWORK_BYTES_RECV = "network_bytes_recv"
+    NETWORK_PACKETS_SENT = "network_packets_sent"
+    NETWORK_PACKETS_RECV = "network_packets_recv"
+    ALL = "all"
+
+@router.get("/stats/range")
+async def get_stats_range(
+    minutes_back: int = Query(60, ge=1, le=1440, description="Minutes of history (1-1440)"),
+    fields: List[StatField] = Query([StatField.ALL], description="Specific fields to return"),
+    limit: int = Query(1000, ge=1, le=10000, description="Maximum records to return")
+):
+    """
+    Get system stats for a specific time range with field filtering
+    PHASE 3: Works with time-series complex record IDs
+    """
+    try:
+        # Use the new time-series method
+        stats = await surreal_service.get_system_stats_range_timeseries(minutes_back=minutes_back)
+        
+        if not stats:
+            return {
+                "success": True,
+                "minutes_back": minutes_back,
+                "total_records": 0,
+                "fields_requested": fields,
+                "data": []
+            }
+        
+        # Apply field filtering
+        filtered_stats = []
+        for stat in stats[:limit]:  # Apply limit
+            if StatField.ALL in fields:
+                # Return all fields
+                filtered_stats.append(stat)
+            else:
+                # Return only requested fields + timestamp
+                filtered_stat = {"timestamp": stat.get("timestamp"), "collected_at": stat.get("collected_at")}
+                for field in fields:
+                    if field.value in stat:
+                        filtered_stat[field.value] = stat[field.value]
+                filtered_stats.append(filtered_stat)
+        
+        return {
+            "success": True,
+            "minutes_back": minutes_back,
+            "total_records": len(filtered_stats),
+            "fields_requested": [f.value for f in fields],
+            "data": filtered_stats,
+            "note": "Data retrieved from time-series optimized storage"
+        }
+    
+    except Exception as e:
+        logger.error(f"Error retrieving stats range: {e}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving stats range: {str(e)}")
+
+@router.get("/stats/latest")
+async def get_latest_stats(
+    fields: List[StatField] = Query([StatField.ALL], description="Specific fields to return")
+):
+    """
+    Get the most recent system stats with field filtering
+    PHASE 3: Uses O(1) time-series lookup
+    """
+    try:
+        # Use the new time-series method for instant lookup
+        latest_stat = await surreal_service.get_system_stats_latest_timeseries()
+        
+        if not latest_stat:
+            return {
+                "success": True,
+                "data": None,
+                "note": "No recent stats available"
+            }
+        
+        # Apply field filtering
+        if StatField.ALL in fields:
+            filtered_stat = latest_stat
+        else:
+            filtered_stat = {"timestamp": latest_stat.get("timestamp"), "collected_at": latest_stat.get("collected_at")}
+            for field in fields:
+                if field.value in latest_stat:
+                    filtered_stat[field.value] = latest_stat[field.value]
+        
+        return {
+            "success": True,
+            "fields_requested": [f.value for f in fields],
+            "data": filtered_stat,
+            "note": "Retrieved from time-series O(1) lookup"
+        }
+    
+    except Exception as e:
+        logger.error(f"Error retrieving latest stats: {e}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving latest stats: {str(e)}")
+
+@router.get("/stats/summary")
+async def get_stats_summary(
+    minutes_back: int = Query(60, ge=1, le=1440),
+    fields: List[StatField] = Query([StatField.CPU_PERCENT, StatField.MEMORY_PERCENT, StatField.DISK_PERCENT])
+):
+    """
+    Get statistical summary (min, max, avg) for specified fields over time range
+    PHASE 3: Perfect for dashboard cards and alerts
+    """
+    try:
+        # Get raw data using time-series method
+        stats = await surreal_service.get_system_stats_range_timeseries(minutes_back=minutes_back)
+        
+        if not stats:
+            return {"success": True, "data": {}, "note": "No data available for summary"}
+        
+        # Calculate summaries for each requested field
+        summaries = {}
+        for field in fields:
+            if field == StatField.ALL:
+                continue  # Skip 'all' for summary calculations
+            
+            field_values = [stat.get(field.value) for stat in stats if stat.get(field.value) is not None]
+            
+            if field_values:
+                summaries[field.value] = {
+                    "min": min(field_values),
+                    "max": max(field_values),
+                    "avg": sum(field_values) / len(field_values),
+                    "count": len(field_values),
+                    "latest": field_values[0] if field_values else None  # First record is latest
+                }
+            else:
+                summaries[field.value] = {
+                    "min": None, "max": None, "avg": None, "count": 0, "latest": None
+                }
+        
+        return {
+            "success": True,
+            "minutes_back": minutes_back,
+            "total_records": len(stats),
+            "data": summaries,
+            "note": "Statistical summary from time-series data"
+        }
+    
+    except Exception as e:
+        logger.error(f"Error calculating stats summary: {e}")
+        raise HTTPException(status_code=500, detail=f"Error calculating summary: {str(e)}")
+
+# UPDATE: Replace old /stats/history endpoint to use new time-series method
+@router.get("/stats/history")
+async def get_historical_stats(
+    hours_back: int = Query(24, ge=1, le=168, description="Hours of history (1-168)"),
+    fields: List[StatField] = Query([StatField.ALL], description="Specific fields to return"),
+    limit: int = Query(1000, ge=1, le=10000, description="Maximum records to return")
+):
+    """
+    UPDATED: Get historical system statistics using time-series optimization
+    PHASE 3: Backwards compatible but now uses complex record IDs
+    """
+    try:
+        # Convert hours to minutes for the time-series method
+        minutes_back = hours_back * 60
+        
+        # Use new time-series method instead of old get_system_stats
+        stats = await surreal_service.get_system_stats_range_timeseries(minutes_back=minutes_back)
+        
+        if not stats:
+            return {
+                "success": True,
+                "hours_back": hours_back,
+                "total_records": 0,
+                "data": [],
+                "note": "No historical data available"
+            }
+        
+        # Apply field filtering and limit
+        filtered_stats = []
+        for stat in stats[:limit]:
+            if StatField.ALL in fields:
+                filtered_stats.append(stat)
+            else:
+                filtered_stat = {"timestamp": stat.get("timestamp"), "collected_at": stat.get("collected_at")}
+                for field in fields:
+                    if field.value in stat:
+                        filtered_stat[field.value] = stat[field.value]
+                filtered_stats.append(filtered_stat)
+        
+        return {
+            "success": True,
+            "hours_back": hours_back,
+            "total_records": len(filtered_stats),
+            "data": filtered_stats,
+            "note": "Retrieved using time-series optimization - O(1) performance"
+        }
+    except Exception as e:
+        logger.error(f"Error retrieving historical stats: {e}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving historical stats: {str(e)}")

@@ -294,3 +294,129 @@ export {
 };
 
 export default useSystemStats;
+
+import { systemStatsApi, type StatField } from "@/services/v06-systemStatsApi";
+
+// ============================================================================
+// REACT HOOKS for dashboard components
+// ============================================================================
+
+// src/hooks/useSystemStatsHistory.ts
+import { useState } from "react";
+import { type SystemStat } from "@/types/unified";
+
+interface UseStatsRangeOptions {
+  minutesBack?: number;
+  fields?: StatField[];
+  refreshInterval?: number;
+  enabled?: boolean;
+}
+
+export const useSystemStatsRange = (options: UseStatsRangeOptions = {}) => {
+  const {
+    minutesBack = 60,
+    fields = ["all"],
+    refreshInterval,
+    enabled = true,
+  } = options;
+
+  const [data, setData] = useState<SystemStat[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchData = async () => {
+    if (!enabled) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await systemStatsApi.getStatsRange({
+        minutesBack,
+        fields,
+      });
+      setData(response.data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to fetch stats");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+
+    if (refreshInterval && refreshInterval > 0) {
+      const interval = setInterval(fetchData, refreshInterval * 1000);
+      return () => clearInterval(interval);
+    }
+  }, [minutesBack, JSON.stringify(fields), refreshInterval, enabled]);
+
+  return {
+    data,
+    loading,
+    error,
+    refetch: fetchData,
+    totalRecords: data.length,
+  };
+};
+
+export const useSystemStatsSummary = (minutesBack: number = 60) => {
+  const [data, setData] = useState<Record<string, any> | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchSummary = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await systemStatsApi.getStatsSummary(minutesBack);
+      setData(response.data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to fetch summary");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSummary();
+  }, [minutesBack]);
+
+  return {
+    summary: data,
+    loading,
+    error,
+    refetch: fetchSummary,
+  };
+};
+
+// Chart-specific hook for dashboard widgets
+export const useSystemStatsChart = (
+  metric: StatField,
+  timeRangeMinutes: number = 60
+) => {
+  const { data, loading, error } = useSystemStatsRange({
+    minutesBack: timeRangeMinutes,
+    fields: [metric],
+    refreshInterval: 30, // Refresh every 30 seconds for charts
+  });
+
+  // Transform data for chart libraries (recharts format)
+  const chartData = data.map((stat) => ({
+    time: new Date(stat.timestamp).toLocaleTimeString(),
+    value: stat[metric as keyof SystemStat] as number,
+    ...stat, // ✅ This includes timestamp, no need to duplicate it
+  }));
+
+  return {
+    data: chartData,
+    loading,
+    error,
+    latest: chartData[0]?.value || 0,
+    min: Math.min(...chartData.map((d) => d.value)),
+    max: Math.max(...chartData.map((d) => d.value)),
+    avg: chartData.reduce((sum, d) => sum + d.value, 0) / chartData.length || 0,
+  };
+};

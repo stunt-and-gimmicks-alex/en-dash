@@ -13,6 +13,7 @@ import { HStack, Span } from "@chakra-ui/react";
 import { useState } from "react";
 import type { Organization, Project } from "@/components/ui/small/DataFetcher";
 import { organizations } from "@/components/ui/small/DataFetcher";
+import { Dashboard } from "@/components/dashboard/pages/DashboardMainPage";
 // Import test data from ServiceSelectorComboBox
 
 // Keep your exact ContentPlaceholder and Label components
@@ -85,14 +86,8 @@ export const DashboardPage: React.FC = () => {
   };
 
   return (
-    <>
-      <Heading>Dashboard with Combobox Test</Heading>
-      <Text>
-        Testing ChakraUI v3 Comboboxes with Docker role and service data:
-      </Text>
-      <Container>
-        <HStack gap="3">hello world</HStack>
-      </Container>
-    </>
+    <Container>
+      <Dashboard />
+    </Container>
   );
 };

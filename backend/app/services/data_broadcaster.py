@@ -138,42 +138,29 @@ class DataBroadcaster:
 
 # OPTIMIZED POLLING - Single record lookup instead of full table scan
 
+    async def _start_system_stats_monitoring(self):
+        """PHASE 1: Direct WebSocket - NO database polling needed"""
+        try:
+            logger.info("📊 PHASE 1: Direct WebSocket mode enabled")
+            logger.info("📊 System stats will be broadcast directly from background_collector")
+            logger.info("📊 NO database polling - eliminates read queries entirely!")
+            
+            # No polling task needed - background_collector broadcasts directly
+            # Just ensure we have a cache entry initialized
+            if 'system_stats' not in self.cached_data:
+                self.cached_data['system_stats'] = None
+                self.cached_data['last_update']['system_stats'] = None
+                
+            logger.info("✅ Direct WebSocket system stats monitoring ready")
+            
+        except Exception as e:
+            logger.error(f"❌ Direct WebSocket setup failed: {e}")
+
+    # REMOVE/COMMENT OUT the old polling method
     async def _start_system_stats_polling(self):
-        """Poll SurrealDB for system stats - OPTIMIZED for single latest record"""
-        logger.info("🔄 Starting OPTIMIZED system stats polling every 1 second")
-        logger.info("🚀 Using single latest record lookup (not full table scan)")
-        
-        async def poll_loop():
-            while self.running:
-                try:
-                    # OPTIMIZATION: Get only the latest record, not 10 records with ORDER BY
-                    latest_stats = await surreal_service.get_system_stats_latest()
-                    
-                    if latest_stats:
-                        # Cache and broadcast
-                        self.cached_data['system_stats'] = latest_stats
-                        self.cached_data['last_update']['system_stats'] = datetime.now(timezone.utc)
-                        
-                        await self._broadcast_system_stats(latest_stats, trigger="optimized_polling")
-                        logger.debug("📊 System stats polled and broadcast (optimized)")
-                        
-                    else:
-                        logger.warning("📊 No recent system stats found in database")
-                    
-                    # Wait 1 second to match frontend expectations and background collector frequency
-                    await asyncio.sleep(1.0)
-                    
-                except asyncio.CancelledError:
-                    logger.info("📊 System stats polling cancelled")
-                    break
-                except Exception as e:
-                    logger.error(f"❌ Error in system stats polling: {e}")
-                    # Wait longer on error to avoid spam
-                    await asyncio.sleep(10)
-        
-        # Start the polling task
-        self.polling_tasks['system_stats'] = asyncio.create_task(poll_loop())
-        logger.info("✅ OPTIMIZED system stats polling started - 1 second intervals")
+        """DISABLED: No longer needed with direct WebSocket approach"""
+        logger.info("⚠️ Database polling disabled - using direct WebSocket broadcasts")
+        return
 
 ## Commented out for profileing
 #    async def _start_system_stats_monitoring(self):

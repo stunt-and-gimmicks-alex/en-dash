@@ -6,7 +6,7 @@ import logging
 import time
 import psutil
 import signal
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from .surreal_service import surreal_service
 from .docker_unified import unified_stack_service
 
@@ -160,13 +160,11 @@ class BackgroundCollector:
             logger.info("📡 System stats collection loop cancelled")
 
     async def _collect_system_stats(self):
-        """Collect comprehensive system statistics - WORKING VERSION"""
+        """Collect comprehensive system statistics - DIRECT WEBSOCKET VERSION"""
         if self._shutdown_requested:
             return
             
         try:
-            
-
             # CPU stats
             cpu_percent = psutil.cpu_percent(interval=None)  # Non-blocking
             
@@ -187,7 +185,6 @@ class BackgroundCollector:
                 load_avg = psutil.getloadavg()
             except AttributeError:
                 load_avg = [0, 0, 0]  # Windows fallback
-            
             
             # Build comprehensive stats object
             stats_data = {
@@ -235,15 +232,57 @@ class BackgroundCollector:
                 "network_packets_recv": network.packets_recv,
             }
             
-            # Store in SurrealDB
-            await surreal_service.store_system_stats(stats_data)
+            # PHASE 1: PARALLEL OPERATIONS - Store AND broadcast simultaneously
+            await asyncio.gather(
+                # Store in SurrealDB (for historical data)
+                surreal_service.store_system_stats(stats_data),
+                # DIRECT broadcast to WebSocket (no DB read!)
+                self._broadcast_stats_directly(stats_data)
+            )
 
-            
         except asyncio.CancelledError:
             logger.info("📡 System stats collection cancelled")
         except Exception as e:
             if not self._shutdown_requested:
                 logger.error(f"Error collecting system stats: {e}")
+
+    async def _broadcast_stats_directly(self, stats_data: dict):
+        """Broadcast MINIMAL stats directly - Phase 2: Reduced payload"""
+        try:
+            from .data_broadcaster import data_broadcaster
+            
+            current_time = datetime.now(timezone.utc)
+            
+            # PHASE 2: MINIMAL REAL-TIME PAYLOAD
+            # Only send the 4 most important metrics that change frequently
+            minimal_stats = {
+                # Core changing metrics
+                "cpu_percent": stats_data.get("cpu_percent", 0.0),
+                "memory_percent": stats_data.get("memory_percent", 0.0),
+                
+                # Network (changes constantly - useful for activity indication)
+                "network_bytes_sent": stats_data.get("network_bytes_sent", 0),
+                "network_bytes_recv": stats_data.get("network_bytes_recv", 0),
+                
+                # Disk capacity (changes slowly, but useful for critical alerts)
+                "disk_percent": stats_data.get("disk_percent", 0.0),
+                
+                # Timestamps (required)
+                "timestamp": current_time.isoformat(),
+                "collected_at": current_time.isoformat(),
+            }
+            
+            # Update the broadcaster's cache with FULL data (for immediate sends to new clients)
+            data_broadcaster.cached_data['system_stats'] = stats_data  # Full data for cache
+            data_broadcaster.cached_data['last_update']['system_stats'] = current_time
+            
+            # Broadcast MINIMAL payload for real-time updates
+            await data_broadcaster._broadcast_system_stats(minimal_stats, trigger="minimal")
+            
+            logger.debug(f"📊 Minimal stats broadcast: {len(str(minimal_stats))} bytes vs {len(str(stats_data))} bytes")
+            
+        except Exception as e:
+            logger.error(f"Error in minimal stats broadcast: {e}")
 
 # Global instance
 background_collector = BackgroundCollector()
