@@ -228,8 +228,17 @@ export const useSystemStatsStore = create<SystemStatsStore>()(
     },
 
     // NEW: Sparkline data
-    sparklineData: [],
-    maxSparklinePoints: 60, // 30 seconds at ~0.5s intervals
+    maxSparklinePoints: 30, // 30 seconds at ~0.5s intervals
+    sparklineData: Array(60)
+      .fill(0)
+      .map((_, index) => ({
+        timestamp: Date.now() - (60 - index) * 500, // Spaced 500ms apart
+        cpu_percent: 0,
+        memory_percent: 0,
+        disk_percent: 0,
+        network_bytes_sent: 0,
+        network_bytes_recv: 0,
+      })),
 
     addSparklinePoint: (stats: SystemStatsData) => {
       const state = get();

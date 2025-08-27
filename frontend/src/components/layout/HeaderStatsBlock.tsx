@@ -27,9 +27,13 @@ import {
   PiNetwork,
   PiCloudArrowDownFill,
   PiCloudArrowUpFill,
+  PiChartBar,
 } from "react-icons/pi";
 import { useSystemStats } from "@/hooks/v06-systemStatsHooks";
 import type { IconType } from "react-icons";
+import { CPUSparkline } from "../ui/small/headercharts/HeaderCPUChart";
+import { MemorySparkline } from "../ui/small/headercharts/HeaderMemoryChart";
+import { NetworkSparkline } from "../ui/small/headercharts/HeaderNetworkChart";
 
 interface StatItem {
   value: string;
@@ -250,117 +254,49 @@ export const HeaderStatsBlock: React.FC<HeaderStatsBlockProps> = ({
     setStatItems(newStatItems);
   }, [currentStats, networkRates]);
 
+  const sparklineData = systemStatsSelectors.useSparklineData();
+
+  // Transform the raw data here instead of in the store
+  const chartData = sparklineData.map((point) => ({
+    value: point.cpu_percent,
+    fill: point.cpu_percent > 80 ? "red.solid" : "green.solid",
+  }));
+
+  const chart = useChart({ data: chartData });
+
   return (
-    <Container py="2" maxW="dvw" bg="brand.bg/25">
-      <Flex direction="row" gap="6">
-        {/* Header Section */}
-        <Stack gap="3" maxW="none" w="1/2" align="flex-start">
-          <Heading
-            as="h2"
-            fontSize={{ base: "2xl", md: "3xl" }}
-            lineHeight="shorter"
-            fontWeight="bold"
-            color="brand.onSurface"
-            textAlign="left"
-            py="4"
-          >
-            {title}
-          </Heading>
-        </Stack>
+    <Flex
+      direction="row"
+      maxW="dvw"
+      bg="brand.bg/25"
+      py="2"
+      px="4"
+      gap="6"
+      align="center"
+      justify="space-between"
+    >
+      {/* Header Section */}
 
-        <Flex justify="flex-end" gap="4" align="center" w="1/2">
-          {/* Real-time Stats Grid - Modern stat blocks */}
-          {statItems.map((item, index) =>
-            item.label === "Tx" ? (
-              <Group
-                key={index}
-                orientation="vertical"
-                w="10dvw"
-                minW="255px"
-                fontFamily="mono"
-                pl="5"
-              >
-                <Stack gap="0">
-                  <Heading size="xs">Network Activity</Heading>
-                  <Progress.Root
-                    value={parseInt(item.value, 10)}
-                    max={1000}
-                    size="md"
-                    colorPalette="secondaryBrand"
-                  >
-                    <HStack gap="2" textStyle="xs">
-                      <Progress.Label>
-                        <Icon size="md">
-                          <item.statIcon />
-                        </Icon>
-                      </Progress.Label>
-                      <Progress.Track w="5dvw" minW="100px">
-                        <Progress.Range />
-                      </Progress.Track>
-                      <Progress.ValueText textStyle="xs" w="4dvw" minW="100px">
-                        {item.value}
-                      </Progress.ValueText>
-                    </HStack>
-                  </Progress.Root>
+      <Heading
+        as="h2"
+        fontSize={{ base: "2xl", md: "3xl" }}
+        lineHeight="shorter"
+        fontWeight="bold"
+        color="brand.onSurface"
+        textAlign="left"
+        py="4"
+      >
+        {title}
+      </Heading>
 
-                  <Progress.Root
-                    value={parseInt(item.value2, 10)}
-                    max={1000}
-                    size="md"
-                    colorPalette="yellowBrand"
-                  >
-                    <HStack textStyle="xs">
-                      <Progress.Label>
-                        {item.statIcon2 && (
-                          <Icon size="md">
-                            <item.statIcon2 />
-                          </Icon>
-                        )}
-                      </Progress.Label>
-                      <Progress.Track w="5dvw" minW="100px">
-                        <Progress.Range />
-                      </Progress.Track>
-                      <Progress.ValueText textStyle="xs" w="4dvw" minW="100px">
-                        {item.value2}
-                      </Progress.ValueText>
-                    </HStack>
-                  </Progress.Root>
-                </Stack>
-              </Group>
-            ) : (
-              <Group
-                key={index}
-                attached
-                colorPalette="grayBrand"
-                fontFamily="mono"
-                w="3dvw"
-                minW="65px"
-              >
-                <ProgressCircle.Root value={parseInt(item.value, 10)} size="xl">
-                  <ProgressCircle.Circle css={{ "--thickness": "3px" }}>
-                    <ProgressCircle.Track />
-                    <ProgressCircle.Range
-                      stroke={{
-                        base: "brandPrimary.900",
-                        _dark: "brandPrimary.200",
-                      }}
-                    />
-                  </ProgressCircle.Circle>
-                  <AbsoluteCenter>
-                    <Stack gap="0" alignItems="center">
-                      <Icon size="md">
-                        <item.statIcon />
-                      </Icon>
-                      <Text textStyle="xs">{item.value.slice(0, 10)}</Text>
-                    </Stack>
-                  </AbsoluteCenter>
-                </ProgressCircle.Root>
-              </Group>
-            )
-          )}
-        </Flex>
+      <Flex gap="4" align="center">
+        <Group orientation="horizontal" fontFamily="mono" pl="5">
+          <CPUSparkline />
+          <MemorySparkline />
+          <NetworkSparkline />
+        </Group>
       </Flex>
-    </Container>
+    </Flex>
   );
 };
 

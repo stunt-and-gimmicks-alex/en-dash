@@ -1,18 +1,5 @@
 import React from "react";
-import {
-  Box,
-  Heading,
-  Text,
-  Combobox,
-  Portal,
-  useFilter,
-  useListCollection,
-  Container,
-} from "@chakra-ui/react";
-import { HStack, Span } from "@chakra-ui/react";
-import { useState } from "react";
-import type { Organization, Project } from "@/components/ui/small/DataFetcher";
-import { organizations } from "@/components/ui/small/DataFetcher";
+import { Box, Text, Container } from "@chakra-ui/react";
 import { Dashboard } from "@/components/dashboard/pages/DashboardMainPage";
 // Import test data from ServiceSelectorComboBox
 
@@ -65,26 +52,6 @@ const Content: React.FC = () => {
 };
 
 export const DashboardPage: React.FC = () => {
-  const [selectedOrg, setSelectedOrg] = useState<Organization>(
-    organizations[0]
-  );
-  const [selectedProject, setSelectedProject] = useState<Project>(
-    organizations[0].projects[0]
-  );
-
-  const handleOrgChange = (id: string) => {
-    const org = organizations.find((org) => org.id === id);
-    if (!org) return;
-    setSelectedOrg(org);
-    setSelectedProject(org.projects[0]);
-  };
-
-  const handleProjectChange = (id: string) => {
-    const project = selectedOrg.projects.find((project) => project.id === id);
-    if (!project) return;
-    setSelectedProject(project);
-  };
-
   return (
     <Container>
       <Dashboard />
